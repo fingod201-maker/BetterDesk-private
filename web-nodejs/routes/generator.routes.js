@@ -88,17 +88,58 @@ function injectServerBranding(input) {
     return finalizeBundleBrandingSync(input);
 }
 
+/**
+ * Resolve the default connection target baked into a client bundle.
+ *
+ * Prefers the operator-configured PUBLIC_* endpoint (durable public-endpoints.env
+ * / env) so clients built for internet deployment point at the public hostname
+ * (e.g. behind a Cloudflare Tunnel on :443) instead of the internal loopback
+ * API URL. Falls back to the internal config when no public endpoint is set.
+ * An explicit operator-supplied server_host always wins.
+ */
+function resolveBundleConnectionDefaults() {
+    try {
+        const endpoints = require('../services/clientConfigHost').resolveRustDeskEndpoints();
+        if (endpoints && endpoints.host) {
+            let apiPort = conn.defaultApiPort();
+            let useHttps = true;
+            const apiUrl = endpoints.api || '';
+            if (apiUrl) {
+                try {
+                    const u = new URL(apiUrl);
+                    if (u.port) apiPort = u.port;
+                    useHttps = u.protocol === 'https:';
+                } catch (_) { /* keep defaults */ }
+            }
+            return { host: endpoints.host, useHttps, apiPort };
+        }
+    } catch (_) { /* fall through to internal config */ }
+    return {
+        host: conn.defaultServerHost(),
+        useHttps: conn.defaultUseHttps(),
+        apiPort: conn.defaultApiPort(),
+    };
+}
+
 function finalizeBundleBrandingSync(input) {
     const branding = { ...(input || {}) };
-    const host = branding.server_host || conn.defaultServerHost();
-    const useHttps = branding.use_https ?? conn.defaultUseHttps();
-    const urls = conn.buildServerUrls(host, useHttps);
+    const defaults = resolveBundleConnectionDefaults();
+    const host = branding.server_host || defaults.host;
+    const useHttps = branding.use_https ?? defaults.useHttps;
+    const urls = conn.buildServerUrls(host, useHttps, defaults.apiPort);
+    // Behind a reverse proxy / Cloudflare Tunnel the CDAP gateway is reached on
+    // the public HTTPS/WSS port (443), not the origin's raw 21122. Rewrite the
+    // baked cdap_url to the public host so the desktop client dials the tunnel.
+    let cdapUrl = urls.cdap_url;
+    if (useHttps && defaults.apiPort === '443') {
+        cdapUrl = `wss://${host}/cdap`;
+    }
     branding.server = {
         address: urls.address,
         api_url: urls.api_url,
         public_key: keyService.getPublicKey() || '',
         cdap_port: urls.cdap_port,
-        cdap_url: urls.cdap_url,
+        cdap_url: cdapUrl,
     };
     branding.server_address = branding.server.address;
     branding.server_key = branding.server.public_key;
@@ -123,8 +164,8 @@ async function finalizeBundleBranding(input) {
     delete branding.enrollment_token;
     delete branding.has_enrollment_token;
     delete branding.enrollment_token_masked;
-    branding.server_host = input.server_host || conn.defaultServerHost();
-    branding.use_https = !!(input.use_https ?? conn.defaultUseHttps());
+    branding.server_host = input.server_host || resolveBundleConnectionDefaults().host;
+    branding.use_https = !!(input.use_https ?? resolveBundleConnectionDefaults().useHttps);
     return branding;
 }
 
@@ -195,12 +236,13 @@ router.get('/api/generator/bundles/:bundleId', requireAuth, requireAdmin, async 
 });
 
 router.get('/api/generator/defaults', requireAuth, requireAdmin, async (req, res) => {
+    const defaults = resolveBundleConnectionDefaults();
     res.json({
         success: true,
         data: {
-            server_host: conn.defaultServerHost(),
-            use_https: conn.defaultUseHttps(),
-            api_port: conn.defaultApiPort(),
+            server_host: defaults.host,
+            use_https: defaults.useHttps,
+            api_port: defaults.apiPort,
             public_key: (await keyService.resolvePublicKey()) || '',
         },
     });
