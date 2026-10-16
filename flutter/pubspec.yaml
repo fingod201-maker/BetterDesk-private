@@ -1,0 +1,36 @@
+name: betterdesk_flutter_client
+description: BetterDesk customized remote desktop client for Android (mobile).
+publish_to: 'none'
+version: 1.5.0+104090003
+
+environment:
+  sdk: '>=3.2.0 <4.0.0'
+  flutter: ">=3.24.5"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.6
+  # RustDesk protocol / FFI bridge to the Rust agent client library
+  ffi: ^2.1.2
+  path: ^1.8.3
+  path_provider: ^2.1.1
+  shared_preferences: ^2.2.2
+  device_info_plus: ^9.1.1
+  package_info_plus: ^8.0.1
+  connectivity_plus: ^6.0.1
+  # Local secure storage for deploy string / keys
+  flutter_secure_storage: ^9.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+  integration_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+    - assets/icons/

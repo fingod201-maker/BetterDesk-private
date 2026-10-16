@@ -1,0 +1,151 @@
+name: Build BetterDesk Android (APK + signed AAB)
+
+on:
+  workflow_dispatch:
+    inputs:
+      server_host:
+        description: "Public host baked into the app"
+        required: true
+        default: "panel.telcom.stream"
+      use_https:
+        description: "Use HTTPS/WSS"
+        required: true
+        default: "true"
+      source_ref:
+        description: "Commit/ref to build (blank = default)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: "3.24.5"
+  RUST_VERSION: "stable"
+  ANDROID_COMPILE_SDK: "36"
+  ANDROID_BUILD_TOOLS: "36.0.0"
+  ANDROID_NDK_VERSION: "27.0.12077973"
+  SERVER_HOST: ${{ inputs.server_host }}
+  USE_HTTPS: ${{ inputs.use_https }}
+
+jobs:
+  build-android:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref || github.sha }}
+          submodules: recursive
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Rust + Android targets
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+      - run: rustup target add aarch64-linux-android armv7-linux-androideabi
+      - run: cargo install cargo-ndk --locked
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Set up Android SDK + NDK
+        uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: "11076708"
+          packages: >-
+            platform-tools
+            platforms;android-${{ env.ANDROID_COMPILE_SDK }}
+            build-tools;${{ env.ANDROID_BUILD_TOOLS }}
+            ndk;${{ env.ANDROID_NDK_VERSION }}
+
+      - id: ndk
+        run: echo "ndk-path=$ANDROID_HOME/ndk/${{ env.ANDROID_NDK_VERSION }}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: 9e593bb18ea69cc5095e012465dcd675a822ed0d
+
+      - name: Build Rust FFI (arm64-v8a + armeabi-v7a)
+        working-directory: flutter
+        env:
+          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+        run: |
+          bash ndk_arm64.sh
+          bash ndk_arm.sh
+
+      - name: Build vcpkg deps
+        working-directory: flutter
+        continue-on-error: true
+        env:
+          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+        run: |
+          bash build_android_deps.sh arm64-v8a
+          bash build_android_deps.sh armeabi-v7a
+
+      - name: Flutter pub get
+        working-directory: flutter
+        run: flutter pub get
+
+      - name: Bake server endpoint
+        working-directory: flutter
+        run: |
+          mkdir -p android/app/src/main/res/values
+          cat > android/app/src/main/res/values/betterdesk_server.xml <<EOF
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+            <string name="betterdesk_server_host" translatable="false">${{ env.SERVER_HOST }}</string>
+            <string name="betterdesk_use_https" translatable="false">${{ env.USE_HTTPS }}</string>
+          </resources>
+          EOF
+          echo "SERVER_HOST=${{ env.SERVER_HOST }}" >> "$GITHUB_ENV"
+          echo "USE_HTTPS=${{ env.USE_HTTPS }}" >> "$GITHUB_ENV"
+
+      - name: Configure release signing
+        working-directory: flutter/android
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+        run: |
+          if [ -n "${KEYSTORE_B64}" ] && [ -n "${KEY_ALIAS}" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > upload-keystore.jks
+            printf 'storeFile=upload-keystore.jks\nkeyAlias=%s\nkeyPassword=%s\nstorePassword=%s\n' \
+              "${KEY_ALIAS}" "${KEY_PASSWORD}" "${STORE_PASSWORD}" > key.properties
+            echo "Release signing configured."
+          else
+            echo "No keystore secret - DEBUG-signed (sideload only)."
+          fi
+
+      - name: Build APKs + AAB
+        working-directory: flutter
+        run: |
+          DEF="--dart-define=SERVER_HOST=$SERVER_HOST --dart-define=USE_HTTPS=$USE_HTTPS"
+          flutter build apk --release --target-platform android-arm64,android-arm $DEF
+          flutter build apk --release --split-per-abi --target-platform android-arm64,android-arm $DEF
+          flutter build appbundle --release --target-platform android-arm64,android-arm $DEF
+
+      - name: Collect artifacts
+        working-directory: flutter
+        run: |
+          mkdir -p /tmp/out
+          cp -v build/app/outputs/flutter-apk/app-release.apk /tmp/out/betterdesk-android-universal.apk 2>/dev/null || true
+          for f in build/app/outputs/flutter-apk/app-*-release.apk; do [ -e "$f" ] && cp -v "$f" /tmp/out/; done
+          cp -v build/app/outputs/bundle/release/app-release.aab /tmp/out/betterdesk-android-release.aab 2>/dev/null || true
+          ls -la /tmp/out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: betterdesk-android
+          path: /tmp/out
+          if-no-files-found: error

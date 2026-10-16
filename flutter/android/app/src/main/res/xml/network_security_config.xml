@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Cleartext traffic disabled for production. Only HTTPS/WSS allowed. -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">panel.telcom.stream</domain>
+    </domain-config>
+</network-security-config>

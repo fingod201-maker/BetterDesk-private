@@ -1,0 +1,8 @@
+# Release signing keystore properties for BetterDesk Android client.
+# Copy this file to key.properties and fill in your values.
+# Never commit key.properties to version control.
+
+storeFile=upload-keystore.jks
+keyAlias=betterdesk-android-release
+keyPassword=YOUR_KEY_PASSWORD
+storePassword=YOUR_STORE_PASSWORD
