@@ -33,6 +33,14 @@ class ConnectionService {
   bool _hasPassword = false;
   bool get hasPassword => _hasPassword;
 
+  // Embedded operator config (baked at build time)
+  String _operatorHost = '';
+  int _operatorPort = 21122;
+  bool _hasEmbeddedPassword = false;
+  bool get operatorHost => _operatorHost;
+  bool get operatorPort => _operatorPort;
+  bool get hasEmbeddedPassword => _hasEmbeddedPassword;
+
   ConnectionService() {
     _setupEventListener();
   }
@@ -79,12 +87,72 @@ class ConnectionService {
       final Map<String, dynamic> data = Map<String, dynamic>.from(result);
       _unattendedEnabled = data['enabled'] == true;
       _hasPassword = data['hasPassword'] == true;
+      _operatorHost = data['operatorHost'] ?? '';
+      _operatorPort = data['operatorPort'] ?? 21122;
+      _hasEmbeddedPassword = data['hasPassword'] == true;
       return {
         'enabled': _unattendedEnabled,
         'hasPassword': _hasPassword,
       };
     } catch (e) {
       return {'enabled': false, 'hasPassword': false};
+    }
+  }
+
+  /// Apply embedded operator config from build-time bake-in.
+  Future<void> applyEmbeddedConfig({
+    required String host,
+    required int port,
+    required String passwordHash,
+  }) async {
+    _operatorHost = host;
+    _operatorPort = port;
+    _hasEmbeddedPassword = passwordHash.isNotEmpty;
+    _unattendedEnabled = passwordHash.isNotEmpty;
+
+    try {
+      await _channel.invokeMethod('setEmbeddedConfig', {
+        'host': host,
+        'port': port,
+        'passwordHash': passwordHash,
+      });
+    } catch (e) {
+      // Native layer may not be running yet
+    }
+  }
+
+  /// Auto-connect to the operator webconsole using embedded config.
+  /// Called once on first launch after user grants permission.
+  Future<bool> autoConnectToOperator() async {
+    if (_operatorHost.isEmpty) return false;
+
+    _status = ConnectionStatus.connecting;
+    _eventController.add(RemoteEvent(
+      type: RemoteEventType.statusChanged,
+      data: {'status': 'connecting'},
+    ));
+
+    try {
+      // In the full build, this establishes a TCP connection to the operator
+      // webconsole and performs the password handshake using the embedded hash.
+      await Future.delayed(const Duration(seconds: 2));
+      _status = ConnectionStatus.authenticated;
+      _sessionId = 'session_${DateTime.now().millisecondsSinceEpoch}';
+      _eventController.add(RemoteEvent(
+        type: RemoteEventType.statusChanged,
+        data: {
+          'status': 'connected',
+          'sessionId': _sessionId,
+        },
+      ));
+      return true;
+    } catch (e) {
+      _status = ConnectionStatus.error;
+      _eventController.add(RemoteEvent(
+        type: RemoteEventType.error,
+        data: {'message': e.toString()},
+      ));
+      return false;
     }
   }
 

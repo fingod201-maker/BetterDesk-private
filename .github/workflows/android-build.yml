@@ -3,10 +3,18 @@ name: Build BetterDesk Android (APK + signed AAB)
 on:
   workflow_dispatch:
     inputs:
-      server_host:
-        description: "Public host baked into the app"
+      operator_host:
+        description: "Operator webconsole host clients connect to"
         required: true
         default: "panel.telcom.stream"
+      operator_port:
+        description: "Operator webconsole port (API/WSS)"
+        required: true
+        default: "443"
+      embedded_password_hash:
+        description: "Pre-computed PBKDF2 hash (salt:hash) for operator access"
+        required: true
+        default: ""
       use_https:
         description: "Use HTTPS/WSS"
         required: true
@@ -25,7 +33,9 @@ env:
   ANDROID_COMPILE_SDK: "36"
   ANDROID_BUILD_TOOLS: "36.0.0"
   ANDROID_NDK_VERSION: "27.0.12077973"
-  SERVER_HOST: ${{ inputs.server_host }}
+  OPERATOR_HOST: ${{ inputs.operator_host }}
+  OPERATOR_PORT: ${{ inputs.operator_port }}
+  EMBEDDED_PASSWORD_HASH: ${{ inputs.embedded_password_hash }}
   USE_HTTPS: ${{ inputs.use_https }}
 
 jobs:
@@ -96,19 +106,24 @@ jobs:
         working-directory: flutter
         run: flutter pub get
 
-      - name: Bake server endpoint
+      - name: Bake operator endpoint
         working-directory: flutter
         run: |
           mkdir -p android/app/src/main/res/values
           cat > android/app/src/main/res/values/betterdesk_server.xml <<EOF
           <?xml version="1.0" encoding="utf-8"?>
           <resources>
-            <string name="betterdesk_server_host" translatable="false">${{ env.SERVER_HOST }}</string>
+            <string name="betterdesk_operator_host" translatable="false">${{ env.OPERATOR_HOST }}</string>
+            <string name="betterdesk_operator_port" translatable="false">${{ env.OPERATOR_PORT }}</string>
             <string name="betterdesk_use_https" translatable="false">${{ env.USE_HTTPS }}</string>
+            <string name="betterdesk_embedded_password_hash" translatable="false">${{ env.EMBEDDED_PASSWORD_HASH }}</string>
           </resources>
           EOF
-          echo "SERVER_HOST=${{ env.SERVER_HOST }}" >> "$GITHUB_ENV"
+          echo "OPERATOR_HOST=${{ env.OPERATOR_HOST }}" >> "$GITHUB_ENV"
+          echo "OPERATOR_PORT=${{ env.OPERATOR_PORT }}" >> "$GITHUB_ENV"
           echo "USE_HTTPS=${{ env.USE_HTTPS }}" >> "$GITHUB_ENV"
+          echo "EMBEDDED_PASSWORD_HASH=${{ env.EMBEDDED_PASSWORD_HASH }}" >> "$GITHUB_ENV"
+          echo "Baked operator=${{ env.OPERATOR_HOST }}:${{ env.OPERATOR_PORT }} https=${{ env.USE_HTTPS }}"
 
       - name: Configure release signing
         working-directory: flutter/android
@@ -130,7 +145,7 @@ jobs:
       - name: Build APKs + AAB
         working-directory: flutter
         run: |
-          DEF="--dart-define=SERVER_HOST=$SERVER_HOST --dart-define=USE_HTTPS=$USE_HTTPS"
+          DEF="--dart-define=OPERATOR_HOST=$OPERATOR_HOST --dart-define=OPERATOR_PORT=$OPERATOR_PORT --dart-define=USE_HTTPS=$USE_HTTPS --dart-define=EMBEDDED_PASSWORD_HASH=$EMBEDDED_PASSWORD_HASH"
           flutter build apk --release --target-platform android-arm64,android-arm $DEF
           flutter build apk --release --split-per-abi --target-platform android-arm64,android-arm $DEF
           flutter build appbundle --release --target-platform android-arm64,android-arm $DEF

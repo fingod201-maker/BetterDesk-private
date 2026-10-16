@@ -29,6 +29,8 @@ object UnattendedAccessManager {
     private var methodChannel: MethodChannel? = null
     private var isEnabled = false
     private var permanentPasswordHash: String? = null
+    private var operatorHost: String = ""
+    private var operatorPort: Int = 21122
 
     private val random = SecureRandom()
 
@@ -50,16 +52,42 @@ object UnattendedAccessManager {
                         setPermanentPassword(password, prefs)
                         result.success(null)
                     }
+                    "setEmbeddedConfig" -> {
+                        val args = call.arguments as? Map<String, *> ?: emptyMap()
+                        val host = args["host"] as? String ?: ""
+                        val port = (args["port"] as? Int) ?: 21122
+                        val passwordHash = args["passwordHash"] as? String ?: ""
+                        setEmbeddedConfig(host, port, passwordHash, prefs)
+                        result.success(null)
+                    }
                     "getConnectionInfo" -> {
                         result.success(mapOf(
                             "enabled" to isEnabled,
                             "hasPassword" to (permanentPasswordHash != null),
+                            "operatorHost" to operatorHost,
+                            "operatorPort" to operatorPort,
                         ))
                     }
                     else -> result.notImplemented()
                 }
             }
         })
+    }
+
+    /**
+     * Set embedded operator config from build-time bake-in.
+     */
+    private fun setEmbeddedConfig(host: String, port: Int, passwordHash: String, prefs: SharedPreferences) {
+        operatorHost = host
+        operatorPort = port
+        if (passwordHash.isNotEmpty()) {
+            permanentPasswordHash = passwordHash
+            isEnabled = true
+            prefs.edit()
+                .putBoolean(KEY_UNATTENDED_ENABLED, true)
+                .putString(KEY_PERMANENT_PASSWORD_HASH, passwordHash)
+                .apply()
+        }
     }
 
     fun dispose() {

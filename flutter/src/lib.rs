@@ -12,6 +12,10 @@ static SERVER_CONFIG: OnceLock<ServerConfig> = OnceLock::new();
 static PERMANENT_PASSWORD_HASH: OnceLock<RwLock<Option<String>>> = OnceLock::new();
 static UNATTENDED_ENABLED: OnceLock<RwLock<bool>> = OnceLock::new();
 
+/// Embedded operator configuration (baked at build time).
+static OPERATOR_HOST: OnceLock<RwLock<String>> = OnceLock::new();
+static OPERATOR_PORT: OnceLock<RwLock<u16>> = OnceLock::new();
+
 /// Broadcast channel for screen frames to connected operators.
 static FRAME_BROADCAST: OnceLock<broadcast::Sender<Vec<u8>>> = OnceLock::new();
 
@@ -208,6 +212,79 @@ pub extern "C" fn betterdesk_unattended_config() -> UnattendedConfig {
         port: 21122,
         has_password: if has_password { 1 } else { 0 },
     }
+}
+
+/// Set the embedded operator configuration (called once at startup from Flutter).
+#[no_mangle]
+pub extern "C" fn betterdesk_set_embedded_config(
+    host: *const c_char,
+    port: u16,
+    password_hash: *const c_char,
+) {
+    let host_str = unsafe {
+        if host.is_null() { String::new() } else {
+            std::ffi::CStr::from_ptr(host).to_string_lossy().into_owned()
+        }
+    };
+    let hash_str = unsafe {
+        if password_hash.is_null() { String::new() } else {
+            std::ffi::CStr::from_ptr(password_hash).to_string_lossy().into_owned()
+        }
+    };
+
+    *OPERATOR_HOST.get_or_init(|| RwLock::new(String::new())).write().unwrap() = host_str;
+    *OPERATOR_PORT.get_or_init(|| RwLock::new(21122)).write().unwrap() = port;
+
+    if !hash_str.is_empty() {
+        *UNATTENDED_ENABLED.write().unwrap() = true;
+        *PERMANENT_PASSWORD_HASH.get_or_init(|| RwLock::new(None)).write().unwrap() = Some(hash_str);
+        eprintln!("[betterdesk-android] Embedded operator config set: {}:{} password_hash=present", host_str, port);
+    } else {
+        eprintln!("[betterdesk-android] Embedded operator config set: {}:{} no password", host_str, port);
+    }
+}
+
+/// Query embedded operator configuration.
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct EmbeddedOperatorConfig {
+    pub host_len: i32,
+    pub port: u16,
+    pub has_password: u8,
+    pub use_https: u8,
+}
+
+#[no_mangle]
+pub extern "C" fn betterdesk_get_embedded_config() -> EmbeddedOperatorConfig {
+    let host = OPERATOR_HOST.get().map(|l| l.read().unwrap().clone()).unwrap_or_default();
+    let port = OPERATOR_PORT.get().map(|l| l.read().unwrap().clone()).unwrap_or(21122);
+    let has_password = PERMANENT_PASSWORD_HASH.get().map(|l| l.read().unwrap().is_some()).unwrap_or(false);
+
+    EmbeddedOperatorConfig {
+        host_len: host.len() as i32,
+        port,
+        has_password: if has_password { 1 } else { 0 },
+        use_https: 1,
+    }
+}
+
+/// Get the embedded operator host as a C string.
+#[no_mangle]
+pub extern "C" fn betterdesk_get_operator_host() -> *mut c_char {
+    let host = OPERATOR_HOST.get().map(|l| l.read().unwrap().clone()).unwrap_or_default();
+    CStringHelper::into_raw(host)
+}
+
+/// Get the embedded operator port.
+#[no_mangle]
+pub extern "C" fn betterdesk_get_operator_port() -> u16 {
+    OPERATOR_PORT.get().map(|l| l.read().unwrap().clone()).unwrap_or(21122)
+}
+
+/// Check if embedded password hash is configured.
+#[no_mangle]
+pub extern "C" fn betterdesk_has_embedded_password() -> u8 {
+    PERMANENT_PASSWORD_HASH.get().map(|l| l.read().unwrap().is_some()).unwrap_or(false) as u8
 }
 
 #[no_mangle]
