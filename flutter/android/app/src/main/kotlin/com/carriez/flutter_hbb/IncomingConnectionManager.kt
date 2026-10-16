@@ -3,22 +3,17 @@ package com.carriez.flutter_hbb
 import android.content.Context
 import android.util.Log
 import java.io.IOException
+import java.io.InputStream
+import java.io.OutputStream
 import java.net.ServerSocket
 import java.net.Socket
+import java.nio.ByteBuffer
 import java.util.concurrent.Executors
 
-/**
- * IncomingConnectionManager — listens for operator connections on a local
- * TCP port and performs the permanent-password handshake before allowing
- * remote control.
- *
- * This runs inside the foreground service so it accepts connections even
- * when the Flutter UI is not visible.
- */
 object IncomingConnectionManager {
 
     private const val TAG = "IncomingConnectionManager"
-    private const val LISTEN_PORT = 21122 // same as CDAP port convention
+    private const val LISTEN_PORT = 21122
 
     private var serverSocket: ServerSocket? = null
     private var acceptThread: Thread? = null
@@ -26,9 +21,6 @@ object IncomingConnectionManager {
 
     private val executor = Executors.newCachedThreadPool()
 
-    /**
-     * Start listening for incoming operator connections.
-     */
     fun start(context: Context) {
         if (isRunning) return
         isRunning = true
@@ -40,8 +32,12 @@ object IncomingConnectionManager {
                 Log.i(TAG, "IncomingConnectionManager listening on port $LISTEN_PORT")
 
                 while (isRunning) {
-                    val client: Socket = serverSocket?.accept() ?: continue
-                    executor.handle(client, context)
+                    try {
+                        val client: Socket = serverSocket?.accept() ?: continue
+                        executor.handle(client, context)
+                    } catch (e: IOException) {
+                        if (isRunning) Log.w(TAG, "Accept error", e)
+                    }
                 }
             } catch (e: IOException) {
                 if (isRunning) Log.e(TAG, "Incoming listener error", e)
@@ -51,9 +47,6 @@ object IncomingConnectionManager {
         acceptThread?.start()
     }
 
-    /**
-     * Stop listening.
-     */
     fun stop() {
         isRunning = false
         try { serverSocket?.close() } catch (_: IOException) {}
@@ -64,17 +57,91 @@ object IncomingConnectionManager {
 
     private object handle {
         fun run(client: Socket, context: Context) {
-            Log.i(TAG, "Incoming connection from ${client.inetAddress.hostAddress}")
+            val remoteAddress = client.inetAddress.hostAddress
+            Log.i(TAG, "Incoming connection from $remoteAddress")
+
+            var input: InputStream? = null
+            var output: OutputStream? = null
+
             try {
-                // Perform permanent-password handshake
-                val pwManager = UnattendedAccessManager
-                // In a full implementation, we'd read the password from the
-                // socket, verify via pwManager.verifyPassword(), then switch
-                // to the remote-control protocol.
-                client.close()
+                input = client.inputStream
+                output = client.outputStream
+
+                val password = readString(input!!)
+                Log.d(TAG, "Received password attempt from $remoteAddress")
+
+                val verified = UnattendedAccessManager.verifyPassword(password, context)
+
+                val result = if (verified) "OK" else "AUTH_FAILED"
+                writeString(output!!, result)
+                output!!.flush()
+
+                if (!verified) {
+                    Log.w(TAG, "Authentication failed from $remoteAddress")
+                    return
+                }
+
+                Log.i(TAG, "Authenticated operator from $remoteAddress")
+
+                while (isRunning && !client.isClosed) {
+                    try {
+                        val cmd = readString(input!!)
+                        when (cmd) {
+                            "PING" -> {
+                                writeString(output!!, "PONG")
+                                output!!.flush()
+                            }
+                            "FRAME_REQUEST" -> {
+                                writeString(output!!, "FRAME_READY")
+                                output!!.flush()
+                            }
+                            "DISCONNECT" -> {
+                                Log.i(TAG, "Operator disconnected from $remoteAddress")
+                                return
+                            }
+                            else -> {
+                                Log.w(TAG, "Unknown command: $cmd")
+                            }
+                        }
+                    } catch (e: IOException) {
+                        Log.d(TAG, "Connection handler ending: $e")
+                        break
+                    }
+                }
             } catch (e: IOException) {
-                Log.e(TAG, "Incoming connection handler error", e)
+                Log.e(TAG, "Connection handler error from $remoteAddress", e)
+            } finally {
+                try { input?.close() } catch (_: IOException) {}
+                try { output?.close() } catch (_: IOException) {}
+                try { client.close() } catch (_: IOException) {}
             }
         }
+    }
+
+    private fun readString(input: InputStream): String {
+        val lenBuf = ByteArray(4)
+        var totalRead = 0
+        while (totalRead < 4) {
+            val read = input.read(lenBuf, totalRead, 4 - totalRead)
+            if (read < 0) throw IOException("Stream closed")
+            totalRead += read
+        }
+        val len = ByteBuffer.wrap(lenBuf).getInt()
+        val buf = ByteArray(len)
+        totalRead = 0
+        while (totalRead < len) {
+            val read = input.read(buf, totalRead, len - totalRead)
+            if (read < 0) throw IOException("Stream closed")
+            totalRead += read
+        }
+        return String(buf, charset = java.nio.charset.StandardCharsets.UTF_8)
+    }
+
+    private fun writeString(output: OutputStream, s: String) {
+        val bytes = s.toByteArray(Charsets.UTF_8)
+        val lenBuf = ByteArray(4)
+        ByteBuffer.wrap(lenBuf).putInt(bytes.size)
+        output.write(lenBuf)
+        output.write(bytes)
     }
 }

@@ -4,10 +4,22 @@ use std::thread;
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpListener;
+use tokio::sync::{broadcast, Mutex};
 
 static SERVER_CONFIG: OnceLock<ServerConfig> = OnceLock::new();
 static PERMANENT_PASSWORD_HASH: OnceLock<RwLock<Option<String>>> = OnceLock::new();
 static UNATTENDED_ENABLED: OnceLock<RwLock<bool>> = OnceLock::new();
+
+/// Broadcast channel for screen frames to connected operators.
+static FRAME_BROADCAST: OnceLock<broadcast::Sender<Vec<u8>>> = OnceLock::new();
+
+/// Connected client count.
+static CLIENT_COUNT: OnceLock<Mutex<usize>> = OnceLock::new();
+
+/// Tokio runtime handle for the listener.
+static LISTENER_RUNTIME: OnceLock<Mutex<Option<tokio::runtime::Runtime>>> = OnceLock::new();
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServerConfig {
@@ -200,14 +212,56 @@ pub extern "C" fn betterdesk_unattended_config() -> UnattendedConfig {
 
 #[no_mangle]
 pub extern "C" fn betterdesk_start_listener() {
-    thread::spawn(|| {
-        eprintln!("[betterdesk-android] Starting incoming listener on port 21122");
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let (tx, _) = broadcast::channel::<Vec<u8>>(16);
+    let _ = FRAME_BROADCAST.set(tx);
+    let _ = CLIENT_COUNT.set(Mutex::new(0));
+
+    rt.spawn(async move {
+        let listener = match TcpListener::bind("0.0.0.0:21122").await {
+            Ok(l) => l,
+            Err(e) => {
+                eprintln!("[betterdesk-android] Failed to bind port 21122: {}", e);
+                return;
+            }
+        };
+        eprintln!("[betterdesk-android] TCP listener active on port 21122");
+
+        loop {
+            match listener.accept().await {
+                Ok((socket, addr)) => {
+                    eprintln!("[betterdesk-android] Connection from {}", addr);
+                    let mut rx = FRAME_BROADCAST
+                        .get()
+                        .expect("frame broadcast")
+                        .subscribe();
+                    let client_count = CLIENT_COUNT
+                        .get()
+                        .expect("client count")
+                        .clone();
+                    tokio::spawn(async move {
+                        let _guard = client_count.lock().await;
+                        drop(_guard);
+                        let _ = rx.recv().await;
+                    });
+                }
+                Err(e) => {
+                    eprintln!("[betterdesk-android] Accept error: {}", e);
+                }
+            }
+        }
     });
+
+    let _ = LISTENER_RUNTIME.set(Mutex::new(Some(rt)));
+    eprintln!("[betterdesk-android] Listener runtime started");
 }
 
 #[no_mangle]
 pub extern "C" fn betterdesk_stop_listener() {
-    eprintln!("[betterdesk-android] Stopping incoming listener");
+    if let Some(rt) = LISTENER_RUNTIME.get().map(|m| m.lock().unwrap()).flatten() {
+        drop(rt);
+    }
+    eprintln!("[betterdesk-android] Listener stopped");
 }
 
 #[no_mangle]
