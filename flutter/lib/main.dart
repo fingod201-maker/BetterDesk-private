@@ -1,16 +1,13 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
-import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:device_info_plus/device_info_plus.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
-/// The public host clients connect to — baked at build time via dart-define
-/// and/or the `betterdesk_server_host` Android resource.
-const String kBakedServerHost = bool.fromEnvironment('SERVER_HOST', defaultValue: '')
-    .isNotEmpty ? const String.fromEnvironment('SERVER_HOST') : '';
-
-/// Whether to use HTTPS/WSS — baked at build time.
-const bool kBakedUseHttps = bool.fromEnvironment('USE_HTTPS', defaultValue: 'false');
+const String kBakedServerHost = String.fromEnvironment('SERVER_HOST', defaultValue: '');
+const bool kBakedUseHttps = bool.fromEnvironment('USE_HTTPS', defaultValue: false);
+const int kListenPort = 21122;
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,45 +20,74 @@ class BetterDeskClientApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'BetterDesk',
+      title: 'BetterDesk Client',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0F62FE)),
       ),
-      home: const ConnectionScreen(),
+      home: const UnattendedAccessScreen(),
     );
   }
 }
 
-class ConnectionScreen extends StatefulWidget {
-  const ConnectionScreen({super.key});
+class UnattendedAccessScreen extends StatefulWidget {
+  const UnattendedAccessScreen({super.key});
 
   @override
-  State<ConnectionScreen> createState() => _ConnectionScreenState();
+  State<UnattendedAccessScreen> createState() => _UnattendedAccessScreenState();
 }
 
-class _ConnectionScreenState extends State<ConnectionScreen> {
-  String _serverHost = '';
-  bool _useHttps = false;
-  bool _loading = true;
-
+class _UnattendedAccessScreenState extends State<UnattendedAccessScreen> {
   final _storage = const FlutterSecureStorage();
+
+  String _serverHost = kBakedServerHost;
+  bool _useHttps = kBakedUseHttps;
+  bool _unattendedEnabled = false;
+  bool _hasPassword = false;
+  String _deviceId = '';
+  String _appVersion = '';
+  bool _loading = true;
+  String _status = 'Initializing...';
 
   @override
   void initState() {
     super.initState();
-    _loadConfig();
+    _init();
   }
 
-  Future<void> _loadConfig() async {
-    // Preference order: baked-in build value > secure storage > shared prefs > empty
+  Future<void> _init() async {
     final prefs = await SharedPreferences.getInstance();
-    final storedHost = await _storage.read(key: 'betterdesk_server_host') ?? prefs.getString('server_host') ?? '';
+    final storedHost = await _storage.read(key: 'betterdesk_server_host') ??
+        prefs.getString('server_host') ?? '';
+    final storedUseHttps = prefs.getBool('use_https') ?? false;
+
     setState(() {
       _serverHost = kBakedServerHost.isNotEmpty ? kBakedServerHost : storedHost;
-      _useHttps = kBakedUseHttps || prefs.getBool('use_https') ?? false;
+      _useHttps = kBakedUseHttps || storedUseHttps;
       _loading = false;
+    });
+
+    _loadDeviceInfo();
+    _refreshStatus();
+  }
+
+  Future<void> _loadDeviceInfo() async {
+    final deviceInfo = DeviceInfoPlugin();
+    final androidInfo = await deviceInfo.androidInfo;
+    final packageInfo = await PackageInfo.fromPlatform();
+
+    setState(() {
+      _deviceId = androidInfo.id;
+      _appVersion = '${packageInfo.version} (${packageInfo.buildNumber})';
+    });
+  }
+
+  Future<void> _refreshStatus() async {
+    setState(() {
+      _status = _unattendedEnabled
+          ? 'Unattended access: ENABLED (port $kListenPort)'
+          : 'Unattended access: DISABLED';
     });
   }
 
@@ -70,35 +96,53 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
     return '$scheme://$_serverHost';
   }
 
+  Future<void> _toggleUnattended(bool value) async {
+    setState(() => _unattendedEnabled = value);
+  }
+
+  Future<void> _setPermanentPassword(String password) async {
+    if (password.isNotEmpty) {
+      await _storage.write(key: 'betterdesk_permanent_password', value: password);
+      setState(() => _hasPassword = true);
+    } else {
+      await _storage.delete(key: 'betterdesk_permanent_password');
+      setState(() => _hasPassword = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
+
     return Scaffold(
-      appBar: AppBar(title: const Text('BetterDesk Client')),
+      appBar: AppBar(
+        title: const Text('BetterDesk — Unattended Access'),
+      ),
       body: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const Icon(Icons.device_know_better, size: 80, color: Colors.blue),
             const SizedBox(height: 24),
-            Text('Server: $_baseUrl', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: _serverHost.isEmpty ? null : () {},
-              icon: const Icon(Icons.connect_without_contact),
-              label: const Text('Connect'),
+            Text(
+              'Unattended Remote Access',
+              style: Theme.of(context).textTheme.headlineSmall,
+              textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: () {},
-              icon: const Icon(Icons.settings),
-              label: const Text('Configure Server'),
+            const SizedBox(height: 8),
+            Text(
+              'Allow operators to remotely control this device at any time.',
+              style: Theme.of(context).textTheme.bodyMedium,
+              textAlign: TextAlign.center,
             ),
+            const SizedBox(height: 28),
           ],
         ),
       ),
     );
   }
 }
+

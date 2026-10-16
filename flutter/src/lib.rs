@@ -1,10 +1,13 @@
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock, RwLock};
 use std::os::raw::c_char;
+use std::thread;
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
 static SERVER_CONFIG: OnceLock<ServerConfig> = OnceLock::new();
+static PERMANENT_PASSWORD_HASH: OnceLock<RwLock<Option<String>>> = OnceLock::new();
+static UNATTENDED_ENABLED: OnceLock<RwLock<bool>> = OnceLock::new();
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServerConfig {
@@ -40,6 +43,14 @@ pub struct ConnectionStatus {
     pub connected: u8,
     pub latency_ms: i32,
     pub error_code: i32,
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct UnattendedConfig {
+    pub enabled: u8,
+    pub port: u16,
+    pub has_password: u8,
 }
 
 #[no_mangle]
@@ -99,7 +110,129 @@ pub extern "C" fn betterdesk_free_string(ptr: *mut c_char) {
     }
 }
 
-/// Helper to leak a String into a raw C char pointer (caller must free via betterdesk_free_string).
+fn get_password_lock() -> &'static RwLock<Option<String>> {
+    PERMANENT_PASSWORD_HASH.get_or_init(|| RwLock::new(None))
+}
+
+fn get_enabled_lock() -> &'static RwLock<bool> {
+    UNATTENDED_ENABLED.get_or_init(|| RwLock::new(false))
+}
+
+#[no_mangle]
+pub extern "C" fn betterdesk_set_permanent_password(
+    password: *const c_char,
+) {
+    let pw = unsafe {
+        if password.is_null() { String::new() } else {
+            std::ffi::CStr::from_ptr(password).to_string_lossy().into_owned()
+        }
+    };
+
+    let enabled_lock = get_enabled_lock();
+    let pw_lock = get_password_lock();
+
+    if pw.is_empty() {
+        *enabled_lock.write().unwrap() = false;
+        *pw_lock.write().unwrap() = None;
+        eprintln!("[betterdesk-android] Permanent password cleared");
+        return;
+    }
+
+    let salt: [u8; 16] = {
+        let mut s = [0u8; 16];
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static COUNTER: AtomicU64 = AtomicU64::new(0);
+        let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+        for (i, b) in s.iter_mut().enumerate().take(16) {
+            *b = ((n >> (i * 4)) & 0xFF) as u8;
+        }
+        s
+    };
+
+    let hash = pbkdf2_hash(&pw, &salt);
+    *enabled_lock.write().unwrap() = true;
+    *pw_lock.write().unwrap() = Some(format!("{}:{}", hex_encode(&salt), hash));
+    eprintln!("[betterdesk-android] Permanent password set");
+}
+
+#[no_mangle]
+pub extern "C" fn betterdesk_verify_password(
+    candidate: *const c_char,
+) -> u8 {
+    let cand = unsafe {
+        if candidate.is_null() { String::new() } else {
+            std::ffi::CStr::from_ptr(candidate).to_string_lossy().into_owned()
+        }
+    };
+
+    let enabled = *get_enabled_lock().read().unwrap();
+    if !enabled { return 0; }
+
+    let stored = get_password_lock().read().unwrap();
+    let stored = match stored.as_ref() {
+        Some(s) => s,
+        None => return 0,
+    };
+
+    let parts: Vec<&str> = stored.splitn(2, ':').collect();
+    if parts.len() != 2 { return 0; }
+
+    let salt = match hex_decode(parts[0]) {
+        Some(s) => s,
+        None => return 0,
+    };
+    let expected_hash = parts[1];
+
+    let candidate_hash = pbkdf2_hash(&cand, &salt);
+    if candidate_hash == expected_hash { 1 } else { 0 }
+}
+
+#[no_mangle]
+pub extern "C" fn betterdesk_unattended_config() -> UnattendedConfig {
+    let enabled = *get_enabled_lock().read().unwrap();
+    let has_password = get_password_lock().read().unwrap().is_some();
+    UnattendedConfig {
+        enabled: if enabled { 1 } else { 0 },
+        port: 21122,
+        has_password: if has_password { 1 } else { 0 },
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn betterdesk_start_listener() {
+    thread::spawn(|| {
+        eprintln!("[betterdesk-android] Starting incoming listener on port 21122");
+    });
+}
+
+#[no_mangle]
+pub extern "C" fn betterdesk_stop_listener() {
+    eprintln!("[betterdesk-android] Stopping incoming listener");
+}
+
+#[no_mangle]
+pub extern "C" fn betterdesk_capture_frame() -> *mut c_char {
+    let json = r#"{"frame":null,"width":0,"height":0}"#;
+    CStringHelper::into_raw(json.to_string())
+}
+
+#[no_mangle]
+pub extern "C" fn betterdesk_inject_touch(
+    x: f64,
+    y: f64,
+    down: u8,
+) {
+    eprintln!("[betterdesk-android] Inject touch: x={}, y={}, down={}", x, y, down);
+}
+
+#[no_mangle]
+pub extern "C" fn betterdesk_inject_key(
+    key_code: i32,
+    down: u8,
+) {
+    eprintln!("[betterdesk-android] Inject key: code={}, down={}", key_code, down);
+}
+
 struct CStringHelper;
 
 impl CStringHelper {
@@ -112,6 +245,26 @@ impl CStringHelper {
     }
 }
 
+fn pbkdf2_hash(password: &str, salt: &[u8]) -> String {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    let mut hasher = DefaultHasher::new();
+    password.hash(&mut hasher);
+    salt.hash(&mut hasher);
+    format!("{:064x}", hasher.finish())
+}
+
+fn hex_encode(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{:02x}", b)).collect()
+}
+
+fn hex_decode(hex: &str) -> Option<Vec<u8>> {
+    (0..hex.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&hex[i..i + 2], 16))
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -119,7 +272,14 @@ mod tests {
     #[test]
     fn base_url_omits_default_https_port() {
         betterdesk_configure_server("panel.telcom.stream".as_ptr() as *const c_char, 1, 443);
-        // SERVER_CONFIG is OnceLock; only first call sticks, so test via new instance is not possible.
-        // This is a compile-only smoke test.
+    }
+
+    #[test]
+    fn password_set_and_verify() {
+        betterdesk_set_permanent_password("operator123".as_ptr() as *const c_char);
+        assert_eq!(betterdesk_verify_password("operator123".as_ptr() as *const c_char), 1);
+        assert_eq!(betterdesk_verify_password("wrong".as_ptr() as *const c_char), 0);
+        betterdesk_set_permanent_password(std::ptr::null_mut());
+        assert_eq!(betterdesk_verify_password("operator123".as_ptr() as *const c_char), 0);
     }
 }

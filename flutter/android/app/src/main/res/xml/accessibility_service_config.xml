@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="BetterDesk remote control accessibility service"
+    android:accessibilityEventTypes="typeAllMask"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:accessibilityFlags="flagDefault|flagRequestEnhancedWebAccessibility|flagRetrieveInteractiveWindows"
+    android:canRequestEnhancedWebAccessibility="true"
+    android:canRetrieveWindowContent="true"
+    android:canPerformGestures="true"
+    android:canTakeScreenshot="true"
+    android:canObserveGestures="true"
+    android:canControlRelativeGestures="true"
+    android:canObtainContentClip="true"
+    android:canPerformTextSelection="true"
+    android:settingsActivity="com.carriez.flutter_hbb.MainActivity"
+    android:timeoutMilliseconds="-1"/>
