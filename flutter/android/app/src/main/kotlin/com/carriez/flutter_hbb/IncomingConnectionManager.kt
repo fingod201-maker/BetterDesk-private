@@ -34,7 +34,7 @@ object IncomingConnectionManager {
                 while (isRunning) {
                     try {
                         val client: Socket = serverSocket?.accept() ?: continue
-                        executor.handle(client, context)
+                        executor.execute { handle.run(client, context) }
                     } catch (e: IOException) {
                         if (isRunning) Log.w(TAG, "Accept error", e)
                     }

@@ -10,12 +10,12 @@
             android:fillColor="#FFFFFF"
             android:pathData="M60,6h-60c-3.3,0 -6,2.7 -6,6v48c0,3.3 2.7,6 6,6h60c3.3,0 6,-2.7 6,-6V12c0,-3.3 -2.7,-6 -6,-6z"/>
         <!-- Screen content: connection dots -->
-        <circle android:cx="24" android:cy="24" android:r="3" android:fillColor="#0F62FE"/>
-        <circle android:cx="36" android:cy="24" android:r="3" android:fillColor="#0F62FE"/>
-        <circle android:cx="48" android:cy="24" android:r="3" android:fillColor="#0F62FE"/>
-        <circle android:cx="24" android:cy="36" android:r="3" android:fillColor="#0F62FE"/>
-        <circle android:cx="36" android:cy="36" android:r="3" android:fillColor="#0F62FE"/>
-        <circle android:cx="48" android:cy="36" android:r="3" android:fillColor="#0F62FE"/>
+        <path android:fillColor="#0F62FE" android:pathData="M21,24a3,3 0 1,0 6,0a3,3 0 1,0 -6,0"/>
+        <path android:fillColor="#0F62FE" android:pathData="M33,24a3,3 0 1,0 6,0a3,3 0 1,0 -6,0"/>
+        <path android:fillColor="#0F62FE" android:pathData="M45,24a3,3 0 1,0 6,0a3,3 0 1,0 -6,0"/>
+        <path android:fillColor="#0F62FE" android:pathData="M21,36a3,3 0 1,0 6,0a3,3 0 1,0 -6,0"/>
+        <path android:fillColor="#0F62FE" android:pathData="M33,36a3,3 0 1,0 6,0a3,3 0 1,0 -6,0"/>
+        <path android:fillColor="#0F62FE" android:pathData="M45,36a3,3 0 1,0 6,0a3,3 0 1,0 -6,0"/>
         <!-- Remote arrow -->
         <path
             android:fillColor="#FFFFFF"

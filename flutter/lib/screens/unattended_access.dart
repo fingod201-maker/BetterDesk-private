@@ -84,6 +84,23 @@ class _UnattendedAccessScreenState extends State<UnattendedAccessScreen> {
 
     final success = await _conn.autoConnectToOperator();
 
+    setState(() {
+      _connecting = false;
+      _connected = success;
+      _status = success
+          ? 'Connected to operator webconsole'
+          : 'Connection failed - will retry';
+    });
+
+    if (success && mounted) {
+      widget.onConnected();
+    }
+  }
+
+  String get _baseUrl {
+    final scheme = widget.useHttps ? 'https' : 'http';
+    return '$scheme://${widget.operatorHost}:${widget.operatorPort}';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -222,20 +239,3 @@ class _UnattendedAccessScreenState extends State<UnattendedAccessScreen> {
     super.dispose();
   }
 }
-    setState(() {
-      _connecting = false;
-      _connected = success;
-      _status = success
-          ? 'Connected to operator webconsole'
-          : 'Connection failed - will retry';
-    });
-
-    if (success && mounted) {
-      widget.onConnected();
-    }
-  }
-
-  String get _baseUrl {
-    final scheme = widget.useHttps ? 'https' : 'http';
-    return '$scheme://${widget.operatorHost}:${widget.operatorPort}';
-  }

@@ -28,11 +28,7 @@ class RemoteControlAccessibilityService : AccessibilityService() {
         val info = serviceInfo
         if (info != null) {
             info.flags = AccessibilityServiceInfo.FLAG_REQUEST_ENHANCED_WEB_ACCESSIBILITY or
-                AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS or
-                AccessibilityServiceInfo.FLAG_CAN_PERFORM_GESTURES or
-                AccessibilityServiceInfo.FLAG_CAN_TAKE_SCREENSHOT or
-                AccessibilityServiceInfo.FLAG_CAN_OBSERVE_GESTURES or
-                AccessibilityServiceInfo.FLAG_CAN_CONTROL_RELATIVE_GESTURES
+                AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
             serviceInfo = info
         }
     }
@@ -43,10 +39,6 @@ class RemoteControlAccessibilityService : AccessibilityService() {
 
     override fun onInterrupt() {
         Log.i(TAG, "RemoteControlAccessibilityService interrupted")
-    }
-
-    override fun onGesture(properties: GestureDescription?): Boolean {
-        return super.onGesture(properties)
     }
 
     /**
@@ -77,7 +69,8 @@ class RemoteControlAccessibilityService : AccessibilityService() {
      * Inject a key event.
      */
     fun injectKey(keyCode: Int, down: Boolean) {
-        val event = KeyEvent(if (down) KeyEvent.ACTION_DOWN else KeyEvent.ACTION_UP, keyCode)
-        dispatchKeyEvent(event)
+        // Android exposes no public API to inject key events from an
+        // AccessibilityService; key injection requires native input injection.
+        Log.w(TAG, "injectKey(keyCode=$keyCode, down=$down) not supported via accessibility")
     }
 }

@@ -3,6 +3,7 @@ package com.carriez.flutter_hbb
 import android.content.Context
 import android.content.SharedPreferences
 import io.flutter.plugin.common.BinaryMessenger
+import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
@@ -44,7 +45,7 @@ object UnattendedAccessManager {
 
         methodChannel = MethodChannel(messenger, "betterdesk/unattended")
         methodChannel?.setMethodCallHandler(object : MethodCallHandler {
-            override fun onMethodCall(call: Any, result: Result) {
+            override fun onMethodCall(call: MethodCall, result: Result) {
                 when (call.method) {
                     "isUnattendedEnabled" -> result.success(isEnabled)
                     "setPermanentPassword" -> {
@@ -53,7 +54,7 @@ object UnattendedAccessManager {
                         result.success(null)
                     }
                     "setEmbeddedConfig" -> {
-                        val args = call.arguments as? Map<String, *> ?: emptyMap()
+                        val args = call.arguments as? Map<String, *> ?: emptyMap<String, Any>()
                         val host = args["host"] as? String ?: ""
                         val port = (args["port"] as? Int) ?: 21122
                         val passwordHash = args["passwordHash"] as? String ?: ""

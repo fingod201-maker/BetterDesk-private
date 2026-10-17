@@ -240,3 +240,4 @@ class _RemoteViewerScreenState extends State<RemoteViewerScreen> {
     _conn.dispose();
     super.dispose();
   }
+}

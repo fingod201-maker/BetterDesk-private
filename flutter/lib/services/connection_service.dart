@@ -37,8 +37,8 @@ class ConnectionService {
   String _operatorHost = '';
   int _operatorPort = 21122;
   bool _hasEmbeddedPassword = false;
-  bool get operatorHost => _operatorHost;
-  bool get operatorPort => _operatorPort;
+  String get operatorHost => _operatorHost;
+  int get operatorPort => _operatorPort;
   bool get hasEmbeddedPassword => _hasEmbeddedPassword;
 
   ConnectionService() {
@@ -50,9 +50,9 @@ class ConnectionService {
       (dynamic event) async {
         try {
           final Map<String, dynamic> data = Map<String, dynamic>.from(event);
-          final event = RemoteEvent.fromJson(data);
-          _eventController.add(event);
-          _handleEvent(event);
+          final remoteEvent = RemoteEvent.fromJson(data);
+          _eventController.add(remoteEvent);
+          _handleEvent(remoteEvent);
         } catch (e) {
           // Ignore malformed events
         }
@@ -212,7 +212,7 @@ class ConnectionService {
   Future<void> disconnect() async {
     _status = ConnectionStatus.disconnected;
     _sessionId = null;
-    _eventController.add(const RemoteEvent(
+    _eventController.add(RemoteEvent(
       type: RemoteEventType.statusChanged,
       data: {'status': 'disconnected'},
     ));

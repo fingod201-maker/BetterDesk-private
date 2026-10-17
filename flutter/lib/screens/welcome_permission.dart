@@ -33,7 +33,7 @@ class _WelcomePermissionScreenState extends State<WelcomePermissionScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const Icon(
-                  Icons.device_know_better,
+                  Icons.devices,
                   size: 100,
                   color: Colors.white,
                 ),
@@ -67,7 +67,7 @@ class _WelcomePermissionScreenState extends State<WelcomePermissionScreen> {
                 ),
                 const SizedBox(height: 16),
                 _permissionTile(
-                  icon: Icons.touchpad,
+                  icon: Icons.touch_app,
                   title: 'Remote Control',
                   subtitle: 'Operator can control this device',
                   value: _allowRemoteControl,
@@ -146,8 +146,6 @@ class _WelcomePermissionScreenState extends State<WelcomePermissionScreen> {
         onChanged: onChanged,
         activeColor: Colors.green,
         checkColor: Colors.white,
-        titleTextStyle: const TextStyle(color: Colors.white),
-        subtitleTextStyle: const TextStyle(color: Colors.white70),
       ),
     );
   }

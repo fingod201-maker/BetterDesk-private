@@ -13,7 +13,6 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.engine.dart.DartExecutor
-import io.flutter.embedding.engine.loader.FlutterLoader
 
 /**
  * UnattendedAccessService — foreground service that runs persistently so
@@ -34,20 +33,16 @@ class UnattendedAccessService : Service() {
     }
 
     private lateinit var flutterEngine: FlutterEngine
-    private lateinit var notificationManager: NotificationManagerCompat
 
     override fun onCreate() {
         super.onCreate()
         Log.i(TAG, "UnattendedAccessService onCreate")
-        notificationManager = NotificationManagerCompat.get(this)
 
         // Initialize a headless Flutter engine so the app can run UI-less
         // while still being able to render the configuration UI on demand.
-        val flutterLoader = FlutterLoader()
-        flutterLoader.startInitialization(this)
-        flutterEngine = FlutterEngine(this, flutterLoader)
+        flutterEngine = FlutterEngine(this)
         flutterEngine.dartExecutor.executeDartEntrypoint(
-            DartExecutor.DartEntrypoint.standard()
+            DartExecutor.DartEntrypoint.createDefault()
         )
 
         // Start the incoming-connection listener via the method channel.
