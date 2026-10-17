@@ -1,0 +1,169 @@
+# =============================================================================
+# BetterDesk — End-to-End Agent Connection Test
+# =============================================================================
+# Spins up the Go server + web console locally, builds the Go sidecar agent,
+# registers it against the live server, and verifies the device appears online
+# in the server health/stats endpoint.
+#
+# This validates the full protocol path the Tauri agent uses:
+#   registration → heartbeat → peer list → CDAP sidecar connection.
+#
+# Runs on: push to main, workflow_dispatch
+# =============================================================================
+
+name: E2E Agent Connection Test
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      # ---------------------------------------------------------------
+      # Build Go server
+      # ---------------------------------------------------------------
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: betterdesk-server/go.mod
+          cache: true
+
+      - name: Build BetterDesk Go server
+        run: |
+          env CGO_ENABLED=0 go build -o /tmp/betterdesk-server -ldflags="-s -w" ./betterdesk-server
+          /tmp/betterdesk-server --version
+
+      # ---------------------------------------------------------------
+      # Build web console (Node.js) — needed for the full stack, but
+      # the E2E assertion uses the Go API directly.
+      # ---------------------------------------------------------------
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'npm'
+          cache-dependency-path: web-nodejs/package-lock.json
+
+      - name: Install web console dependencies
+        working-directory: web-nodejs
+        run: npm ci --no-audit --no-fund
+
+      # ---------------------------------------------------------------
+      # Build Go sidecar agent
+      # ---------------------------------------------------------------
+      - name: Build Go sidecar agent (linux-amd64)
+        run: |
+          env CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+            go build -o /tmp/betterdesk-agent -ldflags="-s -w" ./betterdesk-agent
+          /tmp/betterdesk-agent --version
+
+      # ---------------------------------------------------------------
+      # Start server (background)
+      # ---------------------------------------------------------------
+      - name: Start BetterDesk server
+        run: |
+          mkdir -p /tmp/bd-e2e
+          cd /tmp/bd-e2e
+          # Use open enrollment mode so the agent can auto-register
+          env DB_URL="./db_v2.sqlite3" \
+            PORT=21116 API_PORT=21114 RELAY_PORT=21117 \
+            ENROLLMENT_MODE=open \
+            INIT_ADMIN_USER=e2e \
+            INIT_ADMIN_PASS=e2e-pass \
+            nohup /tmp/betterdesk-server -mode all > server.log 2>&1 &
+          echo $! > server.pid
+          echo "Server PID: $(cat server.pid)"
+
+      - name: Wait for server to be ready
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:21114/api/health >/dev/null 2>&1; then
+              echo "Server is ready on :21114"
+              curl -s http://127.0.0.1:21114/api/health | head -c 500
+              echo
+              exit 0
+            fi
+            echo "Waiting for server... ($i/30)"
+            sleep 2
+          done
+          echo "ERROR: Server did not become ready" >&2
+          cat /tmp/bd-e2e/server.log >&2 || true
+          exit 1
+
+      # ---------------------------------------------------------------
+      # Register agent against the live server
+      # ---------------------------------------------------------------
+      - name: Run sidecar agent and register
+        run: |
+          # Create an enrollment token via the server API (open mode allows direct register too)
+          TOKEN_RESPONSE=$(curl -s -X POST http://127.0.0.1:21114/api/tokens/generate-bulk \
+            -H 'Content-Type: application/json' \
+            -d '{"count":1,"expires_in_hours":24}' || true)
+          echo "Token response: $TOKEN_RESPONSE"
+
+          # Extract token (best-effort; if endpoint differs, fall back to open registration)
+          ENROLL_TOKEN=$(echo "$TOKEN_RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d[0]['token'] if isinstance(d,list) and d else '')" 2>/dev/null || echo "")
+
+          AGENT_ARGS="-server ws://127.0.0.1:21122/cdap -auth api_key -key e2e-test-key -device-id e2e-device-01 -device-name 'E2E Test Device' -log-level debug"
+          if [ -n "$ENROLL_TOKEN" ]; then
+            AGENT_ARGS="$AGENT_ARGS -token $ENROLL_TOKEN"
+            echo "Using enrollment token: $ENROLL_TOKEN"
+          else
+            echo "No enrollment token obtained — relying on open enrollment mode"
+          fi
+
+          cd /tmp/bd-e2e
+          nohup /tmp/betterdesk-agent $AGENT_ARGS > agent.log 2>&1 &
+          echo $! > agent.pid
+          echo "Agent PID: $(cat agent.pid)"
+
+      - name: Wait for agent to register and appear online
+        run: |
+          for i in $(seq 1 30); do
+            STATS=$(curl -sf http://127.0.0.1:21114/api/server/stats 2>/dev/null || echo '{}')
+            PEER_COUNT=$(echo "$STATS" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('peer_count', d.get('total',0)))" 2>/dev/null || echo "0")
+            echo "Poll $i/30: peer_count=$PEER_COUNT"
+            if [ "$PEER_COUNT" -ge 1 ] 2>/dev/null; then
+              echo "Agent registered and online!"
+              echo "$STATS" | head -c 1000
+              echo
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "ERROR: Agent did not register within timeout" >&2
+          echo "=== Server log ===" >&2
+          tail -50 /tmp/bd-e2e/server.log >&2 || true
+          echo "=== Agent log ===" >&2
+          tail -50 /tmp/bd-e2e/agent.log >&2 || true
+          exit 1
+
+      # ---------------------------------------------------------------
+      # Verify peer detail via API
+      # ---------------------------------------------------------------
+      - name: Verify peer detail
+        run: |
+          PEER=$(curl -sf http://127.0.0.1:21114/api/peers/e2e-device-01 2>/dev/null || echo '{}')
+          echo "Peer detail: $PEER" | head -c 1000
+          echo
+          echo "$PEER" | python3 -c "import sys,json; d=json.load(sys.stdin); assert d.get('device_id')=='e2e-device-01', 'device_id mismatch'; print('E2E test PASSED: device registered and queryable')"
+
+      # ---------------------------------------------------------------
+      # Cleanup
+      # ---------------------------------------------------------------
+      - name: Stop agent and server
+        if: always()
+        run: |
+          if [ -f /tmp/bd-e2e/agent.pid ]; then kill "$(cat /tmp/bd-e2e/agent.pid)" 2>/dev/null || true; fi
+          if [ -f /tmp/bd-e2e/server.pid ]; then kill "$(cat /tmp/bd-e2e/server.pid)" 2>/dev/null || true; fi
+          pkill -f betterdesk-agent 2>/dev/null || true
+          pkill -f betterdesk-server 2>/dev/null || true
