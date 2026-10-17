@@ -93,7 +93,7 @@ android {
 
     sourceSets {
         main.java.srcDirs += 'src/main/kotlin'
-        main.jniLibs.srcDirs = ['../../../target/release']
+        main.jniLibs.srcDirs = ['src/main/jniLibs']
     }
 }
 

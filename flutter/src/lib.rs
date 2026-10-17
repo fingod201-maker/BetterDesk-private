@@ -1,10 +1,9 @@
-use std::sync::{Arc, OnceLock, RwLock};
 use std::os::raw::c_char;
-use std::thread;
+use std::sync::{OnceLock, RwLock, Mutex as StdMutex};
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::AsyncWriteExt;
 use tokio::net::TcpListener;
 use tokio::sync::{broadcast, Mutex};
 
@@ -23,7 +22,7 @@ static FRAME_BROADCAST: OnceLock<broadcast::Sender<Vec<u8>>> = OnceLock::new();
 static CLIENT_COUNT: OnceLock<Mutex<usize>> = OnceLock::new();
 
 /// Tokio runtime handle for the listener.
-static LISTENER_RUNTIME: OnceLock<Mutex<Option<tokio::runtime::Runtime>>> = OnceLock::new();
+static LISTENER_RUNTIME: OnceLock<StdMutex<Option<tokio::runtime::Runtime>>> = OnceLock::new();
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServerConfig {
@@ -86,7 +85,7 @@ pub extern "C" fn betterdesk_configure_server(
         api_port,
         cdap_port: 21122,
     };
-    let _ = SERVER_CONFIG.set(config);
+    let _ = SERVER_CONFIG.set(config.clone());
     eprintln!("[betterdesk-android] Configured server: {:?}", config);
 }
 
@@ -122,7 +121,7 @@ pub extern "C" fn betterdesk_connection_status() -> ConnectionStatus {
 #[no_mangle]
 pub extern "C" fn betterdesk_free_string(ptr: *mut c_char) {
     if !ptr.is_null() {
-        unsafe { drop(String::from_raw_ptr(ptr)) };
+        unsafe { drop(std::ffi::CString::from_raw(ptr)) };
     }
 }
 
@@ -232,11 +231,11 @@ pub extern "C" fn betterdesk_set_embedded_config(
         }
     };
 
-    *OPERATOR_HOST.get_or_init(|| RwLock::new(String::new())).write().unwrap() = host_str;
+    *OPERATOR_HOST.get_or_init(|| RwLock::new(String::new())).write().unwrap() = host_str.clone();
     *OPERATOR_PORT.get_or_init(|| RwLock::new(21122)).write().unwrap() = port;
 
     if !hash_str.is_empty() {
-        *UNATTENDED_ENABLED.write().unwrap() = true;
+        *get_enabled_lock().write().unwrap() = true;
         *PERMANENT_PASSWORD_HASH.get_or_init(|| RwLock::new(None)).write().unwrap() = Some(hash_str);
         eprintln!("[betterdesk-android] Embedded operator config set: {}:{} password_hash=present", host_str, port);
     } else {
@@ -329,13 +328,13 @@ pub extern "C" fn betterdesk_start_listener() {
         }
     });
 
-    let _ = LISTENER_RUNTIME.set(Mutex::new(Some(rt)));
+    let _ = LISTENER_RUNTIME.set(StdMutex::new(Some(rt)));
     eprintln!("[betterdesk-android] Listener runtime started");
 }
 
 #[no_mangle]
 pub extern "C" fn betterdesk_stop_listener() {
-    if let Some(rt) = LISTENER_RUNTIME.get().map(|m| m.lock().unwrap()).flatten() {
+    if let Some(rt) = LISTENER_RUNTIME.get().and_then(|m| m.lock().unwrap().take()) {
         drop(rt);
     }
     eprintln!("[betterdesk-android] Listener stopped");
@@ -393,7 +392,8 @@ fn hex_decode(hex: &str) -> Option<Vec<u8>> {
     (0..hex.len())
         .step_by(2)
         .map(|i| u8::from_str_radix(&hex[i..i + 2], 16))
-        .collect()
+        .collect::<Result<Vec<u8>, _>>()
+        .ok()
 }
 
 #[cfg(test)]

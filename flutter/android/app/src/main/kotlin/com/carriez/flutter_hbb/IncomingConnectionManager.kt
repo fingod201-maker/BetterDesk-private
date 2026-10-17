@@ -92,8 +92,18 @@ object IncomingConnectionManager {
                                 output!!.flush()
                             }
                             "FRAME_REQUEST" -> {
-                                writeString(output!!, "FRAME_READY")
-                                output!!.flush()
+                                val frame = UnattendedAccessService.latestFrame
+                                if (frame != null) {
+                                    writeString(output!!, "FRAME_JPEG")
+                                    val lenBuf = ByteArray(4)
+                                    java.nio.ByteBuffer.wrap(lenBuf).putInt(frame.size)
+                                    output!!.write(lenBuf)
+                                    output!!.write(frame)
+                                    output!!.flush()
+                                } else {
+                                    writeString(output!!, "NO_FRAME")
+                                    output!!.flush()
+                                }
                             }
                             "DISCONNECT" -> {
                                 Log.i(TAG, "Operator disconnected from $remoteAddress")

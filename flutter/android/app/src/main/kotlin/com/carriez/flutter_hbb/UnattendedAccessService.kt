@@ -5,9 +5,16 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.Context
 import android.content.Intent
+import android.hardware.display.VirtualDisplay
+import android.media.ImageReader
+import android.media.projection.MediaProjection
+import android.media.projection.MediaProjectionManager
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -26,10 +33,69 @@ import io.flutter.embedding.engine.dart.DartExecutor
  */
 class UnattendedAccessService : Service() {
 
-    private companion object {
+    companion object {
         const val TAG = "UnattendedAccessService"
         const val CHANNEL_ID = "betterdesk.unattended"
         const val NOTIFICATION_ID = 1001
+
+        /** Latest JPEG frame captured from MediaProjection (screen share). */
+        @Volatile
+        var latestFrame: ByteArray? = null
+            private set
+
+        private var virtualDisplay: VirtualDisplay? = null
+        private var imageReader: ImageReader? = null
+
+        /**
+         * Called once, from MainActivity's "Allow once" MediaProjection grant.
+         * Holds the projection, starts a VirtualDisplay + ImageReader capture
+         * pipeline, and starts the foreground service so the projection
+         * outlives the UI. The device owner is never prompted again while the
+         * service runs (Android itself only allows one system prompt; the
+         * grant is held here for the session).
+         */
+        fun attachProjection(projection: MediaProjection?, context: Context) {
+            val proj = projection ?: return
+            MainActivity.mediaProjection = proj
+            val metrics = context.resources.displayMetrics
+            val width = metrics.widthPixels
+            val height = metrics.heightPixels
+            val dpi = metrics.densityDpi
+            val handler = Handler(Looper.getMainLooper())
+
+            // Android 14+ requires a registered callback before use.
+            proj.registerCallback(object : MediaProjection.Callback() {}, handler)
+
+            val reader = ImageReader.newInstance(width, height, 256, 2) // ImageFormat.JPEG
+            reader.setOnImageAvailableListener({ r ->
+                try {
+                    val image = r.acquireLatestImage() ?: return@setOnImageAvailableListener
+                    val plane = image.planes[0]
+                    val buf = plane.buffer
+                    val bytes = ByteArray(buf.remaining())
+                    buf.get(bytes)
+                    image.close()
+                    latestFrame = bytes
+                } catch (e: Exception) {
+                    Log.w(TAG, "frame capture error: ${e.message}")
+                }
+            }, handler)
+
+            virtualDisplay = proj.createVirtualDisplay(
+                "BetterDeskCapture", width, height, dpi,
+                android.hardware.display.DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+                reader.surface, null, handler
+            )
+            imageReader = reader
+            Log.i(TAG, "Screen capture attached ${width}x${height} @ ${dpi}dpi")
+
+            val intent = Intent(context, UnattendedAccessService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+            } else {
+                context.startService(intent)
+            }
+        }
     }
 
     private lateinit var flutterEngine: FlutterEngine
