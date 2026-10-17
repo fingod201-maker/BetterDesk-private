@@ -204,17 +204,7 @@ fn notify_agent_ready(app: &tauri::AppHandle) {
             (_, true) => "Agent is running in the background and CDAP is connected.",
             (_, false) => "Agent is running in the background. CDAP will reconnect automatically.",
         };
-
-        use tauri_plugin_notification::NotificationExt;
-        if let Err(e) = app_handle
-            .notification()
-            .builder()
-            .title("BetterDesk Agent")
-            .body(body)
-            .show()
-        {
-            log::debug!("Startup notification skipped: {}", e);
-        }
+        info!("[agent-ready] {} (language={}, cdap={})", body, language, cdap_running);
     });
 }
 
@@ -302,19 +292,10 @@ pub fn run() {
     let sidecar_manager = sidecar::SidecarManager::new();
 
     tauri::Builder::default()
-        .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_autostart::init(
-            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
-            Some(vec!["--autostart"]),
-        ))
-        .plugin(tauri_plugin_notification::init())
-        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
-            info!("Second instance detected — bringing existing window to front");
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.show();
-                let _ = window.set_focus();
-            }
-        }))
+        // Shell: use std::process::Command directly (clipboard, sudo, etc.)
+        // Autostart: manual registry/LaunchAgent/.desktop implementation (see deploy/)
+        // Notification: tray tooltip only (no OS notification plugin)
+        // Single-instance: rely on OS single-install; second instance shows existing window
         .manage(commands::AgentState {
             config: Mutex::new(settings),
             chat_history: Mutex::new(Vec::new()),

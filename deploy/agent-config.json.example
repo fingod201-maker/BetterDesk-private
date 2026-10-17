@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json.schemastore.org/betterdesk-agent-config",
+  "comment": "PRE-CONFIGURED agent-config.json for unattended-access deployment. Copy to the agent config dir (%APPDATA%/BetterDesk/agent/agent-config.json on Windows, ~/Library/Application Support/BetterDesk/agent/agent-config.json on macOS, ~/.config/BetterDesk/agent/agent-config.json on Linux) and fill in server_address + api_key before first launch. The agent will auto-register, show as ONLINE in the web console, and accept unattended sessions using unattended_password.",
+  "server_address": "https://betterdesk.example.com:5443",
+  "api_key": "",
+  "cdap_port": 21122,
+  "device_id": "",
+  "device_name": "",
+  "auth_token": "",
+  "registered": false,
+  "allow_screen_capture": true,
+  "access_mode": "unattended",
+  "require_consent": false,
+  "allow_terminal": true,
+  "allow_file_browser": true,
+  "allow_clipboard": true,
+  "auto_start_sidecar": true,
+  "video_codec": "auto",
+  "hw_accel": "auto",
+  "autostart": true,
+  "start_minimized": true,
+  "language": "en",
+  "unattended_password": "",
+  "enforce_tls": true,
+  "server_cert_pin": "",
+  "settings_lock": {
+    "enabled": false,
+    "master_password": ""
+  }
+}

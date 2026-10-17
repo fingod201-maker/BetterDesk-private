@@ -825,6 +825,7 @@ pub fn get_agent_settings(state: State<'_, AgentState>) -> Result<AgentSettings,
         language: config.language.clone(),
         autostart: config.autostart,
         start_minimized: config.start_minimized,
+        unlock_password: String::new(),
     })
 }
 
@@ -1231,8 +1232,9 @@ pub async fn disconnect_active_session(
         .map(|sessions| sessions.is_empty())
         .unwrap_or(true);
     if hide_overlay {
-        app.run_on_main_thread(|handle| {
-            crate::session_overlay::hide(handle);
+        let app_clone = app.clone();
+        app.run_on_main_thread(move || {
+            crate::session_overlay::hide(&app_clone);
         })
         .map_err(|e| e.to_string())?;
     }

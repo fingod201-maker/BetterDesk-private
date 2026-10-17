@@ -1,61 +1,150 @@
 //! OS-level autostart management.
 //!
-//! Wraps `tauri-plugin-autostart` so that our persisted `config.autostart`
-//! preference is always mirrored to the operating system:
-//! - Linux: `~/.config/autostart/betterdesk-agent-client.desktop`
-//! - Windows: HKCU `Software\Microsoft\Windows\CurrentVersion\Run` entry
+//! Implemented manually (no tauri-plugin-autostart dependency) so the build
+//! stays on stable Tauri 2.x:
+//! - Windows: `reg add/delete` on HKCU `...\Run` key
 //! - macOS: `~/Library/LaunchAgents/com.betterdesk.agent.plist`
+//! - Linux: `~/.config/autostart/betterdesk-agent-client.desktop`
 //!
-//! The plugin launches the app with the `--autostart` CLI flag so the window
-//! stays hidden on boot and only the tray icon is shown.
+//! The app is launched with the `--autostart` CLI flag so the window stays
+//! hidden on boot and only the tray icon is shown.
 
 use log::{info, warn};
-use tauri::AppHandle;
-use tauri_plugin_autostart::ManagerExt;
+
+const RUN_VALUE: &str = "BetterDeskAgent";
 
 /// Ensure the OS autostart registration matches `enabled`.
 ///
-/// Safe to call multiple times — both `enable()` and `disable()` are idempotent
-/// in the plugin. Logs a warning on failure but never panics; persisted config
-/// remains authoritative even if the OS hook fails (e.g. read-only profile).
-pub fn sync_os_autostart(app: &AppHandle, enabled: bool) {
-    let manager = app.autolaunch();
-
-    match manager.is_enabled() {
-        Ok(current) if current == enabled && !enabled => {
-            info!(
-                "[autostart] Already {} — no change",
-                if enabled { "enabled" } else { "disabled" }
-            );
-            return;
-        }
-        Ok(current) if current == enabled && enabled => {
-            info!("[autostart] Refreshing enabled OS registration");
-            if let Err(e) = manager.disable() {
-                warn!("[autostart] Failed to refresh registration: {}", e);
+/// Safe to call multiple times. Logs a warning on failure but never panics.
+pub fn sync_os_autostart(_app: &tauri::AppHandle, enabled: bool) {
+    #[cfg(windows)]
+    {
+        let exe_path = match std::env::current_exe() {
+            Ok(p) => p.to_string_lossy().to_string(),
+            Err(e) => {
+                warn!("[autostart] Cannot get exe path: {}", e);
+                return;
             }
-        }
-        Ok(_) => {}
-        Err(e) => {
-            warn!("[autostart] Failed to query state: {}", e);
+        };
+
+        if enabled {
+            let status = std::process::Command::new("reg")
+                .args([
+                    "add",
+                    "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+                    "/v",
+                    RUN_VALUE,
+                    "/t",
+                    "REG_SZ",
+                    "/d",
+                    &exe_path,
+                    "/f",
+                ])
+                .status();
+            match status {
+                Ok(s) if s.success() => info!("[autostart] Windows Run registration enabled"),
+                Ok(s) => warn!("[autostart] reg add failed with exit code {:?}", s.code()),
+                Err(e) => warn!("[autostart] Cannot run reg add: {}", e),
+            }
+        } else {
+            let status = std::process::Command::new("reg")
+                .args([
+                    "delete",
+                    "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+                    "/v",
+                    RUN_VALUE,
+                    "/f",
+                ])
+                .status();
+            match status {
+                Ok(s) if s.success() => info!("[autostart] Windows Run registration disabled"),
+                Ok(s) => warn!("[autostart] reg delete failed with exit code {:?}", s.code()),
+                Err(e) => warn!("[autostart] Cannot run reg delete: {}", e),
+            }
         }
     }
 
-    let result = if enabled {
-        manager.enable()
-    } else {
-        manager.disable()
-    };
+    #[cfg(target_os = "macos")]
+    {
+        let home = match std::env::var("HOME") {
+            Ok(h) => h,
+            Err(e) => {
+                warn!("[autostart] Cannot get HOME: {}", e);
+                return;
+            }
+        };
+        let launch_agents_dir = std::path::Path::new(&home).join("Library/LaunchAgents");
+        let plist_path = launch_agents_dir.join("com.betterdesk.agent.plist");
 
-    match result {
-        Ok(()) => info!(
-            "[autostart] OS registration {}",
-            if enabled { "enabled" } else { "disabled" }
-        ),
-        Err(e) => warn!(
-            "[autostart] Failed to {}: {}",
-            if enabled { "enable" } else { "disable" },
-            e
-        ),
+        if enabled {
+            if let Err(e) = std::fs::create_dir_all(&launch_agents_dir) {
+                warn!("[autostart] Cannot create LaunchAgents dir: {}", e);
+                return;
+            }
+            let exe = std::env::current_exe()
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_else(|_| "BetterDesk Agent".to_string());
+            let plist = format!(
+                r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key><string>com.betterdesk.agent</string>
+    <key>ProgramArguments</key><array><string>{exe}</string><string>--autostart</string></array>
+    <key>RunAtLoad</key><true/>
+    <key>KeepAlive</key><false/>
+</dict>
+</plist>"#
+            );
+            if let Err(e) = std::fs::write(&plist_path, plist) {
+                warn!("[autostart] Cannot write plist: {}", e);
+            } else {
+                info!("[autostart] macOS LaunchAgent installed");
+            }
+        } else {
+            let _ = std::fs::remove_file(&plist_path);
+            info!("[autostart] macOS LaunchAgent removed");
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        let home = match std::env::var("HOME") {
+            Ok(h) => h,
+            Err(e) => {
+                warn!("[autostart] Cannot get HOME: {}", e);
+                return;
+            }
+        };
+        let autostart_dir = std::path::Path::new(&home).join(".config/autostart");
+        let desktop_path = autostart_dir.join("betterdesk-agent-client.desktop");
+
+        if enabled {
+            if let Err(e) = std::fs::create_dir_all(&autostart_dir) {
+                warn!("[autostart] Cannot create autostart dir: {}", e);
+                return;
+            }
+            let exe = std::env::current_exe()
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_else(|_| "betterdesk-agent-client".to_string());
+            let desktop = format!(
+                "[Desktop Entry]\nType=Application\nName=BetterDesk Agent\nExec={} --autostart\nHidden=false\nNoDisplay=false\nX-GNOME-Autostart-enabled=true\n",
+                exe
+            );
+            if let Err(e) = std::fs::write(&desktop_path, desktop) {
+                warn!("[autostart] Cannot write desktop file: {}", e);
+            } else {
+                info!("[autostart] Linux .desktop installed");
+            }
+        } else {
+            let _ = std::fs::remove_file(&desktop_path);
+            info!("[autostart] Linux .desktop removed");
+        }
+    }
+
+    #[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
+    {
+        let _ = enabled;
+        warn!("[autostart] Platform not supported for autostart");
     }
 }
