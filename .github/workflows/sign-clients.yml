@@ -1,0 +1,212 @@
+# =============================================================================
+# BetterDesk — Cross-OS Code Signing (Windows Authenticode + macOS Gatekeeper +
+# Linux GPG detached signatures)
+# =============================================================================
+#
+# Signs desktop client artifacts after they are built. Each platform job
+# downloads the unsigned artifacts from the build workflow (or builds inline)
+# and re-uploads signed artifacts.
+#
+# Secrets required (configure in GitHub repo Settings > Secrets and variables > Actions):
+#   WINDOWS_CODESIGN_CERT_PFX_BASE64  — base64-encoded Windows Authenticode PFX
+#   WINDOWS_CODESIGN_CERT_PASSWORD    — PFX private-key password
+#   MACOS_CODESIGN_CERT_P12_BASE64    — base64-encoded Apple Developer ID p12
+#   MACOS_CODESIGN_CERT_PASSWORD      — p12 private-key password
+#   MACOS_NOTARY_USERNAME             — Apple ID email (notarytool)
+#   MACOS_NOTARY_PASSWORD             — app-specific password (notarytool)
+#   MACOS_TEAM_ID                     — Apple Developer Team ID
+#   LINUX_GPG_PRIVATE_KEY_BASE64      — base64-encoded GPG private key (asc)
+#   LINUX_GPG_PASSPHRASE              — GPG private-key passphrase
+#
+# Without these secrets, the signing jobs print a warning and pass unsigned
+# artifacts through unchanged (useful for PR / dry-run testing).
+# =============================================================================
+
+name: Sign Desktop Clients (Cross-OS)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g., v3.0.0)'
+        required: false
+        default: ''
+        type: string
+      artifacts_run_id:
+        description: 'Run ID of a prior build to sign (optional; builds inline if omitted)'
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  CLIENT_DIR: rdclient-desktop
+  SIGN_SCRIPTS: .github/scripts
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Windows — Authenticode via signtool
+  # ---------------------------------------------------------------------------
+  sign-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download unsigned Windows artifacts
+        if: ${{ inputs.artifacts_run_id != '' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: betterdesk-windows-x64
+          run-id: ${{ inputs.artifacts_run_id }}
+          path: ./unsigned-windows
+
+      - name: Install Windows SDK (signtool) if missing
+        shell: pwsh
+        run: |
+          if (-not (Get-Command signtool.exe -ErrorAction SilentlyContinue)) {
+            Write-Host "signtool not found; installing Windows SDK via winget..."
+            winget install Microsoft.WindowsSDK --silent --accept-package-agreements --accept-source-agreements || Write-Host "winget SDK install skipped (may already be present)"
+          }
+
+      - name: Sign Windows executables
+        shell: pwsh
+        env:
+          WINDOWS_CODESIGN_CERT_PFX_BASE64: ${{ secrets.WINDOWS_CODESIGN_CERT_PFX_BASE64 }}
+          WINDOWS_CODESIGN_CERT_PASSWORD: ${{ secrets.WINDOWS_CODESIGN_CERT_PASSWORD }}
+        run: |
+          $src = "./unsigned-windows"
+          if (-not (Test-Path $src)) { $src = "${{ env.CLIENT_DIR }}/src-tauri/target/release/bundle/nsis" }
+          Get-ChildItem -Path $src -Filter "*.exe" | ForEach-Object {
+            $out = Join-Path (Get-Location) "signed-windows" $_.Name
+            New-Item -ItemType Directory -Path (Split-Path $out) -Force | Out-Null
+            & "${{ env.SIGN_SCRIPTS }}/sign-windows.ps1" `
+              -InputPath $_.FullName `
+              -OutputPath $out `
+              -Description "BetterDesk Desktop Client" `
+              -Url "https://betterdesk.example.com"
+          }
+
+      - name: Upload signed Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: betterdesk-windows-x64-signed
+          path: signed-windows/*.exe
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # macOS — codesign + notarytool + staple
+  # ---------------------------------------------------------------------------
+  sign-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download unsigned macOS artifacts
+        if: ${{ inputs.artifacts_run_id != '' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: betterdesk-macos
+          run-id: ${{ inputs.artifacts_run_id }}
+          path: ./unsigned-macos
+
+      - name: Sign macOS apps + notarize
+        env:
+          MACOS_CODESIGN_CERT_P12_BASE64: ${{ secrets.MACOS_CODESIGN_CERT_P12_BASE64 }}
+          MACOS_CODESIGN_CERT_PASSWORD: ${{ secrets.MACOS_CODESIGN_CERT_PASSWORD }}
+          MACOS_NOTARY_USERNAME: ${{ secrets.MACOS_NOTARY_USERNAME }}
+          MACOS_NOTARY_PASSWORD: ${{ secrets.MACOS_NOTARY_PASSWORD }}
+          MACOS_TEAM_ID: ${{ secrets.MACOS_TEAM_ID }}
+        run: |
+          chmod +x ${{ env.SIGN_SCRIPTS }}/sign-macos.sh
+          src="./unsigned-macos"
+          if [ ! -d "$src" ]; then src="${{ env.CLIENT_DIR }}/src-tauri/target/release/bundle/dmg"; fi
+          mkdir -p signed-macos
+          for f in "$src"/*.dmg "$src"/*.app; do
+            [ -e "$f" ] || continue
+            ./${{ env.SIGN_SCRIPTS }}/sign-macos.sh "$f"
+            cp -r "$f" signed-macos/
+          done
+
+      - name: Upload signed macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: betterdesk-macos-signed
+          path: signed-macos/*
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # Linux — GPG detached signatures (.deb, .AppImage, etc.)
+  # ---------------------------------------------------------------------------
+  sign-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download unsigned Linux artifacts
+        if: ${{ inputs.artifacts_run_id != '' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: betterdesk-linux-x64
+          run-id: ${{ inputs.artifacts_run_id }}
+          path: ./unsigned-linux
+
+      - name: Install GPG
+        run: sudo apt-get update && sudo apt-get install -y gnupg
+
+      - name: Sign Linux packages with GPG
+        env:
+          LINUX_GPG_PRIVATE_KEY_BASE64: ${{ secrets.LINUX_GPG_PRIVATE_KEY_BASE64 }}
+          LINUX_GPG_PASSPHRASE: ${{ secrets.LINUX_GPG_PASSPHRASE }}
+        run: |
+          chmod +x ${{ env.SIGN_SCRIPTS }}/sign-linux.sh
+          src="./unsigned-linux"
+          if [ ! -d "$src" ]; then src="${{ env.CLIENT_DIR }}/src-tauri/target/release/bundle"; fi
+          mkdir -p signed-linux
+          ./${{ env.SIGN_SCRIPTS }}/sign-linux.sh "$src"
+          cp -r "$src"/* signed-linux/ 2>/dev/null || true
+
+      - name: Upload signed Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: betterdesk-linux-x64-signed
+          path: signed-linux/*
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # Combined release — create GitHub Release with signed artifacts
+  # ---------------------------------------------------------------------------
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [sign-windows, sign-macos, sign-linux]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all signed artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: signed-release
+
+      - name: Generate checksums
+        run: |
+          find signed-release -type f \( -name "*.exe" -o -name "*.deb" -o -name "*.AppImage" -o -name "*.dmg" -o -name "*.sig" -o -name "*.asc" \) | sort | while read f; do
+            sha256sum "$f" >> signed-release/CHECKSUMS.sha256
+          done
+          cat signed-release/CHECKSUMS.sha256
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.version || 'latest' }}
+          generate_release_notes: true
+          files: |
+            signed-release/betterdesk-windows-x64-signed/*.exe
+            signed-release/betterdesk-linux-x64-signed/*.deb
+            signed-release/betterdesk-linux-x64-signed/*.AppImage
+            signed-release/betterdesk-linux-x64-signed/*.sig
+            signed-release/betterdesk-linux-x64-signed/*.asc
+            signed-release/betterdesk-macos-signed/*.dmg
+            signed-release/betterdesk-macos-signed/*.app
+            signed-release/CHECKSUMS.sha256

@@ -113,6 +113,17 @@ config.local.*
 *.pub
 id_*
 
+# --- Code signing certificates (NEVER commit; inject via CI secrets) ---
+*.p12
+*.pfx
+*.p8
+*.cer
+*.crt
+!**/*.crt  # keep CA root/public certs if intentionally committed
+*signing*
+*codesign*
+*developer*
+
 # --- Sensitive internal documents (security audits, reports) ---
 docs/_internal/
 *REPORT*.md
