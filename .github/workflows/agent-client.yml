@@ -187,8 +187,14 @@ jobs:
             go build -o "../${{ env.AGENT_DIR }}/src-tauri/binaries/betterdesk-agent-x86_64-apple-darwin" -ldflags="-s -w" .
           env CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 \
             go build -o "../${{ env.AGENT_DIR }}/src-tauri/binaries/betterdesk-agent-aarch64-apple-darwin" -ldflags="-s -w" .
+          # Tauri's universal target looks for a single 'universal-apple-darwin' sidecar.
+          lipo -create \
+            "../${{ env.AGENT_DIR }}/src-tauri/binaries/betterdesk-agent-x86_64-apple-darwin" \
+            "../${{ env.AGENT_DIR }}/src-tauri/binaries/betterdesk-agent-aarch64-apple-darwin" \
+            -output "../${{ env.AGENT_DIR }}/src-tauri/binaries/betterdesk-agent-universal-apple-darwin"
           chmod +x "../${{ env.AGENT_DIR }}/src-tauri/binaries/betterdesk-agent-x86_64-apple-darwin" \
-                   "../${{ env.AGENT_DIR }}/src-tauri/binaries/betterdesk-agent-aarch64-apple-darwin"
+                   "../${{ env.AGENT_DIR }}/src-tauri/binaries/betterdesk-agent-aarch64-apple-darwin" \
+                   "../${{ env.AGENT_DIR }}/src-tauri/binaries/betterdesk-agent-universal-apple-darwin"
 
       - name: Install Protobuf Compiler
         run: brew install protobuf
@@ -216,7 +222,6 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: stable
-          targets: aarch64-apple-darwin,x86_64-apple-darwin
           rustflags: ''
           cache: true
 
