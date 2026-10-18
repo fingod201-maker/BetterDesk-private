@@ -220,6 +220,9 @@ jobs:
           rustflags: ''
           cache: true
 
+      - name: Ensure macOS Rust targets
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
       - name: Build Tauri (macOS universal)
         working-directory: ${{ env.AGENT_DIR }}
         run: npx tauri build --target universal-apple-darwin
