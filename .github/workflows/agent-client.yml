@@ -111,6 +111,7 @@ jobs:
             librsvg2-dev \
             patchelf \
             libssl-dev \
+            libxdo-dev \
             libayatana-appindicator3-dev \
             protobuf-compiler \
             curl wget file

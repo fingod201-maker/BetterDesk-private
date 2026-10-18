@@ -76,10 +76,46 @@ The service runs as `LocalSystem`, starts on boot, and survives user logout.
   - macOS: `codesign --sign "Developer ID Application: <name>" <file.app>`
   - Linux: use `gpg --detach-sign` for package verification
 
-### macOS / Linux Clients
-Not built in this environment (Windows-only build machine). To build:
-- macOS: Run `npx tauri build --targets macos` on a Mac with Xcode installed
-- Linux: Run `npx tauri build --targets linux` on a Linux machine with GTK/WebKitGTK
+### Linux Desktop Clients
+| File | Type | Size | Purpose |
+|------|------|------|---------|
+| `linux/betterdesk-agent` | Go sidecar binary | 7,520,418 | CDAP agent sidecar (managed by Tauri app or systemd service) |
+| `linux/BetterDesk Agent_1.0.0_amd64.deb` | Debian package | 6,868,388 | Debian/Ubuntu desktop client installer |
+| `linux/BetterDesk Agent-1.0.0-1.x86_64.rpm` | RPM package | 6,870,347 | RHEL/Fedora desktop client installer |
+
+### Linux Agent Service (systemd, survives logout)
+Requires root:
+
+```bash
+# Copy service files to target machine
+# /opt/betterdesk/agent/
+
+# Edit agent-config.json with your server address and API key
+# Set "access_mode": "unattended" for unattended access
+
+# Install systemd service
+cat > /etc/systemd/system/betterdesk-agent.service << 'EOF'
+[Unit]
+Description=BetterDesk Agent - CDAP device agent
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/opt/betterdesk/agent/betterdesk-agent -config /opt/betterdesk/agent/agent-config.json
+WorkingDirectory=/opt/betterdesk/agent
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable betterdesk-agent
+systemctl start betterdesk-agent
+```
+
+The service runs as root, starts on boot, and survives user logout.
 
 ## Connection Path
 
@@ -111,3 +147,5 @@ Edit `agent-config.json`:
 - Android armeabi-v7a APK: built and verified (contains libbetterdesk_flutter_android.so)
 - Windows Go sidecar: built and verified (`betterdesk-agent 1.0.0`)
 - Windows Tauri desktop: built and verified (NSIS + MSI installers)
+- Linux Go sidecar: built and verified (`betterdesk-agent-x86_64-unknown-linux-gnu`)
+- Linux Tauri desktop: built and verified (.deb + .rpm packages)
