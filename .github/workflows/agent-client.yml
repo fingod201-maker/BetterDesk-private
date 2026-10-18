@@ -76,6 +76,7 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: stable
+          rustflags: ''
           cache: true
 
       - name: Install Protobuf Compiler
@@ -148,6 +149,7 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: stable
+          rustflags: ''
           cache: true
 
       - name: Build Tauri (Linux)
@@ -215,6 +217,7 @@ jobs:
         with:
           toolchain: stable
           targets: aarch64-apple-darwin,x86_64-apple-darwin
+          rustflags: ''
           cache: true
 
       - name: Build Tauri (macOS universal)

@@ -1166,19 +1166,11 @@ fn capture_to_file(path: &Path) -> Result<()> {
 // ───────────────────────── Handlers — input injection (Phase 58) ─────────────────────────
 
 use enigo::{Axis, Button, Coordinate, Direction, Enigo, Key, Keyboard, Mouse, Settings};
-use std::sync::{Mutex, OnceLock};
 
-fn enigo_handle() -> Result<&'static Mutex<Enigo>> {
-    static ENIGO: OnceLock<Mutex<Enigo>> = OnceLock::new();
-    if let Some(e) = ENIGO.get() {
-        return Ok(e);
-    }
-    let inst = Enigo::new(&Settings::default())
-        .map_err(|e| anyhow!("enigo_init_failed: {}", e))?;
-    let _ = ENIGO.set(Mutex::new(inst));
-    ENIGO
-        .get()
-        .ok_or_else(|| anyhow!("enigo_init_race"))
+// NOTE: `Enigo` is not `Send` on macOS (it holds a `CGEventSource`), so it
+// cannot live in a global `Mutex`/`OnceLock`. Construct one on demand instead.
+fn enigo_new() -> Result<Enigo> {
+    Enigo::new(&Settings::default()).map_err(|e| anyhow!("enigo_init_failed: {}", e))
 }
 
 fn input_mouse(payload: &Value) -> Result<Value> {
@@ -1186,8 +1178,7 @@ fn input_mouse(payload: &Value) -> Result<Value> {
         .get("action")
         .and_then(|v| v.as_str())
         .unwrap_or("move");
-    let handle = enigo_handle()?;
-    let mut enigo = handle.lock().map_err(|_| anyhow!("enigo_poisoned"))?;
+    let mut enigo = enigo_new()?;
 
     match action {
         "move" => {
@@ -1288,8 +1279,7 @@ fn input_key(payload: &Value) -> Result<Value> {
     };
 
     let key = map_key(key_str)?;
-    let handle = enigo_handle()?;
-    let mut enigo = handle.lock().map_err(|_| anyhow!("enigo_poisoned"))?;
+    let mut enigo = enigo_new()?;
     enigo
         .key(key, dir)
         .map_err(|e| anyhow!("key_failed: {}", e))?;
@@ -1307,8 +1297,7 @@ fn input_text(payload: &Value) -> Result<Value> {
     if text.len() > 4096 {
         return Err(anyhow!("text_too_long"));
     }
-    let handle = enigo_handle()?;
-    let mut enigo = handle.lock().map_err(|_| anyhow!("enigo_poisoned"))?;
+    let mut enigo = enigo_new()?;
     enigo
         .text(text)
         .map_err(|e| anyhow!("text_failed: {}", e))?;
@@ -1332,6 +1321,7 @@ fn map_key(s: &str) -> Result<Key> {
         "PageUp" => Key::PageUp,
         "PageDown" => Key::PageDown,
         "Delete" | "Del" => Key::Delete,
+        #[cfg(not(target_os = "macos"))]
         "Insert" => Key::Insert,
         "CapsLock" => Key::CapsLock,
         "Shift" | "ShiftLeft" | "ShiftRight" => Key::Shift,
