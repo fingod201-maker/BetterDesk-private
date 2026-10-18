@@ -20,6 +20,7 @@ const remoteRoutes = require('./remote.routes');
 const pagesRoutes = require('./pages.routes');
 const desktopRoutes = require('./desktop.routes');
 const registrationRoutes = require('./registration.routes');
+const path = require('path');
 
 /**
  * Lazy-load wrapper — defers require() until first request.
@@ -96,6 +97,15 @@ router.use(requireJsonContentType);
 // Health check (no auth required)
 router.get('/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Public landing page — auto-detects visitor device, serves the correct
+// BetterDesk client from GitHub releases, zero-config onboarding.
+router.get('/landing', (req, res) => {
+    res.sendFile(path.join(__dirname, '../public/landing/index.html'));
+});
+router.get('/join', (req, res) => {
+    res.redirect(302, '/landing');
 });
 
 // Mount routes

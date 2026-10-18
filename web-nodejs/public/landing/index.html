@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="description" content="BetterDesk — Secure remote desktop access. Join your session in seconds. No configuration required.">
+    <title>BetterDesk | Join Remote Session</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bd-primary: #0753FB;
+            --bd-primary-hover: #0543d1;
+            --bd-dark: #0a0f20;
+            --bd-dark-soft: #131a2e;
+            --bd-text: #f8fafc;
+            --bd-text-muted: #94a3b8;
+            --bd-success: #10b981;
+            --bd-warning: #f59e0b;
+            --bd-bg: #080c14;
+            --bd-card: rgba(255,255,255,0.03);
+            --bd-border: rgba(255,255,255,0.08);
+            --bd-glass: rgba(255,255,255,0.05);
+            --radius-xl: 16px;
+            --radius-2xl: 24px;
+            --shadow-xl: 0 20px 50px -10px rgba(0,0,0,0.6);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: var(--bd-bg);
+            color: var(--bd-text);
+            line-height: 1.6;
+            overflow-x: hidden;
+            min-height: 100vh;
+        }
+
+        /* Background glow */
+        .glow {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: -1;
+            background:
+                radial-gradient(circle at 15% 25%, rgba(7, 83, 251, 0.15) 0%, transparent 45%),
+                radial-gradient(circle at 85% 75%, rgba(16, 185, 129, 0.1) 0%, transparent 45%),
+                radial-gradient(circle at 50% 50%, rgba(255,255,255,0.02) 0%, transparent 60%);
+            pointer-events: none;
+        }
+
+        /* Header */
+        header {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(12px);
+            background: rgba(8, 12, 20, 0.6);
+            border-bottom: 1px solid var(--bd-border);
+        }
+
+        .nav {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 1rem 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 1.25rem;
+            color: var(--bd-text);
+        }
+
+        .logo-icon {
+            width: 32px; height: 32px;
+            background: linear-gradient(135deg, var(--bd-primary), #22d3ee);
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 0 20px rgba(7, 83, 251, 0.4);
+        }
+
+        .logo-icon::before {
+            content: "BD"; font-weight: 800; color: white; font-size: 0.9rem; letter-spacing: -1px;
+        }
+
+        .nav-links { display: none; gap: 2rem; }
+        @media (min-width: 768px) { .nav-links { display: flex; } }
+
+        .nav-links a {
+            color: var(--bd-text-muted);
+            text-decoration: none;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+        .nav-links a:hover { color: var(--bd-text); }
+
+        .nav-cta {
+            background: var(--bd-primary);
+            color: white;
+            padding: 0.6rem 1.25rem;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 0.875rem;
+            transition: transform 0.2s, background 0.2s;
+            white-space: nowrap;
+        }
+        .nav-cta:hover { background: var(--bd-primary-hover); transform: translateY(-1px); }
+
+        /* Hero */
+        .hero {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 4rem 1.5rem 3rem;
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 3rem;
+            align-items: center;
+        }
+
+        @media (min-width: 960px) {
+            .hero { grid-template-columns: 1.1fr 0.9fr; gap: 4rem; padding-top: 5rem; }
+        }
+
+        .hero-content h1 {
+            font-size: clamp(2.5rem, 5vw, 4rem);
+            font-weight: 800;
+            line-height: 1.05;
+            letter-spacing: -0.02em;
+            margin-bottom: 1.25rem;
+            background: linear-gradient(to bottom, var(--bd-text) 60%, #94a3b8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero-content h1 .accent { color: var(--bd-primary); }
+
+        .hero-content p {
+            font-size: 1.125rem;
+            color: var(--bd-text-muted);
+            margin-bottom: 2rem;
+            max-width: 480px;
+            line-height: 1.7;
+        }
+
+        /* Status badge */
+        .status-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 1.5rem;
+            padding: 0.75rem 1rem;
+            background: var(--bd-glass);
+            border: 1px solid var(--bd-border);
+            border-radius: 10px;
+            backdrop-filter: blur(8px);
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+
+        .status-dot {
+            width: 8px; height: 8px;
+            background: var(--bd-success);
+            border-radius: 50%;
+            box-shadow: 0 0 10px var(--bd-success);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+        /* Download section */
+        .download-card {
+            background: var(--bd-card);
+            border: 1px solid var(--bd-border);
+            border-radius: var(--radius-xl);
+            padding: 1.75rem;
+            backdrop-filter: blur(10px);
+        }
+
+        .download-card h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--bd-text);
+            display: flex; align-items: center; gap: 8px;
+        }
+
+        .detected-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 0.4rem 0.8rem;
+            background: rgba(7, 83, 251, 0.1);
+            border: 1px solid rgba(7, 83, 251, 0.2);
+            color: #60a5fa;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+
+        .detected-chip .chip-icon { width: 16px; height: 16px; border-radius: 4px; background: currentColor; }
+
+        .download-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            margin-top: 1rem;
+        }
+
+        .btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 0.9rem 1.25rem;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            text-decoration: none;
+            transition: all 0.2s;
+            border: none;
+            cursor: pointer;
+        }
+
+        .btn-primary {
+            background: var(--bd-primary);
+            color: white;
+            box-shadow: 0 10px 25px -5px rgba(7, 83, 251, 0.3);
+        }
+        .btn-primary:hover { background: var(--bd-primary-hover); transform: translateY(-2px); box-shadow: 0 15px 35px -5px rgba(7, 83, 251, 0.4); }
+        .btn-primary:active { transform: translateY(0); }
+
+        .btn-outline {
+            background: rgba(255,255,255,0.05);
+            color: var(--bd-text);
+            border: 1px solid var(--bd-border);
+        }
+        .btn-outline:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.2); }
+
+        .btn-secondary {
+            background: var(--bd-dark-soft);
+            color: var(--bd-text-muted);
+        }
+        .btn-secondary:hover { background: var(--bd-dark); color: var(--bd-text); }
+
+        .btn:disabled {
+            opacity: 0.6; cursor: not-allowed; transform: none !important;
+        }
+
+        .spinner {
+            width: 16px; height: 16px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .download-note {
+            margin-top: 1rem;
+            font-size: 0.8rem;
+            color: var(--bd-text-muted);
+            line-height: 1.5;
+        }
+
+        .download-note b { color: var(--bd-text); }
+
+        /* Hero visual (abstract) */
+        .hero-visual {
+            position: relative;
+            height: 320px;
+            border-radius: var(--radius-2xl);
+            background: linear-gradient(135deg, rgba(7,83,251,0.1) 0%, rgba(16,185,129,0.05) 100%);
+            border: 1px solid var(--bd-border);
+            overflow: hidden;
+            display: flex; align-items: center; justify-content: center;
+        }
+
+        .glass-card {
+            position: absolute;
+            width: 200px; height: 280px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            backdrop-filter: blur(12px);
+            display: flex; flex-direction: column; align-items: center; padding: 1.5rem;
+            gap: 1rem;
+            animation: float 6s ease-in-out infinite;
+        }
+
+        .glass-card:nth-child(2) { animation-delay: 1s; transform: translateX(30px) scale(0.95); }
+        .glass-card:nth-child(3) { animation-delay: 2s; transform: translateX(-30px) scale(0.9); }
+
+        @keyframes float {
+            0%,100% { transform: translateY(0); }
+            50% { transform: translateY(-20px); }
+        }
+
+        .glass-icon {
+            width: 44px; height: 44px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, var(--bd-primary), #22d3ee);
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 0 20px rgba(7,83,251,0.35);
+        }
+
+        .glass-card h4 { font-size: 0.9rem; font-weight: 600; color: var(--bd-text); }
+        .glass-card p { font-size: 0.75rem; color: var(--bd-text-muted); text-align: center; line-height: 1.4; }
+
+        /* Steps */
+        .steps {
+            max-width: 900px;
+            margin: 4rem auto;
+            padding: 0 1.5rem;
+        }
+
+        .steps h2 {
+            text-align: center;
+            font-size: 1.75rem;
+            margin-bottom: 3rem;
+            color: var(--bd-text);
+        }
+
+        .steps-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
+        }
+        @media (min-width: 768px) { .steps-grid { grid-template-columns: repeat(3, 1fr); } }
+
+        .step-card {
+            background: var(--bd-card);
+            border: 1px solid var(--bd-border);
+            border-radius: var(--radius-xl);
+            padding: 1.75rem;
+            backdrop-filter: blur(8px);
+            position: relative;
+        }
+
+        .step-card::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+            background: linear-gradient(90deg, var(--bd-primary), #22d3ee);
+            border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+        }
+
+        .step-number {
+            width: 32px; height: 32px;
+            background: var(--bd-primary);
+            color: white;
+            border-radius: 50%;
+            font-weight: 700;
+            font-size: 0.85rem;
+            display: flex; align-items: center; justify-content: center;
+            margin-bottom: 1.25rem;
+        }
+
+        .step-card h3 { font-size: 1.1rem; margin-bottom: 0.75rem; color: var(--bd-text); }
+        .step-card p { font-size: 0.9rem; color: var(--bd-text-muted); line-height: 1.6; }
+
+        /* Features */
+        .features {
+            background: var(--bd-dark-soft);
+            border-top: 1px solid var(--bd-border);
+            border-bottom: 1px solid var(--bd-border);
+            padding: 4rem 1.5rem;
+        }
+
+        .features-grid {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 2rem;
+        }
+        @media (min-width: 768px) { .features-grid { grid-template-columns: repeat(3, 1fr); } }
+
+        .feat {
+            display: flex; gap: 1rem;
+        }
+        .feat-icon {
+            width: 40px; height: 40px;
+            border-radius: 10px;
+            background: rgba(7,83,251,0.1);
+            color: var(--bd-primary);
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+        }
+        .feat h4 { font-size: 1rem; margin-bottom: 0.4rem; color: var(--bd-text); }
+        .feat p { font-size: 0.875rem; color: var(--bd-text-muted); line-height: 1.5; }
+
+        /* Footer */
+        footer {
+            border-top: 1px solid var(--bd-border);
+            padding: 3rem 1.5rem 2rem;
+        }
+        .footer-inner {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex; flex-direction: column; gap: 2rem;
+            align-items: center; text-align: center;
+        }
+        @media (min-width: 768px) { .footer-inner { flex-direction: row; justify-content: space-between; text-align: left; } }
+
+        .footer-logo { font-weight: 700; font-size: 1.1rem; color: var(--bd-text); text-decoration: none; display: flex; align-items: center; gap: 8px; }
+        .footer-links { display: flex; gap: 1.5rem; }
+        .footer-links a { color: var(--bd-text-muted); text-decoration: none; font-size: 0.875rem; }
+        .footer-links a:hover { color: var(--bd-text); }
+        .footer-note { color: #64748b; font-size: 0.8rem; margin-top: 1rem; }
+
+        /* OS-specific install panel */
+        .install-guide {
+            margin-top: 2rem;
+            padding: 1.25rem;
+            background: rgba(16, 185, 129, 0.05);
+            border: 1px solid rgba(16, 185, 129, 0.15);
+            border-radius: 10px;
+            display: none;
+        }
+        .install-guide.show { display: block; }
+        .install-guide h4 { font-size: 0.9rem; margin-bottom: 0.75rem; color: var(--bd-success); display: flex; align-items: center; gap: 8px; }
+        .install-guide ol { margin-left: 1.25rem; color: var(--bd-text-muted); font-size: 0.85rem; line-height: 1.6; }
+        .install-guide li { margin-bottom: 0.5rem; }
+        .install-guide code {
+            background: rgba(255,255,255,0.05);
+            padding: 0.15rem 0.4rem;
+            border-radius: 4px;
+            font-family: ui-monospace, SFMono-Regular, monospace;
+            font-size: 0.8rem;
+            color: #fbbf24;
+        }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <div class="glow"></div>
+
+    <header>
+        <div class="nav">
+            <a href="/" class="logo">
+                <div class="logo-icon"></div>
+                BetterDesk
+            </a>
+            <div class="nav-links">
+                <a href="#features">Features</a>
+                <a href="#how-it-works">How it works</a>
+                <a href="/">Download</a>
+            </div>
+            <a href="/login" class="nav-cta">Admin Console</a>
+        </div>
+    </header>
+
+    <section class="hero">
+        <div class="hero-content">
+            <div class="status-row">
+                <div class="status-dot"></div>
+                <span id="status-text">Checking your device&hellip;</span>
+            </div>
+
+            <h1>Join your remote session<span class="accent"> instantly.</span></h1>
+            <p>BetterDesk connects you to your devices securely. We&rsquo;ve detected your system and prepared the right installer&mdash;just download and run it.</p>
+
+            <div class="download-card">
+                <h3><span class="chip-icon"></span> <span id="detected-label">Your Device</span></h3>
+                <div class="detected-chip hidden" id="detected-chip">
+                    <span class="chip-icon" id="chip-icon"></span>
+                    <span id="chip-text">Detecting&hellip;</span>
+                </div>
+
+                <div class="download-actions">
+                    <button class="btn btn-primary" id="dl-btn" onclick="startDownload()">
+                        <span class="spinner hidden" id="dl-spinner"></span>
+                        <span id="dl-text">Download BetterDesk Client</span>
+                    </button>
+                    <button class="btn btn-outline" id="dl-other" onclick="showOtherPlatforms()" style="margin-top:0.5rem;">
+                        Choose a different platform
+                    </button>
+                    <div class="download-note" id="dl-note">
+                        File will download automatically. Open it to install.
+                    </div>
+                </div>
+
+                <div class="install-guide" id="install-guide">
+                    <h4><span class="chip-icon" style="background:var(--bd-success);"></span> Install &amp; Connect</h4>
+                    <ol id="install-steps">
+                        <li>Download starts automatically</li>
+                        <li>Open the downloaded file</li>
+                        <li>Follow the installer prompts</li>
+                        <li>Log in&mdash;you&rsquo;re connected</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+
+        <div class="hero-visual">
+            <div class="glass-card">
+                <div class="glass-icon">🖥️</div>
+                <h4>Remote Desktop</h4>
+                <p>Full control from anywhere</p>
+            </div>
+            <div class="glass-card" style="top: 60px; right: -40px;">
+                <div class="glass-icon">🔒</div>
+                <h4>E2E Encrypted</h4>
+                <p>NaCl + TLS 1.2+</p>
+            </div>
+            <div class="glass-card" style="bottom: 40px; left: -30px;">
+                <div class="glass-icon">📱</div>
+                <h4>Cross-Platform</h4>
+                <p>Win, Mac, Linux, Android</p>
+            </div>
+        </div>
+    </section>
+
+    <section id="how-it-works" class="steps">
+        <h2>Three steps to remote access</h2>
+        <div class="steps-grid">
+            <div class="step-card">
+                <div class="step-number">1</div>
+                <h3>Download</h3>
+                <p>Get the BetterDesk client for your device in one click.</p>
+            </div>
+            <div class="step-card">
+                <div class="step-number">2</div>
+                <h3>Install</h3>
+                <p>Run the installer&mdash;no technical setup required.</p>
+            </div>
+            <div class="step-card">
+                <div class="step-number">3</div>
+                <h3>Connect</h3>
+                <p>Log in and access your devices instantly.</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="features" id="features">
+        <div class="features-grid">
+            <div class="feat">
+                <div class="feat-icon">⚡</div>
+                <div>
+                    <h4>One-click install</h4>
+                    <p>Auto-detected for your OS. No protocol configuration needed.</p>
+                </div>
+            </div>
+            <div class="feat">
+                <div class="feat-icon">🔐</div>
+                <div>
+                    <h4>End-to-end encrypted</h4>
+                    <p>NaCl + TLS 1.2+ keeps every session private.</p>
+                </div>
+            </div>
+            <div class="feat">
+                <div class="feat-icon">🌍</div>
+                <div>
+                    <h4>Cross-platform</h4>
+                    <p>Windows, macOS, Linux, and Android&mdash;all connected.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="footer-inner">
+            <div class="footer-logo">
+                <div class="logo-icon" style="width:24px;height:24px;"></div>
+                BetterDesk
+            </div>
+            <div class="footer-links">
+                <a href="#">Privacy</a>
+                <a href="#">Terms</a>
+                <a href="#">Support</a>
+                <a href="/login">Admin Console</a>
+            </div>
+            <div class="footer-note">BetterDesk v3.5.4 &bull; Secure remote desktop for teams</div>
+        </div>
+    </footer>
+
+    <script>
+        // ---- Platform detection ----
+        const ua = navigator.userAgent || navigator.vendor || window.opera;
+        const isAndroid = /android/i.test(ua);
+        const isiOS = /iphone|ipad|ipod/i.test(ua) && !window.MSStream;
+        const isWindows = /windows/i.test(ua);
+        const isMac = /macintosh|mac os x/i.test(ua);
+        const isLinux = /linux/i.test(ua);
+
+        let detectedPlatform = 'unknown';
+        let assetName = null;
+        let downloadUrl = null;
+
+        const chip = document.getElementById('detected-chip');
+        const chipIcon = document.getElementById('chip-icon');
+        const chipText = document.getElementById('chip-text');
+        const detectedLabel = document.getElementById('detected-label');
+        const statusText = document.getElementById('status-text');
+        const dlBtn = document.getElementById('dl-btn');
+        const dlText = document.getElementById('dl-text');
+        const dlSpinner = document.getElementById('dl-spinner');
+        const dlNote = document.getElementById('dl-note');
+        const installGuide = document.getElementById('install-guide');
+        const installSteps = document.getElementById('install-steps');
+
+        function setDetecting() {
+            statusText.textContent = 'Detecting your device&hellip;';
+            chipText.textContent = 'Detecting&hellip;';
+            chipIcon.style.background = '#cbd5e1';
+        }
+
+        function setDetected(platform, label, iconColor, iconText, steps, asset) {
+            detectedPlatform = platform;
+            assetName = asset;
+
+            chip.classList.remove('hidden');
+            chipIcon.style.background = iconColor;
+            chipIcon.textContent = iconText;
+            chipText.textContent = label;
+            detectedLabel.textContent = label;
+
+            statusText.textContent = 'Ready to connect';
+            installGuide.classList.add('show');
+
+            installSteps.innerHTML = steps.map(s => `<li>${s}</li>`).join('');
+
+            // Set primary button text based on asset
+            if (asset) {
+                dlText.textContent = `Download ${asset.name}`;
+                downloadUrl = asset.browser_download_url;
+            } else {
+                dlBtn.disabled = true;
+                dlText.textContent = 'No build available for your platform yet';
+                dlBtn.classList.replace('btn-primary', 'btn-secondary');
+            }
+        }
+
+        function setError(msg) {
+            statusText.textContent = msg;
+            chipText.textContent = 'Unknown';
+            dlBtn.disabled = true;
+            dlText.textContent = 'Choose your platform manually';
+            dlBtn.classList.replace('btn-primary', 'btn-outline');
+            dlBtn.onclick = showOtherPlatforms;
+        }
+
+        setDetecting();
+
+        // Map UA to platform + steps + asset keyword
+        if (isAndroid) {
+            detectedPlatform = 'android';
+            setDetected('android', 'Android', '#3DDC84', 'A', [
+                'Tap Download&mdash;the APK downloads',
+                'Open Downloads and tap the file',
+                'Enable &ldquo;Install unknown apps&rdquo; if prompted',
+                'Open BetterDesk and log in'
+            ], null);
+        } else if (isiOS) {
+            detectedPlatform = 'ios';
+            setDetected('ios', 'iPhone / iPad', '#000000', 'A', [
+                'Coming soon&mdash;iOS client in beta',
+                'Join via browser in the meantime'
+            ], null);
+        } else if (isWindows) {
+            detectedPlatform = 'windows';
+            setDetected('windows', 'Windows', '#0078D6', 'W', [
+                'Download the .msi installer',
+                'Run it&mdash;click through the setup wizard',
+                'Launch BetterDesk and log in'
+            ], 'windows');
+        } else if (isMac) {
+            detectedPlatform = 'macos';
+            setDetected('macos', 'macOS', '#000000', 'M', [
+                'Download the .dmg image',
+                'Open it and drag BetterDesk to Applications',
+                'Launch BetterDesk&mdash;allow in Security &amp; Privacy if asked'
+            ], 'macos');
+        } else if (isLinux) {
+            detectedPlatform = 'linux';
+            setDetected('linux', 'Linux', '#FCC624', 'L', [
+                'Download the .deb or .rpm package',
+                'Install with your package manager',
+                'Launch BetterDesk and log in'
+            ], 'linux');
+        } else {
+            setError('Platform not recognized');
+        }
+
+        // ---- GitHub releases fetch ----
+        async function fetchLatestRelease() {
+            try {
+                const res = await fetch('https://api.github.com/repos/fingod201-maker/BetterDesk/releases/latest', {
+                    headers: { 'Accept': 'application/vnd.github+json' },
+                    cache: 'no-store'
+                });
+                if (!res.ok) throw new Error('Release fetch failed');
+                const data = await res.json();
+                const assets = data.assets || [];
+
+                // Map platform keywords to asset names
+                const map = {
+                    windows: ['windows', 'msi', 'exe', 'setup'],
+                    macos: ['macos', 'dmg'],
+                    linux: ['linux', 'deb', 'rpm', 'appimage'],
+                    android: ['android', 'apk']
+                };
+
+                const keywords = map[detectedPlatform] || [];
+                let match = assets.find(a => keywords.some(k => a.name.toLowerCase().includes(k)));
+                // Prefer exact platform suffix
+                if (!match && keywords.length) {
+                    match = assets.find(a => keywords.some(k => a.name.toLowerCase().endsWith(k)));
+                }
+
+                if (match) {
+                    assetName = match.name;
+                    downloadUrl = match.browser_download_url;
+                    dlText.textContent = `Download ${match.name}`;
+                    dlNote.textContent = `File will download automatically. Open it to install. (${(match.size / 1048576).toFixed(1)} MB)`;
+                }
+            } catch (e) {
+                console.warn('Release fetch failed:', e);
+                // Keep default button text
+            }
+        }
+
+        fetchLatestRelease();
+
+        // ---- Download handler ----
+        async function startDownload() {
+            if (!downloadUrl) {
+                // Fallback: show manual platforms
+                showOtherPlatforms();
+                return;
+            }
+
+            dlBtn.disabled = true;
+            dlSpinner.classList.remove('hidden');
+            dlText.textContent = 'Downloading&hellip;';
+
+            try {
+                // Direct download
+                window.location.href = downloadUrl;
+                dlNote.textContent = 'Download started. Open the file to install.';
+                setTimeout(() => {
+                    dlBtn.disabled = false;
+                    dlSpinner.classList.add('hidden');
+                    dlText.textContent = 'Re-download';
+                }, 1500);
+            } catch (e) {
+                console.error(e);
+                dlBtn.disabled = false;
+                dlSpinner.classList.add('hidden');
+                dlText.textContent = 'Download failed&mdash;try again';
+            }
+        }
+
+        function showOtherPlatforms() {
+            // In a full build this would open a modal with all platforms
+            alert('Choose your platform:\n\nWindows: BetterDesk Agent_1.0.0_x64-setup.exe\nmacOS: Coming soon\nLinux: BetterDesk Agent_1.0.0_amd64.deb\nAndroid: BetterDesk-Client-arm64-v8a-release.apk\n\nOr visit the Releases page on GitHub.');
+        }
+
+        // Track download click (analytics placeholder)
+        dlBtn.addEventListener('click', () => {
+            if (typeof gtag !== 'undefined') {
+                gtag('event', 'download', { item_id: detectedPlatform });
+            }
+        });
+    </script>
+</body>
+</html>
