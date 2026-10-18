@@ -1,781 +1,302 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="description" content="BetterDesk — Secure remote desktop access. Join your session in seconds. No configuration required.">
-    <title>BetterDesk | Join Remote Session</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --bd-primary: #0753FB;
-            --bd-primary-hover: #0543d1;
-            --bd-dark: #0a0f20;
-            --bd-dark-soft: #131a2e;
-            --bd-text: #f8fafc;
-            --bd-text-muted: #94a3b8;
-            --bd-success: #10b981;
-            --bd-warning: #f59e0b;
-            --bd-bg: #080c14;
-            --bd-card: rgba(255,255,255,0.03);
-            --bd-border: rgba(255,255,255,0.08);
-            --bd-glass: rgba(255,255,255,0.05);
-            --radius-xl: 16px;
-            --radius-2xl: 24px;
-            --shadow-xl: 0 20px 50px -10px rgba(0,0,0,0.6);
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0B5CFF">
+<meta name="description" content="Join your private meeting in seconds. We detect your device and install the right client automatically — no setup required.">
+<title>BetterDesk Meet | Join your meeting</title>
+<link rel="icon" href="/img/zoom-mark.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --z-blue:#0B5CFF; --z-blue-dark:#0847cc; --z-blue-soft:#e8f0ff;
+    --z-ink:#0b1b33; --z-ink-soft:#25344d; --z-muted:#5a6b85;
+    --z-bg:#f6f8fc; --z-card:#ffffff; --z-border:#e3e9f2;
+    --z-success:#12b76a; --z-success-soft:#e7f8ef;
+    --z-warn:#b54708; --z-warn-soft:#fef3e6;
+    --radius:16px; --radius-sm:10px;
+    --shadow-sm:0 1px 2px rgba(16,32,64,.06),0 1px 3px rgba(16,32,64,.05);
+    --shadow-md:0 10px 30px -12px rgba(11,60,160,.25);
+    --shadow-lg:0 30px 60px -20px rgba(11,60,160,.35);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    color:var(--z-ink); background:var(--z-bg); line-height:1.6;
+    -webkit-font-smoothing:antialiased; overflow-x:hidden;
+  }
+  a{color:inherit;text-decoration:none}
+  .wrap{max-width:1160px;margin:0 auto;padding:0 24px}
 
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        html { scroll-behavior: smooth; }
+  /* ---------- Header ---------- */
+  header{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.85);backdrop-filter:blur(12px);border-bottom:1px solid var(--z-border)}
+  .nav{display:flex;align-items:center;justify-content:space-between;height:68px}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:1.2rem;letter-spacing:-.02em}
+  .brand img{width:34px;height:34px;border-radius:9px;box-shadow:0 4px 14px rgba(11,92,255,.35)}
+  .nav-links{display:none;gap:28px;align-items:center}
+  @media(min-width:860px){.nav-links{display:flex}}
+  .nav-links a{color:var(--z-muted);font-weight:500;font-size:.92rem;transition:color .15s}
+  .nav-links a:hover{color:var(--z-ink)}
+  .nav-cta{background:var(--z-blue);color:#fff;font-weight:600;font-size:.9rem;padding:.6rem 1.1rem;border-radius:999px;transition:background .15s,transform .15s;white-space:nowrap}
+  .nav-cta:hover{background:var(--z-blue-dark);transform:translateY(-1px)}
 
-        body {
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
-            background: var(--bd-bg);
-            color: var(--bd-text);
-            line-height: 1.6;
-            overflow-x: hidden;
-            min-height: 100vh;
-        }
+  /* ---------- Hero ---------- */
+  .hero{position:relative;overflow:hidden}
+  .hero-inner{display:grid;grid-template-columns:1fr;gap:48px;padding:56px 0 40px;align-items:center}
+  @media(min-width:980px){.hero-inner{grid-template-columns:1.05fr .95fr;gap:40px;padding:72px 0 56px}}
+  .eyebrow{display:inline-flex;align-items:center;gap:8px;background:var(--z-blue-soft);color:var(--z-blue);font-weight:600;font-size:.8rem;padding:.35rem .75rem;border-radius:999px;margin-bottom:18px}
+  .eyebrow .dot{width:7px;height:7px;border-radius:50%;background:var(--z-success);box-shadow:0 0 0 3px rgba(18,183,106,.2)}
+  h1{font-size:clamp(2.1rem,4.6vw,3.4rem);line-height:1.06;letter-spacing:-.03em;font-weight:800;margin-bottom:16px}
+  h1 .accent{color:var(--z-blue)}
+  .lede{color:var(--z-muted);font-size:1.08rem;max-width:520px;margin-bottom:28px}
 
-        /* Background glow */
-        .glow {
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            z-index: -1;
-            background:
-                radial-gradient(circle at 15% 25%, rgba(7, 83, 251, 0.15) 0%, transparent 45%),
-                radial-gradient(circle at 85% 75%, rgba(16, 185, 129, 0.1) 0%, transparent 45%),
-                radial-gradient(circle at 50% 50%, rgba(255,255,255,0.02) 0%, transparent 60%);
-            pointer-events: none;
-        }
+  /* Join card */
+  .join-card{background:var(--z-card);border:1px solid var(--z-border);border-radius:var(--radius);padding:22px;box-shadow:var(--shadow-md);max-width:520px}
+  .join-card h3{font-size:.95rem;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+  .join-row{display:flex;gap:10px;flex-wrap:wrap}
+  .field{flex:1 1 160px;min-width:0;position:relative}
+  .field input{width:100%;padding:.82rem .9rem;border:1.5px solid var(--z-border);border-radius:var(--radius-sm);font-size:.95rem;font-family:inherit;background:#fbfcfe;transition:border-color .15s,box-shadow .15s}
+  .field input:focus{outline:none;border-color:var(--z-blue);box-shadow:0 0 0 3px rgba(11,92,255,.15);background:#fff}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:9px;border:none;border-radius:var(--radius-sm);font-family:inherit;font-weight:600;font-size:.95rem;padding:.82rem 1.2rem;cursor:pointer;transition:transform .15s,background .15s,box-shadow .15s;white-space:nowrap}
+  .btn:active{transform:translateY(1px)}
+  .btn-primary{background:var(--z-blue);color:#fff;box-shadow:0 10px 22px -8px rgba(11,92,255,.6)}
+  .btn-primary:hover{background:var(--z-blue-dark);transform:translateY(-1px)}
+  .btn-primary:disabled{opacity:.55;cursor:not-allowed;transform:none;box-shadow:none}
+  .btn-ghost{background:#fff;color:var(--z-ink);border:1.5px solid var(--z-border)}
+  .btn-ghost:hover{background:#f2f6fc;border-color:#c9d6ea}
+  .join-note{margin-top:12px;font-size:.82rem;color:var(--z-muted);display:flex;gap:8px;align-items:flex-start}
+  .join-note svg{flex:none;margin-top:2px}
 
-        /* Header */
-        header {
-            position: sticky;
-            top: 0;
-            z-index: 100;
-            backdrop-filter: blur(12px);
-            background: rgba(8, 12, 20, 0.6);
-            border-bottom: 1px solid var(--bd-border);
-        }
+  /* Download panel */
+  .dl{margin-top:22px;border-top:1px dashed var(--z-border);padding-top:20px}
+  .chip{display:inline-flex;align-items:center;gap:9px;background:var(--z-blue-soft);border:1px solid #cfe0ff;color:var(--z-blue-dark);font-weight:600;font-size:.85rem;padding:.5rem .8rem;border-radius:999px;margin-bottom:14px}
+  .chip .os{width:22px;height:22px;border-radius:6px;background:var(--z-blue);color:#fff;display:grid;place-items:center;font-size:.72rem;font-weight:800}
+  .chip.loading{background:#eef2f8;border-color:var(--z-border);color:var(--z-muted)}
+  .chip.loading .os{background:#c1cddf}
+  .dl-actions{display:flex;flex-direction:column;gap:10px}
+  .dl-status{font-size:.82rem;color:var(--z-muted);min-height:1.2em}
+  .dl-status.ok{color:var(--z-success);font-weight:600}
+  .dl-status.warn{color:var(--z-warn);font-weight:600}
+  .spinner{width:15px;height:15px;border:2px solid rgba(255,255,255,.45);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite}
+  .spinner.dark{border-color:rgba(11,92,255,.25);border-top-color:var(--z-blue)}
+  @keyframes spin{to{transform:rotate(360deg)}}
 
-        .nav {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 1rem 1.5rem;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
+  /* Hero art */
+  .hero-art{position:relative;border-radius:24px;overflow:hidden;box-shadow:var(--shadow-lg);border:1px solid var(--z-border);background:linear-gradient(135deg,#0b1b33,#123a7a)}
+  .hero-art img{display:block;width:100%;height:100%;object-fit:cover;aspect-ratio:1/1;opacity:.96}
+  .hero-art .float{position:absolute;left:18px;bottom:18px;right:18px;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:12px;box-shadow:var(--shadow-md)}
+  .hero-art .float .ic{width:38px;height:38px;border-radius:10px;background:var(--z-success-soft);color:var(--z-success);display:grid;place-items:center;flex:none}
+  .hero-art .float b{display:block;font-size:.9rem}
+  .hero-art .float span{font-size:.78rem;color:var(--z-muted)}
 
-        .logo {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            text-decoration: none;
-            font-weight: 700;
-            font-size: 1.25rem;
-            color: var(--bd-text);
-        }
+  /* ---------- Sections ---------- */
+  section.pad{padding:64px 0}
+  .section-head{text-align:center;max-width:640px;margin:0 auto 44px}
+  .section-head h2{font-size:clamp(1.5rem,3vw,2.1rem);letter-spacing:-.02em;font-weight:800;margin-bottom:10px}
+  .section-head p{color:var(--z-muted)}
+  .steps{display:grid;grid-template-columns:1fr;gap:20px}
+  @media(min-width:820px){.steps{grid-template-columns:repeat(3,1fr)}}
+  .step{background:var(--z-card);border:1px solid var(--z-border);border-radius:var(--radius);padding:26px;box-shadow:var(--shadow-sm)}
+  .step .n{width:38px;height:38px;border-radius:11px;background:var(--z-blue-soft);color:var(--z-blue);display:grid;place-items:center;font-weight:800;margin-bottom:16px}
+  .step h3{font-size:1.05rem;margin-bottom:8px}
+  .step p{color:var(--z-muted);font-size:.92rem}
+  .step ul{color:var(--z-muted);font-size:.9rem;margin:10px 0 0 18px}
+  .step ul li{margin-bottom:4px}
 
-        .logo-icon {
-            width: 32px; height: 32px;
-            background: linear-gradient(135deg, var(--bd-primary), #22d3ee);
-            border-radius: 8px;
-            display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 0 20px rgba(7, 83, 251, 0.4);
-        }
+  .features{background:#fff;border-top:1px solid var(--z-border);border-bottom:1px solid var(--z-border)}
+  .feat-grid{display:grid;grid-template-columns:1fr;gap:22px}
+  @media(min-width:820px){.feat-grid{grid-template-columns:repeat(3,1fr)}}
+  .feat{display:flex;gap:14px}
+  .feat .ic{width:42px;height:42px;border-radius:12px;background:var(--z-blue-soft);color:var(--z-blue);display:grid;place-items:center;flex:none}
+  .feat h4{font-size:1rem;margin-bottom:4px}
+  .feat p{color:var(--z-muted);font-size:.9rem}
 
-        .logo-icon::before {
-            content: "BD"; font-weight: 800; color: white; font-size: 0.9rem; letter-spacing: -1px;
-        }
+  /* ---------- Modal ---------- */
+  .modal-back{position:fixed;inset:0;background:rgba(9,20,40,.5);backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center;padding:20px;z-index:100}
+  .modal-back.show{display:flex}
+  .modal{background:#fff;border-radius:18px;max-width:560px;width:100%;max-height:86vh;overflow:auto;box-shadow:var(--shadow-lg);padding:26px}
+  .modal h3{font-size:1.15rem;margin-bottom:6px}
+  .modal .sub{color:var(--z-muted);font-size:.88rem;margin-bottom:20px}
+  .plat{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px;border:1px solid var(--z-border);border-radius:12px;margin-bottom:10px}
+  .plat .meta{display:flex;align-items:center;gap:12px;min-width:0}
+  .plat .os{width:36px;height:36px;border-radius:10px;background:#f1f5fb;display:grid;place-items:center;font-weight:800;color:var(--z-ink-soft);flex:none}
+  .plat b{font-size:.92rem;display:block}
+  .plat span{font-size:.78rem;color:var(--z-muted)}
+  .plat .btn{padding:.55rem .95rem;font-size:.86rem}
+  .modal-close{position:sticky;top:0;float:right;background:#f1f5fb;border:none;width:34px;height:34px;border-radius:9px;cursor:pointer;font-size:1.1rem;color:var(--z-muted)}
 
-        .nav-links { display: none; gap: 2rem; }
-        @media (min-width: 768px) { .nav-links { display: flex; } }
+  .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:var(--z-ink);color:#fff;padding:.75rem 1.1rem;border-radius:999px;font-size:.88rem;font-weight:500;box-shadow:var(--shadow-lg);opacity:0;pointer-events:none;transition:.25s;z-index:120;display:flex;gap:9px;align-items:center}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
-        .nav-links a {
-            color: var(--bd-text-muted);
-            text-decoration: none;
-            font-size: 0.875rem;
-            font-weight: 500;
-            transition: color 0.2s;
-        }
-        .nav-links a:hover { color: var(--bd-text); }
-
-        .nav-cta {
-            background: var(--bd-primary);
-            color: white;
-            padding: 0.6rem 1.25rem;
-            border-radius: 8px;
-            text-decoration: none;
-            font-weight: 600;
-            font-size: 0.875rem;
-            transition: transform 0.2s, background 0.2s;
-            white-space: nowrap;
-        }
-        .nav-cta:hover { background: var(--bd-primary-hover); transform: translateY(-1px); }
-
-        /* Hero */
-        .hero {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 4rem 1.5rem 3rem;
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 3rem;
-            align-items: center;
-        }
-
-        @media (min-width: 960px) {
-            .hero { grid-template-columns: 1.1fr 0.9fr; gap: 4rem; padding-top: 5rem; }
-        }
-
-        .hero-content h1 {
-            font-size: clamp(2.5rem, 5vw, 4rem);
-            font-weight: 800;
-            line-height: 1.05;
-            letter-spacing: -0.02em;
-            margin-bottom: 1.25rem;
-            background: linear-gradient(to bottom, var(--bd-text) 60%, #94a3b8);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
-        .hero-content h1 .accent { color: var(--bd-primary); }
-
-        .hero-content p {
-            font-size: 1.125rem;
-            color: var(--bd-text-muted);
-            margin-bottom: 2rem;
-            max-width: 480px;
-            line-height: 1.7;
-        }
-
-        /* Status badge */
-        .status-row {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 1.5rem;
-            padding: 0.75rem 1rem;
-            background: var(--bd-glass);
-            border: 1px solid var(--bd-border);
-            border-radius: 10px;
-            backdrop-filter: blur(8px);
-            font-size: 0.85rem;
-            font-weight: 500;
-        }
-
-        .status-dot {
-            width: 8px; height: 8px;
-            background: var(--bd-success);
-            border-radius: 50%;
-            box-shadow: 0 0 10px var(--bd-success);
-            animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
-
-        /* Download section */
-        .download-card {
-            background: var(--bd-card);
-            border: 1px solid var(--bd-border);
-            border-radius: var(--radius-xl);
-            padding: 1.75rem;
-            backdrop-filter: blur(10px);
-        }
-
-        .download-card h3 {
-            font-size: 1rem;
-            font-weight: 600;
-            margin-bottom: 1rem;
-            color: var(--bd-text);
-            display: flex; align-items: center; gap: 8px;
-        }
-
-        .detected-chip {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 0.4rem 0.8rem;
-            background: rgba(7, 83, 251, 0.1);
-            border: 1px solid rgba(7, 83, 251, 0.2);
-            color: #60a5fa;
-            border-radius: 8px;
-            font-size: 0.85rem;
-            font-weight: 600;
-            margin-bottom: 1rem;
-        }
-
-        .detected-chip .chip-icon { width: 16px; height: 16px; border-radius: 4px; background: currentColor; }
-
-        .download-actions {
-            display: flex;
-            flex-direction: column;
-            gap: 0.75rem;
-            margin-top: 1rem;
-        }
-
-        .btn {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            padding: 0.9rem 1.25rem;
-            border-radius: 10px;
-            font-weight: 600;
-            font-size: 0.95rem;
-            text-decoration: none;
-            transition: all 0.2s;
-            border: none;
-            cursor: pointer;
-        }
-
-        .btn-primary {
-            background: var(--bd-primary);
-            color: white;
-            box-shadow: 0 10px 25px -5px rgba(7, 83, 251, 0.3);
-        }
-        .btn-primary:hover { background: var(--bd-primary-hover); transform: translateY(-2px); box-shadow: 0 15px 35px -5px rgba(7, 83, 251, 0.4); }
-        .btn-primary:active { transform: translateY(0); }
-
-        .btn-outline {
-            background: rgba(255,255,255,0.05);
-            color: var(--bd-text);
-            border: 1px solid var(--bd-border);
-        }
-        .btn-outline:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.2); }
-
-        .btn-secondary {
-            background: var(--bd-dark-soft);
-            color: var(--bd-text-muted);
-        }
-        .btn-secondary:hover { background: var(--bd-dark); color: var(--bd-text); }
-
-        .btn:disabled {
-            opacity: 0.6; cursor: not-allowed; transform: none !important;
-        }
-
-        .spinner {
-            width: 16px; height: 16px;
-            border: 2px solid rgba(255,255,255,0.3);
-            border-top-color: white;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
-        @keyframes spin { to { transform: rotate(360deg); } }
-
-        .download-note {
-            margin-top: 1rem;
-            font-size: 0.8rem;
-            color: var(--bd-text-muted);
-            line-height: 1.5;
-        }
-
-        .download-note b { color: var(--bd-text); }
-
-        /* Hero visual (abstract) */
-        .hero-visual {
-            position: relative;
-            height: 320px;
-            border-radius: var(--radius-2xl);
-            background: linear-gradient(135deg, rgba(7,83,251,0.1) 0%, rgba(16,185,129,0.05) 100%);
-            border: 1px solid var(--bd-border);
-            overflow: hidden;
-            display: flex; align-items: center; justify-content: center;
-        }
-
-        .glass-card {
-            position: absolute;
-            width: 200px; height: 280px;
-            background: rgba(255,255,255,0.04);
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 12px;
-            backdrop-filter: blur(12px);
-            display: flex; flex-direction: column; align-items: center; padding: 1.5rem;
-            gap: 1rem;
-            animation: float 6s ease-in-out infinite;
-        }
-
-        .glass-card:nth-child(2) { animation-delay: 1s; transform: translateX(30px) scale(0.95); }
-        .glass-card:nth-child(3) { animation-delay: 2s; transform: translateX(-30px) scale(0.9); }
-
-        @keyframes float {
-            0%,100% { transform: translateY(0); }
-            50% { transform: translateY(-20px); }
-        }
-
-        .glass-icon {
-            width: 44px; height: 44px;
-            border-radius: 10px;
-            background: linear-gradient(135deg, var(--bd-primary), #22d3ee);
-            display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 0 20px rgba(7,83,251,0.35);
-        }
-
-        .glass-card h4 { font-size: 0.9rem; font-weight: 600; color: var(--bd-text); }
-        .glass-card p { font-size: 0.75rem; color: var(--bd-text-muted); text-align: center; line-height: 1.4; }
-
-        /* Steps */
-        .steps {
-            max-width: 900px;
-            margin: 4rem auto;
-            padding: 0 1.5rem;
-        }
-
-        .steps h2 {
-            text-align: center;
-            font-size: 1.75rem;
-            margin-bottom: 3rem;
-            color: var(--bd-text);
-        }
-
-        .steps-grid {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 1.5rem;
-        }
-        @media (min-width: 768px) { .steps-grid { grid-template-columns: repeat(3, 1fr); } }
-
-        .step-card {
-            background: var(--bd-card);
-            border: 1px solid var(--bd-border);
-            border-radius: var(--radius-xl);
-            padding: 1.75rem;
-            backdrop-filter: blur(8px);
-            position: relative;
-        }
-
-        .step-card::before {
-            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
-            background: linear-gradient(90deg, var(--bd-primary), #22d3ee);
-            border-radius: var(--radius-xl) var(--radius-xl) 0 0;
-        }
-
-        .step-number {
-            width: 32px; height: 32px;
-            background: var(--bd-primary);
-            color: white;
-            border-radius: 50%;
-            font-weight: 700;
-            font-size: 0.85rem;
-            display: flex; align-items: center; justify-content: center;
-            margin-bottom: 1.25rem;
-        }
-
-        .step-card h3 { font-size: 1.1rem; margin-bottom: 0.75rem; color: var(--bd-text); }
-        .step-card p { font-size: 0.9rem; color: var(--bd-text-muted); line-height: 1.6; }
-
-        /* Features */
-        .features {
-            background: var(--bd-dark-soft);
-            border-top: 1px solid var(--bd-border);
-            border-bottom: 1px solid var(--bd-border);
-            padding: 4rem 1.5rem;
-        }
-
-        .features-grid {
-            max-width: 1200px;
-            margin: 0 auto;
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 2rem;
-        }
-        @media (min-width: 768px) { .features-grid { grid-template-columns: repeat(3, 1fr); } }
-
-        .feat {
-            display: flex; gap: 1rem;
-        }
-        .feat-icon {
-            width: 40px; height: 40px;
-            border-radius: 10px;
-            background: rgba(7,83,251,0.1);
-            color: var(--bd-primary);
-            display: flex; align-items: center; justify-content: center;
-            flex-shrink: 0;
-        }
-        .feat h4 { font-size: 1rem; margin-bottom: 0.4rem; color: var(--bd-text); }
-        .feat p { font-size: 0.875rem; color: var(--bd-text-muted); line-height: 1.5; }
-
-        /* Footer */
-        footer {
-            border-top: 1px solid var(--bd-border);
-            padding: 3rem 1.5rem 2rem;
-        }
-        .footer-inner {
-            max-width: 1200px;
-            margin: 0 auto;
-            display: flex; flex-direction: column; gap: 2rem;
-            align-items: center; text-align: center;
-        }
-        @media (min-width: 768px) { .footer-inner { flex-direction: row; justify-content: space-between; text-align: left; } }
-
-        .footer-logo { font-weight: 700; font-size: 1.1rem; color: var(--bd-text); text-decoration: none; display: flex; align-items: center; gap: 8px; }
-        .footer-links { display: flex; gap: 1.5rem; }
-        .footer-links a { color: var(--bd-text-muted); text-decoration: none; font-size: 0.875rem; }
-        .footer-links a:hover { color: var(--bd-text); }
-        .footer-note { color: #64748b; font-size: 0.8rem; margin-top: 1rem; }
-
-        /* OS-specific install panel */
-        .install-guide {
-            margin-top: 2rem;
-            padding: 1.25rem;
-            background: rgba(16, 185, 129, 0.05);
-            border: 1px solid rgba(16, 185, 129, 0.15);
-            border-radius: 10px;
-            display: none;
-        }
-        .install-guide.show { display: block; }
-        .install-guide h4 { font-size: 0.9rem; margin-bottom: 0.75rem; color: var(--bd-success); display: flex; align-items: center; gap: 8px; }
-        .install-guide ol { margin-left: 1.25rem; color: var(--bd-text-muted); font-size: 0.85rem; line-height: 1.6; }
-        .install-guide li { margin-bottom: 0.5rem; }
-        .install-guide code {
-            background: rgba(255,255,255,0.05);
-            padding: 0.15rem 0.4rem;
-            border-radius: 4px;
-            font-family: ui-monospace, SFMono-Regular, monospace;
-            font-size: 0.8rem;
-            color: #fbbf24;
-        }
-
-        .hidden { display: none !important; }
-    </style>
+  footer{border-top:1px solid var(--z-border);background:#fff;padding:34px 0}
+  .foot{display:flex;flex-wrap:wrap;gap:18px;align-items:center;justify-content:space-between;color:var(--z-muted);font-size:.85rem}
+  .foot .brand{font-size:1rem}
+  .foot .brand img{width:26px;height:26px;border-radius:7px}
+  .foot-links{display:flex;gap:20px;flex-wrap:wrap}
+  .foot-links a:hover{color:var(--z-ink)}
+  .hidden{display:none !important}
+  .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+</style>
 </head>
 <body>
 
-    <div class="glow"></div>
+<header>
+  <div class="wrap nav">
+    <a href="/landing" class="brand">
+      <img src="/img/zoom-mark.png" alt="BetterDesk Meet">
+      BetterDesk&nbsp;<span style="color:var(--z-blue)">Meet</span>
+    </a>
+    <nav class="nav-links">
+      <a href="#download">Download</a>
+      <a href="#how">How it works</a>
+      <a href="#features">Why BetterDesk</a>
+    </nav>
+    <a href="/login" class="nav-cta">Admin Console</a>
+  </div>
+</header>
 
-    <header>
-        <div class="nav">
-            <a href="/" class="logo">
-                <div class="logo-icon"></div>
-                BetterDesk
-            </a>
-            <div class="nav-links">
-                <a href="#features">Features</a>
-                <a href="#how-it-works">How it works</a>
-                <a href="/">Download</a>
-            </div>
-            <a href="/login" class="nav-cta">Admin Console</a>
-        </div>
-    </header>
+<main>
+  <!-- HERO -->
+  <section class="hero">
+    <div class="wrap hero-inner">
+      <div>
+        <span class="eyebrow"><span class="dot"></span><span id="status-eyebrow">Checking your device…</span></span>
+        <h1>Join your meeting<br><span class="accent">in one tap.</span></h1>
+        <p class="lede">No downloads to pick, no protocols to configure. We detect your device, install the right client automatically, and connect you to your team.</p>
 
-    <section class="hero">
-        <div class="hero-content">
-            <div class="status-row">
-                <div class="status-dot"></div>
-                <span id="status-text">Checking your device&hellip;</span>
-            </div>
-
-            <h1>Join your remote session<span class="accent"> instantly.</span></h1>
-            <p>BetterDesk connects you to your devices securely. We&rsquo;ve detected your system and prepared the right installer&mdash;just download and run it.</p>
-
-            <div class="download-card">
-                <h3><span class="chip-icon"></span> <span id="detected-label">Your Device</span></h3>
-                <div class="detected-chip hidden" id="detected-chip">
-                    <span class="chip-icon" id="chip-icon"></span>
-                    <span id="chip-text">Detecting&hellip;</span>
-                </div>
-
-                <div class="download-actions">
-                    <button class="btn btn-primary" id="dl-btn" onclick="startDownload()">
-                        <span class="spinner hidden" id="dl-spinner"></span>
-                        <span id="dl-text">Download BetterDesk Client</span>
-                    </button>
-                    <button class="btn btn-outline" id="dl-other" onclick="showOtherPlatforms()" style="margin-top:0.5rem;">
-                        Choose a different platform
-                    </button>
-                    <div class="download-note" id="dl-note">
-                        File will download automatically. Open it to install.
-                    </div>
-                </div>
-
-                <div class="install-guide" id="install-guide">
-                    <h4><span class="chip-icon" style="background:var(--bd-success);"></span> Install &amp; Connect</h4>
-                    <ol id="install-steps">
-                        <li>Download starts automatically</li>
-                        <li>Open the downloaded file</li>
-                        <li>Follow the installer prompts</li>
-                        <li>Log in&mdash;you&rsquo;re connected</li>
-                    </ol>
-                </div>
-            </div>
+        <!-- Join meeting -->
+        <div class="join-card">
+          <h3>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--z-blue)" stroke-width="2.2" stroke-linecap="round"><rect x="2" y="6" width="13" height="12" rx="2"/><path d="M15 10l6-3v10l-6-3"/></svg>
+            Join a meeting
+          </h3>
+          <div class="join-row">
+            <label class="field">
+              <span class="sr">Meeting ID</span>
+              <input id="meeting-id" inputmode="numeric" autocomplete="off" placeholder="Meeting ID or link" aria-label="Meeting ID">
+            </label>
+            <label class="field" style="flex:0 1 130px">
+              <span class="sr">Passcode</span>
+              <input id="meeting-pass" autocomplete="off" placeholder="Passcode (optional)" aria-label="Meeting passcode">
+            </label>
+            <button class="btn btn-primary" id="join-btn" style="flex:0 0 auto">
+              <span id="join-spinner" class="spinner hidden"></span>
+              <span id="join-text">Join</span>
+            </button>
+          </div>
+          <div class="join-note">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--z-muted)" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
+            <span id="join-hint">Enter the ID from your invite. We&rsquo;ll open the app — or install it for you in seconds.</span>
+          </div>
         </div>
 
-        <div class="hero-visual">
-            <div class="glass-card">
-                <div class="glass-icon">🖥️</div>
-                <h4>Remote Desktop</h4>
-                <p>Full control from anywhere</p>
-            </div>
-            <div class="glass-card" style="top: 60px; right: -40px;">
-                <div class="glass-icon">🔒</div>
-                <h4>E2E Encrypted</h4>
-                <p>NaCl + TLS 1.2+</p>
-            </div>
-            <div class="glass-card" style="bottom: 40px; left: -30px;">
-                <div class="glass-icon">📱</div>
-                <h4>Cross-Platform</h4>
-                <p>Win, Mac, Linux, Android</p>
-            </div>
+        <!-- Download panel -->
+        <div class="dl" id="download">
+          <div class="chip loading" id="device-chip"><span class="os" id="chip-os">?</span><span id="chip-text">Detecting your device…</span></div>
+          <div class="dl-actions">
+            <button class="btn btn-primary" id="dl-btn" disabled>
+              <span id="dl-spinner" class="spinner hidden"></span>
+              <span id="dl-text">Finding the right client…</span>
+            </button>
+            <button class="btn btn-ghost" id="other-btn">Choose a different platform</button>
+          </div>
+          <div class="dl-status" id="dl-status">Preparing your download…</div>
         </div>
-    </section>
+      </div>
 
-    <section id="how-it-works" class="steps">
-        <h2>Three steps to remote access</h2>
-        <div class="steps-grid">
-            <div class="step-card">
-                <div class="step-number">1</div>
-                <h3>Download</h3>
-                <p>Get the BetterDesk client for your device in one click.</p>
-            </div>
-            <div class="step-card">
-                <div class="step-number">2</div>
-                <h3>Install</h3>
-                <p>Run the installer&mdash;no technical setup required.</p>
-            </div>
-            <div class="step-card">
-                <div class="step-number">3</div>
-                <h3>Connect</h3>
-                <p>Log in and access your devices instantly.</p>
-            </div>
+      <div class="hero-art">
+        <img src="/img/zoom-hero.png" alt="Secure meetings">
+        <div class="float">
+          <span class="ic">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+          </span>
+          <span><b>End-to-end encrypted</b><span>Automatic setup · zero configuration</span></span>
         </div>
-    </section>
+      </div>
+    </div>
+  </section>
 
-    <section class="features" id="features">
-        <div class="features-grid">
-            <div class="feat">
-                <div class="feat-icon">⚡</div>
-                <div>
-                    <h4>One-click install</h4>
-                    <p>Auto-detected for your OS. No protocol configuration needed.</p>
-                </div>
-            </div>
-            <div class="feat">
-                <div class="feat-icon">🔐</div>
-                <div>
-                    <h4>End-to-end encrypted</h4>
-                    <p>NaCl + TLS 1.2+ keeps every session private.</p>
-                </div>
-            </div>
-            <div class="feat">
-                <div class="feat-icon">🌍</div>
-                <div>
-                    <h4>Cross-platform</h4>
-                    <p>Windows, macOS, Linux, and Android&mdash;all connected.</p>
-                </div>
-            </div>
+  <!-- HOW -->
+  <section class="pad" id="how">
+    <div class="wrap">
+      <div class="section-head">
+        <h2>Three steps. No IT skills needed.</h2>
+        <p>We handle detection, the correct installer, and the connection. You just click.</p>
+      </div>
+      <div class="steps">
+        <div class="step">
+          <div class="n">1</div>
+          <h3>We detect your device</h3>
+          <p>Windows, macOS, Linux, Android or iOS — we identify your operating system automatically.</p>
         </div>
-    </section>
-
-    <footer>
-        <div class="footer-inner">
-            <div class="footer-logo">
-                <div class="logo-icon" style="width:24px;height:24px;"></div>
-                BetterDesk
-            </div>
-            <div class="footer-links">
-                <a href="#">Privacy</a>
-                <a href="#">Terms</a>
-                <a href="#">Support</a>
-                <a href="/login">Admin Console</a>
-            </div>
-            <div class="footer-note">BetterDesk v3.5.4 &bull; Secure remote desktop for teams</div>
+        <div class="step">
+          <div class="n">2</div>
+          <h3>Download &amp; install</h3>
+          <p>Your matching client downloads and opens the installer automatically.</p>
+          <ul id="os-steps">
+            <li>Allow the install when prompted</li>
+            <li>No settings to configure</li>
+          </ul>
         </div>
-    </footer>
+        <div class="step">
+          <div class="n">3</div>
+          <h3>Connect</h3>
+          <p>The client connects straight to your admin panel — you&rsquo;re in the meeting.</p>
+        </div>
+      </div>
+    </div>
+  </section>
 
-    <script>
-        // ---- Platform detection ----
-        const ua = navigator.userAgent || navigator.vendor || window.opera;
-        const isAndroid = /android/i.test(ua);
-        const isiOS = /iphone|ipad|ipod/i.test(ua) && !window.MSStream;
-        const isWindows = /windows/i.test(ua);
-        const isMac = /macintosh|mac os x/i.test(ua);
-        const isLinux = /linux/i.test(ua);
+  <!-- FEATURES -->
+  <section class="features pad" id="features">
+    <div class="wrap">
+      <div class="feat-grid">
+        <div class="feat">
+          <span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z"/></svg></span>
+          <div><h4>Private by design</h4><p>Your own server. Encrypted sessions. No third-party cloud in the middle.</p></div>
+        </div>
+        <div class="feat">
+          <span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M13 2L3 14h7l-1 8 10-12h-7z"/></svg></span>
+          <div><h4>Instant onboarding</h4><p>Automatic device detection and the right installer every time. Nothing to explain.</p></div>
+        </div>
+        <div class="feat">
+          <span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></span>
+          <div><h4>One panel to manage</h4><p>Every device and meeting linked to your admin console for instant support.</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
 
-        let detectedPlatform = 'unknown';
-        let assetName = null;
-        let downloadUrl = null;
+<footer>
+  <div class="wrap foot">
+    <a href="/landing" class="brand"><img src="/img/zoom-mark.png" alt=""> BetterDesk Meet</a>
+    <div class="foot-links">
+      <a href="/login">Admin Console</a>
+      <a href="#" id="releases-link" target="_blank" rel="noopener">All downloads</a>
+      <a href="#" id="privacy-link">Privacy</a>
+      <a href="#" id="terms-link">Terms</a>
+    </div>
+  </div>
+</footer>
 
-        const chip = document.getElementById('detected-chip');
-        const chipIcon = document.getElementById('chip-icon');
-        const chipText = document.getElementById('chip-text');
-        const detectedLabel = document.getElementById('detected-label');
-        const statusText = document.getElementById('status-text');
-        const dlBtn = document.getElementById('dl-btn');
-        const dlText = document.getElementById('dl-text');
-        const dlSpinner = document.getElementById('dl-spinner');
-        const dlNote = document.getElementById('dl-note');
-        const installGuide = document.getElementById('install-guide');
-        const installSteps = document.getElementById('install-steps');
+<!-- Platform chooser modal -->
+<div class="modal-back" id="modal">
+  <div class="modal">
+    <button class="modal-close" id="modal-close" aria-label="Close">&times;</button>
+    <h3>Choose your platform</h3>
+    <p class="sub" id="modal-sub">Pick the download that matches your device.</p>
+    <div id="plat-list"></div>
+  </div>
+</div>
 
-        function setDetecting() {
-            statusText.textContent = 'Detecting your device&hellip;';
-            chipText.textContent = 'Detecting&hellip;';
-            chipIcon.style.background = '#cbd5e1';
-        }
+<div class="toast" id="toast"></div>
 
-        function setDetected(platform, label, iconColor, iconText, steps, asset) {
-            detectedPlatform = platform;
-            assetName = asset;
-
-            chip.classList.remove('hidden');
-            chipIcon.style.background = iconColor;
-            chipIcon.textContent = iconText;
-            chipText.textContent = label;
-            detectedLabel.textContent = label;
-
-            statusText.textContent = 'Ready to connect';
-            installGuide.classList.add('show');
-
-            installSteps.innerHTML = steps.map(s => `<li>${s}</li>`).join('');
-
-            // Set primary button text based on asset
-            if (asset) {
-                dlText.textContent = `Download ${asset.name}`;
-                downloadUrl = asset.browser_download_url;
-            } else {
-                dlBtn.disabled = true;
-                dlText.textContent = 'No build available for your platform yet';
-                dlBtn.classList.replace('btn-primary', 'btn-secondary');
-            }
-        }
-
-        function setError(msg) {
-            statusText.textContent = msg;
-            chipText.textContent = 'Unknown';
-            dlBtn.disabled = true;
-            dlText.textContent = 'Choose your platform manually';
-            dlBtn.classList.replace('btn-primary', 'btn-outline');
-            dlBtn.onclick = showOtherPlatforms;
-        }
-
-        setDetecting();
-
-        // Map UA to platform + steps + asset keyword
-        if (isAndroid) {
-            detectedPlatform = 'android';
-            setDetected('android', 'Android', '#3DDC84', 'A', [
-                'Tap Download&mdash;the APK downloads',
-                'Open Downloads and tap the file',
-                'Enable &ldquo;Install unknown apps&rdquo; if prompted',
-                'Open BetterDesk and log in'
-            ], null);
-        } else if (isiOS) {
-            detectedPlatform = 'ios';
-            setDetected('ios', 'iPhone / iPad', '#000000', 'A', [
-                'Coming soon&mdash;iOS client in beta',
-                'Join via browser in the meantime'
-            ], null);
-        } else if (isWindows) {
-            detectedPlatform = 'windows';
-            setDetected('windows', 'Windows', '#0078D6', 'W', [
-                'Download the .msi installer',
-                'Run it&mdash;click through the setup wizard',
-                'Launch BetterDesk and log in'
-            ], 'windows');
-        } else if (isMac) {
-            detectedPlatform = 'macos';
-            setDetected('macos', 'macOS', '#000000', 'M', [
-                'Download the .dmg image',
-                'Open it and drag BetterDesk to Applications',
-                'Launch BetterDesk&mdash;allow in Security &amp; Privacy if asked'
-            ], 'macos');
-        } else if (isLinux) {
-            detectedPlatform = 'linux';
-            setDetected('linux', 'Linux', '#FCC624', 'L', [
-                'Download the .deb or .rpm package',
-                'Install with your package manager',
-                'Launch BetterDesk and log in'
-            ], 'linux');
-        } else {
-            setError('Platform not recognized');
-        }
-
-        // ---- GitHub releases fetch ----
-        async function fetchLatestRelease() {
-            try {
-                const res = await fetch('https://api.github.com/repos/fingod201-maker/BetterDesk/releases/latest', {
-                    headers: { 'Accept': 'application/vnd.github+json' },
-                    cache: 'no-store'
-                });
-                if (!res.ok) throw new Error('Release fetch failed');
-                const data = await res.json();
-                const assets = data.assets || [];
-
-                // Map platform keywords to asset names
-                const map = {
-                    windows: ['windows', 'msi', 'exe', 'setup'],
-                    macos: ['macos', 'dmg'],
-                    linux: ['linux', 'deb', 'rpm', 'appimage'],
-                    android: ['android', 'apk']
-                };
-
-                const keywords = map[detectedPlatform] || [];
-                let match = assets.find(a => keywords.some(k => a.name.toLowerCase().includes(k)));
-                // Prefer exact platform suffix
-                if (!match && keywords.length) {
-                    match = assets.find(a => keywords.some(k => a.name.toLowerCase().endsWith(k)));
-                }
-
-                if (match) {
-                    assetName = match.name;
-                    downloadUrl = match.browser_download_url;
-                    dlText.textContent = `Download ${match.name}`;
-                    dlNote.textContent = `File will download automatically. Open it to install. (${(match.size / 1048576).toFixed(1)} MB)`;
-                }
-            } catch (e) {
-                console.warn('Release fetch failed:', e);
-                // Keep default button text
-            }
-        }
-
-        fetchLatestRelease();
-
-        // ---- Download handler ----
-        async function startDownload() {
-            if (!downloadUrl) {
-                // Fallback: show manual platforms
-                showOtherPlatforms();
-                return;
-            }
-
-            dlBtn.disabled = true;
-            dlSpinner.classList.remove('hidden');
-            dlText.textContent = 'Downloading&hellip;';
-
-            try {
-                // Direct download
-                window.location.href = downloadUrl;
-                dlNote.textContent = 'Download started. Open the file to install.';
-                setTimeout(() => {
-                    dlBtn.disabled = false;
-                    dlSpinner.classList.add('hidden');
-                    dlText.textContent = 'Re-download';
-                }, 1500);
-            } catch (e) {
-                console.error(e);
-                dlBtn.disabled = false;
-                dlSpinner.classList.add('hidden');
-                dlText.textContent = 'Download failed&mdash;try again';
-            }
-        }
-
-        function showOtherPlatforms() {
-            // In a full build this would open a modal with all platforms
-            alert('Choose your platform:\n\nWindows: BetterDesk Agent_1.0.0_x64-setup.exe\nmacOS: Coming soon\nLinux: BetterDesk Agent_1.0.0_amd64.deb\nAndroid: BetterDesk-Client-arm64-v8a-release.apk\n\nOr visit the Releases page on GitHub.');
-        }
-
-        // Track download click (analytics placeholder)
-        dlBtn.addEventListener('click', () => {
-            if (typeof gtag !== 'undefined') {
-                gtag('event', 'download', { item_id: detectedPlatform });
-            }
-        });
-    </script>
+<!-- Externalised (CSP: script-src 'self' + nonce; inline <script> is blocked). -->
+<script src="/js/landing.js" defer></script>
 </body>
 </html>

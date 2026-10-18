@@ -20,6 +20,7 @@ const remoteRoutes = require('./remote.routes');
 const pagesRoutes = require('./pages.routes');
 const desktopRoutes = require('./desktop.routes');
 const registrationRoutes = require('./registration.routes');
+const landingRoutes = require('./landing.routes');
 const path = require('path');
 
 /**
@@ -107,6 +108,8 @@ router.get('/landing', (req, res) => {
 router.get('/join', (req, res) => {
     res.redirect(302, '/landing');
 });
+// Landing API + backend-proxied downloads (/api/landing/*, /landing/download).
+router.use('/', landingRoutes);
 
 // Mount routes
 router.use('/', authRoutes);
