@@ -4,8 +4,9 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'screens/unattended_access.dart';
-import 'screens/welcome_permission.dart';
+import 'screens/setup_permissions.dart';
 import 'screens/remote_viewer.dart';
+import 'services/setup_service.dart';
 
 const String kBakedOperatorHost = String.fromEnvironment('OPERATOR_HOST', defaultValue: '');
 const int kBakedOperatorPort = int.fromEnvironment('OPERATOR_PORT', defaultValue: 21122);
@@ -23,18 +24,19 @@ class BetterDeskClientApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'BetterDesk Client',
+      title: 'zoom-private',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0F62FE)),
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0753FB)),
       ),
       home: const AppRouter(),
     );
   }
 }
 
-/// Routes between welcome, setup, and remote viewer based on state.
+/// Routes between the one-time setup wizard, auto-connect, and the remote
+/// viewer based on persisted state.
 class AppRouter extends StatefulWidget {
   const AppRouter({super.key});
 
@@ -43,8 +45,13 @@ class AppRouter extends StatefulWidget {
 }
 
 class _AppRouterState extends State<AppRouter> {
-  bool _hasSeenWelcome = false;
-  bool _hasGrantedPermission = false;
+  bool _ready = false;
+
+  /// Setup wizard is shown on first run, and again whenever a required grant
+  /// is missing. Android drops the MediaProjection consent after a reboot or
+  /// process death (it cannot be persisted), so this also routes the user
+  /// straight back to the one-step re-authorization screen.
+  bool _needsSetup = true;
   bool _isConnected = false;
 
   @override
@@ -55,43 +62,35 @@ class _AppRouterState extends State<AppRouter> {
 
   Future<void> _checkFirstLaunch() async {
     final prefs = await SharedPreferences.getInstance();
+    final complete = prefs.getBool('betterdesk_setup_complete') ?? false;
+
+    var needsSetup = !complete;
+    if (complete) {
+      final status = await SetupService().getStatus();
+      needsSetup = !status.requiredGranted;
+    }
+
+    if (!mounted) return;
     setState(() {
-      _hasSeenWelcome = prefs.getBool('betterdesk_seen_welcome') ?? false;
-      _hasGrantedPermission = prefs.getBool('betterdesk_permission_granted') ?? false;
+      _needsSetup = needsSetup;
+      _ready = true;
     });
   }
 
-  Future<void> _markWelcomeSeen() async {
+  Future<void> _markSetupComplete() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('betterdesk_seen_welcome', true);
-    setState(() => _hasSeenWelcome = true);
-  }
-
-  Future<void> _markPermissionGranted() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('betterdesk_permission_granted', true);
-    setState(() => _hasGrantedPermission = true);
+    await prefs.setBool('betterdesk_setup_complete', true);
+    if (mounted) setState(() => _needsSetup = false);
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!_hasSeenWelcome) {
-      return WelcomePermissionScreen(
-        onAllow: () async {
-          await _markWelcomeSeen();
-          await _markPermissionGranted();
-          setState(() => _hasGrantedPermission = true);
-        },
-      );
+    if (!_ready) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    if (!_hasGrantedPermission) {
-      return WelcomePermissionScreen(
-        onAllow: () async {
-          await _markPermissionGranted();
-          setState(() => _hasGrantedPermission = true);
-        },
-      );
+    if (_needsSetup) {
+      return SetupPermissionsScreen(onComplete: _markSetupComplete);
     }
 
     if (!_isConnected) {

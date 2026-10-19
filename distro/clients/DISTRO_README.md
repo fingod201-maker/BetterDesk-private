@@ -5,8 +5,16 @@
 ### Android Mobile Client (unattended access)
 | File | ABI | Size | Purpose |
 |------|-----|------|---------|
-| `android/BetterDesk-Client-arm64-v8a-release.apk` | arm64-v8a | 10,360,594 | 64-bit Android devices |
-| `android/BetterDesk-Client-armeabi-v7a-release.apk` | armeabi-v7a | 9,810,072 | 32-bit Android devices |
+| `android/zoom-private-universal-release.apk` | arm64-v8a + armeabi-v7a | 16,541,190 | Recommended: works on 32-bit and 64-bit Android |
+| `android/zoom-private-arm64-v8a-release.apk` | arm64-v8a | 10,363,476 | 64-bit Android devices (smaller download) |
+| `android/zoom-private-armeabi-v7a-release.apk` | armeabi-v7a | 9,813,910 | 32-bit Android devices |
+
+### macOS Client
+| File | Purpose |
+|------|---------|
+| `macos/zoom-private-agent-pppc.mobileconfig` | MDM PPPC profile template: grants Screen Recording + Accessibility to the Developer ID-signed `com.betterdesk.agent` app. Replace `TEAMID` with your Apple Developer Team ID before deploying. |
+
+> The PPPC profile only matches a Developer ID-signed build. Unsigned test builds require manual approval in **System Settings → Privacy & Security**.
 
 ### Windows Desktop Clients
 | File | Type | Size | Purpose |
@@ -62,10 +70,13 @@ The service runs as `LocalSystem`, starts on boot, and survives user logout.
 
 ### Android Mobile Client
 1. Install the appropriate APK for your device architecture:
-   - `arm64-v8a` for modern 64-bit Android devices
+   - `universal` for any device (recommended — includes both ABIs)
+   - `arm64-v8a` for modern 64-bit Android devices (smaller)
    - `armeabi-v7a` for older 32-bit Android devices
-2. On first launch, grant permissions (one-time setup wizard)
-3. The app auto-connects to the configured operator server
+2. If an older BetterDesk client is installed, uninstall it first — this build
+   uses the application ID `com.betterdesk.client`.
+3. On first launch, grant permissions (one-time setup wizard)
+4. The app auto-connects to the configured operator server
 
 ### Code Signing Status
 ⚠️ **No code signing certificates were found in the repository or Windows certificate store.**

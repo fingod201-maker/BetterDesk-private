@@ -4,8 +4,6 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.hardware.display.DisplayManager
-import android.media.ImageReader
 import android.media.projection.MediaProjectionManager
 import android.net.Uri
 import android.os.Build
@@ -19,6 +17,7 @@ import androidx.core.content.ContextCompat
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Main (launcher) activity.
@@ -27,6 +26,7 @@ import io.flutter.plugin.common.MethodChannel
  * RustDesk-style unattended-access setup wizard:
  *   - POST_NOTIFICATIONS runtime permission (Android 13+)
  *   - Accessibility service enabled check + deep-link to Settings
+ *   - "Allow restricted settings" helper (Android 13+ sideload policy)
  *   - Battery optimization exemption
  *   - MediaProjection screen-share grant ("Allow once" / "Start now" — one
  *     system prompt, after which the projection is held by the foreground
@@ -38,6 +38,7 @@ class MainActivity : FlutterActivity() {
         private const val TAG = "MainActivity"
         const val REQ_POST_NOTIFICATIONS = 0x41
         const val REQ_SCREEN_CAPTURE = 0x42
+        private const val PLAY_STORE_PACKAGE = "com.android.vending"
 
         /** Latest MediaProjection held by the foreground service. */
         @Volatile
@@ -68,7 +69,17 @@ class MainActivity : FlutterActivity() {
                     "isAccessibilityEnabled" -> result.success(isAccessibilityEnabled())
                     "openAccessibilitySettings" -> {
                         startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-                        mainHandler.postDelayed({ result.success(isAccessibilityEnabled()) }, 1500)
+                        mainHandler.postDelayed({ result.success(getSetupStatus()) }, 1500)
+                    }
+                    "openAppDetailsSettings" -> {
+                        // Where Android 13+ exposes "Allow restricted settings".
+                        startActivity(
+                            Intent(
+                                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                Uri.parse("package:$packageName")
+                            )
+                        )
+                        mainHandler.postDelayed({ result.success(getSetupStatus()) }, 800)
                     }
                     "requestBatteryExemption" -> {
                         val intent = Intent(
@@ -76,7 +87,7 @@ class MainActivity : FlutterActivity() {
                             Uri.parse("package:$packageName")
                         )
                         startActivity(intent)
-                        mainHandler.postDelayed({ result.success(isBatteryExempt()) }, 1500)
+                        mainHandler.postDelayed({ result.success(getSetupStatus()) }, 1500)
                     }
                     "requestScreenCapture" -> {
                         val mpm = getSystemService(Context.MEDIA_PROJECTION_SERVICE)
@@ -106,8 +117,9 @@ class MainActivity : FlutterActivity() {
         "notifications" to notificationsGranted(),
         "accessibility" to isAccessibilityEnabled(),
         "batteryExempt" to isBatteryExempt(),
-        "screenCapture" to (mediaProjection != null),
-        "serviceRunning" to UnattendedAccessManager.isEnabled()
+        "screenCapture" to UnattendedAccessService.isProjectionActive(),
+        "serviceRunning" to UnattendedAccessManager.isEnabled(),
+        "restrictedSettingsRequired" to restrictedSettingsRequired()
     )
 
     private fun notificationsGranted(): Boolean =
@@ -128,6 +140,29 @@ class MainActivity : FlutterActivity() {
         return enabled.split(':').any { it.startsWith("$packageName/") }
     }
 
+    /**
+     * Android 13+ puts accessibility/notification access behind "Allow
+     * restricted settings" for apps installed outside the Play Store. This
+     * tells the setup wizard to show the helper when the accessibility toggle
+     * looks blocked.
+     */
+    private fun restrictedSettingsRequired(): Boolean =
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            !installedFromPlayStore() &&
+            !isAccessibilityEnabled()
+
+    private fun installedFromPlayStore(): Boolean = try {
+        val installer = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            packageManager.getInstallSourceInfo(packageName).installingPackageName
+        } else {
+            @Suppress("DEPRECATION")
+            packageManager.getInstallerPackageName(packageName)
+        }
+        installer == PLAY_STORE_PACKAGE
+    } catch (_: Exception) {
+        false
+    }
+
     // ---- Result callbacks ----
     override fun onRequestPermissionsResult(
         requestCode: Int, permissions: Array<out String>, grantResults: IntArray
@@ -141,20 +176,38 @@ class MainActivity : FlutterActivity() {
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == REQ_SCREEN_CAPTURE) {
-            val pending = pendingScreenCaptureResult
-            pendingScreenCaptureResult = null
-            if (resultCode == Activity.RESULT_OK && data != null) {
-                val mpm = getSystemService(Context.MEDIA_PROJECTION_SERVICE)
-                    as MediaProjectionManager
-                val projection = mpm.getMediaProjection(resultCode, data)
-                // Hand the projection to the foreground service, which keeps it
-                // alive (Android requires the owning app context to stay alive).
-                UnattendedAccessService.attachProjection(projection, this)
-                pending?.success(getSetupStatus())
-            } else {
-                pending?.success(getSetupStatus())
+        if (requestCode != REQ_SCREEN_CAPTURE) return
+
+        val pending = pendingScreenCaptureResult
+        pendingScreenCaptureResult = null
+        if (pending == null) return
+
+        if (resultCode != Activity.RESULT_OK || data == null) {
+            pending.success(getSetupStatus())
+            return
+        }
+
+        // The consent result is handed to the service. The service becomes a
+        // mediaProjection-type foreground service first, then calls
+        // getMediaProjection() — required on Android 14+.
+        val completed = AtomicBoolean(false)
+        val finish = {
+            if (completed.compareAndSet(false, true)) {
+                mainHandler.post { pending.success(getSetupStatus()) }
             }
         }
+
+        UnattendedAccessService.startProjection(
+            this, resultCode, data,
+            object : UnattendedAccessService.ProjectionResultCallback {
+                override fun onProjectionResult(success: Boolean, message: String?) {
+                    if (!success) Log.w(TAG, "Screen capture attach failed: $message")
+                    finish()
+                }
+            }
+        )
+
+        // Never leave the Flutter wizard waiting if the service is slow/killed.
+        mainHandler.postDelayed({ finish() }, 5000)
     }
 }

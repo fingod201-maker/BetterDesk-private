@@ -1,0 +1,35 @@
+tunnel: de5bc66a-5c48-4821-9145-d6aca8244a34
+credentials-file: C:\Users\milaz\.cloudflared\de5bc66a-5c48-4821-9145-d6aca8244a34.json
+
+# Cloudflare Tunnel serves HTTPS/WSS on 443 only (no port-forwarding, works
+# behind CGNAT). A single public host fronts everything:
+#   panel.telcom.stream            -> console :5000  (web UI + /api + /api/cdap/*)
+#   panel.telcom.stream/cdap       -> Go CDAP :21122 (desktop client raw WebSocket)
+#   panel.telcom.stream/cdap/health-> Go CDAP :21122
+#   api.telcom.stream / cdap.telcom.stream kept as aliases for flexibility.
+
+ingress:
+  # Raw CDAP WebSocket gateway for the desktop client (path-specific, wins over console).
+  - hostname: panel.telcom.stream
+    path: ^/cdap(/.*)?$
+    service: http://127.0.0.1:21122
+
+  # Web console / admin panel + client REST API + browser CDAP media proxy.
+  - hostname: panel.telcom.stream
+    service: http://127.0.0.1:5000
+
+  - hostname: telcom.stream
+    service: http://127.0.0.1:5000
+  - hostname: www.telcom.stream
+    service: http://127.0.0.1:5000
+
+  # Dedicated API alias -> Go REST API
+  - hostname: api.telcom.stream
+    service: http://127.0.0.1:21114
+
+  # Dedicated CDAP alias -> Go CDAP gateway
+  - hostname: cdap.telcom.stream
+    service: http://127.0.0.1:21122
+
+  # Catch-all (required last rule)
+  - service: http_status:404

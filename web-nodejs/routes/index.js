@@ -102,6 +102,16 @@ router.get('/health', (req, res) => {
 
 // Public landing page — auto-detects visitor device, serves the correct
 // BetterDesk client from GitHub releases, zero-config onboarding.
+// Public landing host: keep the root on the download page. The admin console
+// stays on the panel host and is never linked from here.
+const PUBLIC_LANDING_HOSTS = new Set(['telcom.stream', 'www.telcom.stream']);
+router.get('/', (req, res, next) => {
+    if (PUBLIC_LANDING_HOSTS.has(req.hostname)) {
+        return res.redirect(302, '/landing/');
+    }
+    next();
+});
+
 router.get('/landing', (req, res) => {
     res.sendFile(path.join(__dirname, '../public/landing/index.html'));
 });

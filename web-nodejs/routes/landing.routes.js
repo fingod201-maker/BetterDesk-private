@@ -83,7 +83,9 @@ function detectDevice(req) {
     const chArch = String(req.headers['sec-ch-ua-arch'] || '').replace(/"/g, '').toLowerCase();
     if (chArch === 'arm' || chArch === 'arm64') arch = 'arm64';
     else if (platform === 'macos') arch = 'arm64';
-    else if (platform === 'android') arch = 'arm64';
+    // Android browsers do not expose the CPU ABI. Prefer the universal APK
+    // when one is published so 32-bit and 64-bit phones both install cleanly.
+    else if (platform === 'android') arch = 'universal';
 
     const labels = {
         windows: 'Windows', macos: 'macOS', linux: 'Linux',
@@ -147,6 +149,29 @@ router.get('/api/landing/releases', async (req, res) => {
     } catch (err) {
         console.error('[landing] releases error:', err);
         res.status(502).json({ success: false, error: 'Release lookup failed.' });
+    }
+});
+
+/**
+ * GET /download/android?arch=universal|arm64|arm32
+ * Short, shareable URL that streams the recommended Android APK. Useful for
+ * QR codes, reinstalling after a wipe, or sending a link in chat.
+ */
+router.get('/download/android', async (req, res) => {
+    try {
+        const arch = String(req.query.arch || 'universal').toLowerCase();
+        const asset = await landing.resolveAsset('android', arch);
+        if (!asset) {
+            return res.status(404).json({ success: false, error: 'No Android build available yet.' });
+        }
+        await landing.streamAsset(asset, res);
+    } catch (err) {
+        console.error('[landing] android download error:', err);
+        if (!res.headersSent) {
+            res.status(502).json({ success: false, error: 'Download failed. Please try again.' });
+        } else {
+            res.destroy();
+        }
     }
 });
 

@@ -1,0 +1,27 @@
+# Example ingress config for a NAMED tunnel (stable subdomain).
+#
+# You do NOT need this file if you manage "Public Hostnames" in the Cloudflare
+# dashboard (recommended - the dashboard writes the ingress for you). Use this
+# file only if you prefer a local credentials-file tunnel:
+#   cloudflared.exe tunnel --config .\named-tunnel.yml run <TUNNEL-NAME>
+#
+# Replace <TUNNEL-UUID> and the hostnames with your real values.
+
+tunnel: <TUNNEL-UUID>
+credentials-file: <SECRET_02e41e27>
+
+ingress:
+  # Web console / admin panel
+  - hostname: panel.example.com
+    service: http://127.0.0.1:5000
+
+  # Go REST API  (/api)
+  - hostname: api.example.com
+    service: http://127.0.0.1:21114
+
+  # CDAP WebSocket gateway (modern desktop client) - reached on 443 via the tunnel
+  - hostname: cdap.example.com
+    service: http://127.0.0.1:21122
+
+  # Catch-all (required last rule)
+  - service: http_status:404

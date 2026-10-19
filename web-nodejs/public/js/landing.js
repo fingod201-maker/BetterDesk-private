@@ -55,7 +55,7 @@
   function osSteps(platform) {
     var map = {
       windows: ['Open the downloaded installer', 'Click “Yes” to allow the install', 'Launch and it connects automatically'],
-      macos: ['Open the .dmg file', 'Drag BetterDesk into Applications', 'Open it and allow when macOS asks'],
+      macos: ['Open the .dmg file', 'Drag the app into Applications', 'Launch it from Applications'],
       linux: ['Open the downloaded package', 'Install with your software center', 'Launch BetterDesk to connect'],
       android: ['Tap the downloaded APK', 'Allow install from this source if asked', 'Open BetterDesk to connect'],
       ios: ['Your client is installed from the App Store', 'Open the link in the app', 'Sign in to connect']
@@ -76,12 +76,17 @@
     txt.textContent = 'Starting download…';
     $('dl-status').className = 'dl-status';
 
-    // Same-origin proxy sets Content-Disposition: attachment → iframe navigates to download.
-    var frame = document.createElement('iframe');
-    frame.style.display = 'none';
-    frame.src = url;
-    document.body.appendChild(frame);
-    setTimeout(function () { frame.remove(); }, 60000);
+    // Same-origin proxy sets Content-Disposition: attachment. A hidden anchor
+    // is more reliable than an iframe on Android Chrome (which often blocks
+    // downloads initiated inside a cross-origin iframe).
+    var link = document.createElement('a');
+    link.href = url;
+    if (state.recommended.name) link.download = state.recommended.name;
+    link.rel = 'noopener';
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(function () { link.remove(); }, 2000);
 
     setTimeout(function () {
       spin.classList.add('hidden');
@@ -244,6 +249,12 @@
   rel.addEventListener('click', function () {
     rel.href = (state.release && state.release.releasesUrl) || 'https://github.com/fingod201-maker/BetterDesk/releases';
   });
+
+  var androidLink = $('android-direct-link');
+  if (androidLink) {
+    // Stable shareable URL, also works when this page is served from GitHub Pages.
+    androidLink.href = api('/download/android');
+  }
 
   load();
 })();

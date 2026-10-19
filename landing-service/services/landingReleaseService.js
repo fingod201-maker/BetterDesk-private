@@ -31,7 +31,10 @@ const https = require('https');
 const GITHUB_OWNER = process.env.LANDING_GITHUB_OWNER || 'fingod201-maker';
 const GITHUB_REPO = process.env.LANDING_GITHUB_REPO || 'BetterDesk';
 const GITHUB_API = 'https://api.github.com';
-const GITHUB_TOKEN = process.env.UPDATE_GITHUB_TOKEN || process.env.GITHUB_TOKEN || '';
+const GITHUB_TOKEN = process.env.UPDATE_GITHUB_TOKEN
+    || process.env.GITHUB_TOKEN
+    || process.env.BETTERDESK_GITHUB_TOKEN
+    || '';
 
 // web-nodejs/services/ → repo root is two levels up (works for checkout + flat).
 const DISTRO_ROOT = process.env.LANDING_DISTRO_DIR
@@ -164,41 +167,52 @@ function downloadPathFor(asset) {
 // Sources
 // ---------------------------------------------------------------------------
 
-function pickRelease(releases) {
-    if (!Array.isArray(releases) || releases.length === 0) return null;
-    const usable = releases.filter((r) => r && r.draft !== true);
-    const stable = usable.filter((r) => r.prerelease !== true);
-    return stable[0] || usable[0] || null;
-}
-
 async function fetchGithubAssets() {
-    let release = null;
+    let releases = [];
     try {
-        const releases = await httpsGetJson(`/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases?per_page=30`);
-        release = pickRelease(releases);
+        releases = await httpsGetJson(`/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases?per_page=30`);
     } catch (err) {
         if (err.statusCode && err.statusCode !== 404) {
             console.warn(`[landing] release lookup failed: ${err.message}`);
         }
     }
 
-    const assets = [];
-    if (release && Array.isArray(release.assets)) {
-        for (const a of release.assets) {
+    const usable = (Array.isArray(releases) ? releases : []).filter((r) => r && r.draft !== true);
+    const stable = usable.filter((r) => r.prerelease !== true);
+    // Newest first (GitHub returns releases in reverse chronological order).
+    const ordered = stable.length ? stable : usable;
+    const release = ordered[0] || null;
+
+    // Merge assets across recent releases so an Android-only (or desktop-only)
+    // release never hides the other platforms. Newer releases win.
+    const byKey = new Map();
+    ordered.forEach((rel, releaseIndex) => {
+        if (!rel || !Array.isArray(rel.assets)) return;
+        for (const a of rel.assets) {
             const meta = classifyAsset(a.name);
             if (!meta) continue;
-            assets.push({
-                name: a.name,
-                size: a.size,
-                platform: meta.platform,
-                arch: meta.arch,
-                format: meta.format,
-                contentType: a.content_type || meta.contentType,
-                source: 'github',
-                url: a.browser_download_url,
-            });
+            const key = `${meta.platform}/${meta.arch}/${meta.format}`;
+            const current = byKey.get(key);
+            const better = !current
+                || releaseIndex < current.releaseIndex
+                || (releaseIndex === current.releaseIndex
+                    && nameScore(a.name) > nameScore(current.name));
+            if (better) {
+                byKey.set(key, {
+                    name: a.name,
+                    size: a.size,
+                    platform: meta.platform,
+                    arch: meta.arch,
+                    format: meta.format,
+                    contentType: a.content_type || meta.contentType,
+                    source: 'github',
+                    url: a.browser_download_url,
+                    releaseIndex,
+                    releaseTag: rel.tag_name,
+                });
+            }
         }
-    }
+    });
 
     return {
         release: release ? {
@@ -208,7 +222,7 @@ async function fetchGithubAssets() {
             htmlUrl: release.html_url,
             releasesUrl: `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases`,
         } : null,
-        assets,
+        assets: [...byKey.values()],
     };
 }
 
@@ -323,6 +337,14 @@ async function resolveAsset(platform, arch) {
         return formatRank(a.format) - formatRank(b.format);
     })[0];
 
+    if (arch === 'universal') {
+        const uni = candidates.filter((a) => a.arch === 'universal');
+        if (uni.length) return pickFrom(uni);
+        // No universal build: fall back to the most common 64-bit Android ABI.
+        const arm64 = candidates.filter((a) => a.arch === 'arm64');
+        if (arm64.length) return pickFrom(arm64);
+        return pickFrom(candidates);
+    }
     if (arch) {
         const exact = candidates.filter((a) => a.arch === arch);
         if (exact.length) return pickFrom(exact);

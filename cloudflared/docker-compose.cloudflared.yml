@@ -1,0 +1,28 @@
+# Cloudflare Tunnel connector for BetterDesk (Docker route).
+# Use this when you have a stable domain added to Cloudflare and a named tunnel token.
+#
+#   1) Create a named tunnel in: Cloudflare dashboard > Zero Trust > Networks > Tunnels
+#   2) Add Public Hostnames on the tunnel (see ../README.md):
+#        panel.<domain>  -> http://betterdesk-console:5000
+#        api.<domain>    -> http://betterdesk-server:21114
+#        cdap.<domain>   -> http://betterdesk-server:21122
+#   3) Copy the tunnel token from the dashboard install command, then:
+#        $env:CLOUDFLARE_TUNNEL_TOKEN="eyJhIjoi...."
+#        docker compose -f docker-compose.cloudflared.yml up -d
+#
+# With a token, ingress is defined in the Cloudflare dashboard, not here.
+
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: betterdesk-cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN:?set CLOUDFLARE_TUNNEL_TOKEN}
+    networks:
+      - betterdesk-net
+
+networks:
+  betterdesk-net:
+    external: true

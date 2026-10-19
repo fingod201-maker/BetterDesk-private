@@ -23,9 +23,17 @@ on:
         description: "Commit/ref to build (blank = default)"
         required: false
         default: ""
+      release_tag:
+        description: "Existing GitHub release tag to attach APKs to (blank = artifact only)"
+        required: false
+        default: ""
+      release_repo:
+        description: "owner/repo that owns the release (needs RELEASE_PAT for another repo)"
+        required: false
+        default: "fingod201-maker/BetterDesk"
 
 permissions:
-  contents: read
+  contents: write
 
 env:
   FLUTTER_VERSION: "3.24.5"
@@ -146,18 +154,47 @@ jobs:
         working-directory: flutter
         run: |
           DEF="--dart-define=OPERATOR_HOST=$OPERATOR_HOST --dart-define=OPERATOR_PORT=$OPERATOR_PORT --dart-define=USE_HTTPS=$USE_HTTPS --dart-define=EMBEDDED_PASSWORD_HASH=$EMBEDDED_PASSWORD_HASH"
-          flutter build apk --release --target-platform android-arm64,android-arm $DEF
-          flutter build apk --release --split-per-abi --target-platform android-arm64,android-arm $DEF
-          flutter build appbundle --release --target-platform android-arm64,android-arm $DEF
+          flutter build apk --release --flavor universal --target-platform android-arm64,android-arm $DEF
+          flutter build apk --release --flavor arm64 --target-platform android-arm64 $DEF
+          flutter build apk --release --flavor armeabi --target-platform android-arm $DEF
+          flutter build appbundle --release --flavor universal --target-platform android-arm64,android-arm $DEF
 
       - name: Collect artifacts
         working-directory: flutter
         run: |
           mkdir -p /tmp/out
-          cp -v build/app/outputs/flutter-apk/app-release.apk /tmp/out/betterdesk-android-universal.apk 2>/dev/null || true
-          for f in build/app/outputs/flutter-apk/app-*-release.apk; do [ -e "$f" ] && cp -v "$f" /tmp/out/; done
-          cp -v build/app/outputs/bundle/release/app-release.aab /tmp/out/betterdesk-android-release.aab 2>/dev/null || true
+          cp -v build/app/outputs/flutter-apk/app-universal-release.apk /tmp/out/zoom-private-universal-release.apk
+          cp -v build/app/outputs/flutter-apk/app-arm64-release.apk /tmp/out/zoom-private-arm64-v8a-release.apk
+          cp -v build/app/outputs/flutter-apk/app-armeabi-release.apk /tmp/out/zoom-private-armeabi-v7a-release.apk
+          cp -v build/app/outputs/bundle/universalRelease/app-universal-release.aab /tmp/out/zoom-private-universal-release.aab
+          cd /tmp/out && sha256sum *.apk *.aab > ANDROID_CHECKSUMS.sha256
           ls -la /tmp/out
+
+      - name: Attach Android assets to release
+        if: ${{ inputs.release_tag != '' }}
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ inputs.release_repo }}
+          TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          gh release view "$TAG" >/dev/null
+          # Remove legacy BetterDesk-Client-* assets if this release was renamed.
+          for old in \
+            BetterDesk-Client-universal-release.apk \
+            BetterDesk-Client-arm64-v8a-release.apk \
+            BetterDesk-Client-armeabi-v7a-release.apk \
+            BetterDesk-Client-universal-release.aab \
+            BetterDesk-Client-arm64-release.aab; do
+            gh release delete-asset "$TAG" "$old" -y || true
+          done
+          gh release upload "$TAG" \
+            /tmp/out/zoom-private-universal-release.apk \
+            /tmp/out/zoom-private-arm64-v8a-release.apk \
+            /tmp/out/zoom-private-armeabi-v7a-release.apk \
+            /tmp/out/zoom-private-universal-release.aab \
+            /tmp/out/ANDROID_CHECKSUMS.sha256 \
+            --clobber
 
       - uses: actions/upload-artifact@v4
         with:

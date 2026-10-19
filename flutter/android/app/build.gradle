@@ -48,7 +48,7 @@ android {
     }
 
     defaultConfig {
-        applicationId "com.carriez.flutter_hbb"
+        applicationId "com.betterdesk.client"
         minSdkVersion 22
         targetSdkVersion 36
         versionCode flutterVersionCode.toInteger()
@@ -87,6 +87,11 @@ android {
         armeabi {
             ndk {
                 abiFilters 'armeabi-v7a'
+            }
+        }
+        universal {
+            ndk {
+                abiFilters 'arm64-v8a', 'armeabi-v7a'
             }
         }
     }
