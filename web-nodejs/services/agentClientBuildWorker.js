@@ -165,7 +165,7 @@ function _agentClientBranding(branding) {
     delete b.has_enrollment_token;
     delete b.enrollment_token_masked;
     return {
-        product_name: b.product_name || b.company_name || 'BetterDesk Agent',
+        product_name: b.product_name || b.company_name || 'zoom-private.agent',
         company_name: b.company_name || 'BetterDesk',
         tagline: b.short_text || b.tagline || '',
         short_text: b.short_text || b.tagline || '',

@@ -15,6 +15,6 @@ const isChatWindow =
   typeof window !== "undefined" &&
   new URLSearchParams(window.location.search).get("win") === "chat";
 
-frontendLog("info", "app.main", "Rendering BetterDesk Agent root", { chatWindow: isChatWindow });
+frontendLog("info", "app.main", "Rendering zoom-private.agent root", { chatWindow: isChatWindow });
 
 render(() => (isChatWindow ? <ChatWindow /> : <App />), root!);

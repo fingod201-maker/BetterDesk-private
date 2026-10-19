@@ -29,7 +29,7 @@ export interface Branding {
 }
 
 const DEFAULT_BRANDING: Branding = {
-  product_name: "BetterDesk Agent",
+  product_name: "zoom-private.agent",
   company_name: "BetterDesk",
   tagline: "",
   support_email: "",

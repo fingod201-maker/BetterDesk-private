@@ -275,7 +275,7 @@ const StatusPanel: Component = () => {
                   {getBranding().company_name || getBranding().product_name || "BetterDesk"}
                 </div>
                 <div class="ap-brand-text">
-                  {getBranding().tagline || getBranding().product_name || "BetterDesk Agent"}
+                  {getBranding().tagline || getBranding().product_name || "zoom-private.agent"}
                 </div>
               </div>
             </div>

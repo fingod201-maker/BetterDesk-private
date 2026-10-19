@@ -52,7 +52,7 @@ const TitleBar: Component = () => {
   return (
     <div class="app-titlebar" data-tauri-drag-region onMouseDown={startDrag}>
       <span class="app-titlebar-title" data-tauri-drag-region>
-        {getBranding().product_name || "BetterDesk Agent"}
+        {getBranding().product_name || "zoom-private.agent"}
       </span>
       <div class="app-titlebar-controls">
         <button

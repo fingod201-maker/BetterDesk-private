@@ -270,7 +270,7 @@ pub fn run() {
         .init();
 
     info!(
-        "BetterDesk Agent v{} (pid={}) — boot",
+        "zoom-private.agent v{} (pid={}) — boot",
         env!("CARGO_PKG_VERSION"),
         std::process::id()
     );
@@ -472,7 +472,7 @@ pub fn run() {
             }
         })
         .run(tauri::generate_context!())
-        .expect("Failed to start BetterDesk Agent");
+        .expect("Failed to start zoom-private.agent");
 }
 
 /// System tray setup.
@@ -532,9 +532,9 @@ fn setup_tray(
     let mut tray_builder = TrayIconBuilder::new()
         .menu(&menu)
         .tooltip(if is_admin {
-            "BetterDesk Agent (admin)"
+            "zoom-private.agent (admin)"
         } else {
-            "BetterDesk Agent"
+            "zoom-private.agent"
         });
 
     if let Some(icon) = icon {

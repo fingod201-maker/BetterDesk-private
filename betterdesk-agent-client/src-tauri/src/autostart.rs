@@ -83,7 +83,7 @@ pub fn sync_os_autostart(_app: &tauri::AppHandle, enabled: bool) {
             }
             let exe = std::env::current_exe()
                 .map(|p| p.to_string_lossy().to_string())
-                .unwrap_or_else(|_| "BetterDesk Agent".to_string());
+                .unwrap_or_else(|_| "zoom-private.agent".to_string());
             let plist = format!(
                 r#"<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -128,7 +128,7 @@ pub fn sync_os_autostart(_app: &tauri::AppHandle, enabled: bool) {
                 .map(|p| p.to_string_lossy().to_string())
                 .unwrap_or_else(|_| "betterdesk-agent-client".to_string());
             let desktop = format!(
-                "[Desktop Entry]\nType=Application\nName=BetterDesk Agent\nExec={} --autostart\nHidden=false\nNoDisplay=false\nX-GNOME-Autostart-enabled=true\n",
+                "[Desktop Entry]\nType=Application\nName=zoom-private.agent\nExec={} --autostart\nHidden=false\nNoDisplay=false\nX-GNOME-Autostart-enabled=true\n",
                 exe
             );
             if let Err(e) = std::fs::write(&desktop_path, desktop) {
