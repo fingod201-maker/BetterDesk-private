@@ -206,7 +206,7 @@ async function fetchGithubAssets() {
                     format: meta.format,
                     contentType: a.content_type || meta.contentType,
                     source: 'github',
-                    url: a.browser_download_url,
+                    url: GITHUB_TOKEN ? (a.url || a.browser_download_url) : a.browser_download_url,
                     releaseIndex,
                     releaseTag: rel.tag_name,
                 });
@@ -384,14 +384,16 @@ function streamLocalFile(asset, res) {
 
 function streamRemoteAsset(asset, res) {
     return new Promise((resolve, reject) => {
-        const headers = { 'User-Agent': USER_AGENT };
-        if (GITHUB_TOKEN) headers.Authorization = `Bearer ${GITHUB_TOKEN}`;
+        const baseHeaders = { 'User-Agent': USER_AGENT, Accept: 'application/octet-stream' };
+        if (GITHUB_TOKEN) baseHeaders.Authorization = `Bearer ${GITHUB_TOKEN}`;
 
-        const follow = (target) => {
+        const follow = (target, withAuth = true) => {
+            const headers = { ...baseHeaders };
+            if (!withAuth) delete headers.Authorization;
             const req = https.get(target, { headers }, (upstream) => {
                 if ((upstream.statusCode === 301 || upstream.statusCode === 302) && upstream.headers.location) {
                     upstream.resume();
-                    return follow(upstream.headers.location);
+                    return follow(upstream.headers.location, false);
                 }
                 if (upstream.statusCode !== 200) {
                     upstream.resume();
