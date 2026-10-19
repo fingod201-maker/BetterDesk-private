@@ -142,7 +142,7 @@ jobs:
           STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
         run: |
           if [ -n "${KEYSTORE_B64}" ] && [ -n "${KEY_ALIAS}" ]; then
-            echo "$KEYSTORE_B64" | base64 -d > upload-keystore.jks
+            echo "$KEYSTORE_B64" | base64 -d > app/upload-keystore.jks
             printf 'storeFile=upload-keystore.jks\nkeyAlias=%s\nkeyPassword=%s\nstorePassword=%s\n' \
               "${KEY_ALIAS}" "${KEY_PASSWORD}" "${STORE_PASSWORD}" > key.properties
             echo "Release signing configured."
