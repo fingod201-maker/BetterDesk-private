@@ -1,0 +1,65 @@
+name: Deploy Landing (GitHub Pages)
+
+# Publishes the public landing page to GitHub Pages. The page is built from the
+# canonical sources in web-nodejs/ and wired to the public backend (Railway) via
+# window.BETTERDESK_API_BASE so downloads and device detection work cross-origin.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'web-nodejs/public/landing/**'
+      - 'web-nodejs/public/js/landing.js'
+      - 'web-nodejs/public/img/zoom-*'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Assemble static site
+        env:
+          LANDING_API_BASE: ${{ vars.LANDING_API_BASE }}
+        run: |
+          set -euo pipefail
+          rm -rf docs && mkdir -p docs/img docs/js
+          cp web-nodejs/public/landing/index.html docs/index.html
+          cp web-nodejs/public/js/landing.js docs/js/landing.js
+          cp web-nodejs/public/img/zoom-*.png web-nodejs/public/img/zoom-*.ico docs/img/
+          touch docs/.nojekyll
+
+          # Absolute → relative so assets resolve under the project subpath.
+          sed -i 's#/img/#img/#g; s#/js/#js/#g; s#href="/landing"#href="./"#g' docs/index.html
+
+          API="${LANDING_API_BASE:-https://landing-service-production-e08d.up.railway.app}"
+          printf 'window.BETTERDESK_API_BASE = "%s";\n' "$API" > docs/config.js
+          sed -i 's#<script src="/js/landing.js" defer></script>#<script src="config.js"></script>\n<script src="js/landing.js" defer></script>#' docs/index.html
+
+          echo "--- config.js ---"; cat docs/config.js
+          grep -n 'config.js\|landing.js\|img/' docs/index.html | head
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

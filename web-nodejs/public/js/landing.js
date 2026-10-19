@@ -15,6 +15,12 @@
   var $ = function (id) { return document.getElementById(id); };
   var state = { detected: null, recommended: null, available: [], release: null, platform: null, arch: null };
 
+  // API base: empty for same-origin (console + Railway service). GitHub Pages
+  // sets window.BETTERDESK_API_BASE to the public backend URL (Railway).
+  var API_BASE = (window.BETTERDESK_API_BASE || '').replace(/\/+$/, '');
+  function api(p) { return API_BASE + p; }
+  function assetUrl(u) { return !u ? u : (/^https?:\/\//i.test(u) ? u : api(u)); }
+
   var OS_LABEL = { windows: 'Windows', macos: 'macOS', linux: 'Linux', android: 'Android', ios: 'iPhone / iPad', unknown: 'your device' };
   var OS_ABBR = { windows: 'WIN', macos: 'MAC', linux: 'LNX', android: 'AND', ios: 'iOS', unknown: '?' };
 
@@ -63,6 +69,7 @@
     if (!state.recommended) { openModal(); return; }
     var url = state.recommended.downloadPath || state.recommended.url;
     if (!url) { openModal(); return; }
+    url = assetUrl(url);
 
     var btn = $('dl-btn'), spin = $('dl-spinner'), txt = $('dl-text');
     btn.disabled = true; spin.classList.remove('hidden');
@@ -141,7 +148,7 @@
         var href = a.downloadPath || a.url;
         return '<div class="plat"><div class="meta"><span class="os">' + (OS_ABBR[a.platform] || '?') + '</span>'
           + '<span><b>' + label + '</b><span>' + sub + '</span></span></div>'
-          + '<a class="btn btn-primary" href="' + href + '">Download</a></div>';
+          + '<a class="btn btn-primary" href="' + assetUrl(href) + '">Download</a></div>';
       }).join('');
     }
     $('modal').classList.add('show');
@@ -162,7 +169,7 @@
     var quick = quickDetect();
     setChip(quick, true);
 
-    fetch('/api/landing/client', { credentials: 'omit', cache: 'no-store' })
+    fetch(api('/api/landing/client'), { credentials: 'omit', cache: 'no-store' })
       .then(function (r) { if (!r.ok) throw new Error('bad'); return r.json(); })
       .then(function (j) {
         if (!j || !j.success) throw new Error('no data');
@@ -194,7 +201,7 @@
     var btn = $('join-btn'), spin = $('join-spinner'), txt = $('join-text');
     btn.disabled = true; spin.classList.remove('hidden'); txt.textContent = 'Connecting…';
 
-    fetch('/api/landing/meeting/' + encodeURIComponent(id) + (pass ? '?passcode=' + encodeURIComponent(pass) : ''), { credentials: 'omit' })
+    fetch(api('/api/landing/meeting/' + encodeURIComponent(id) + (pass ? '?passcode=' + encodeURIComponent(pass) : '')), { credentials: 'omit' })
       .then(function (r) { return r.json(); })
       .then(function (j) {
         var deep = (j && j.data && j.data.appDeepLink) || ('betterdesk://join?meeting=' + encodeURIComponent(id));
@@ -224,6 +231,8 @@
 
   // -------- Wire up --------
   $('other-btn').addEventListener('click', openModal);
+  var chooseAgain = $('choose-again-btn');
+  if (chooseAgain) chooseAgain.addEventListener('click', openModal);
   $('modal-close').addEventListener('click', function () { $('modal').classList.remove('show'); });
   $('modal').addEventListener('click', function (e) { if (e.target === $('modal')) $('modal').classList.remove('show'); });
   $('join-btn').addEventListener('click', joinMeeting);
