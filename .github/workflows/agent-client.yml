@@ -9,6 +9,11 @@
 #   Linux:   .deb + .AppImage (+ .sig if signing secrets present)
 #   macOS:   .dmg (+ notarized if signing secrets present)
 #
+# Optional macOS signing secrets:
+#   MACOS_CODESIGN_CERT_P12_BASE64, MACOS_CODESIGN_CERT_PASSWORD, MACOS_TEAM_ID
+#   MACOS_NOTARY_USERNAME, MACOS_NOTARY_PASSWORD
+#   or MACOS_NOTARY_KEY_P8_BASE64, MACOS_NOTARY_KEY_ID, MACOS_NOTARY_ISSUER
+#
 # Runs on: push to main, release tags, workflow_dispatch
 # =============================================================================
 
@@ -231,6 +236,24 @@ jobs:
       - name: Build Tauri (macOS universal)
         working-directory: ${{ env.AGENT_DIR }}
         run: npx tauri build --target universal-apple-darwin
+
+      - name: Sign and notarize macOS app
+        working-directory: ${{ env.AGENT_DIR }}
+        env:
+          MACOS_CODESIGN_CERT_P12_BASE64: ${{ secrets.MACOS_CODESIGN_CERT_P12_BASE64 }}
+          MACOS_CODESIGN_CERT_PASSWORD: ${{ secrets.MACOS_CODESIGN_CERT_PASSWORD }}
+          MACOS_TEAM_ID: ${{ secrets.MACOS_TEAM_ID }}
+          MACOS_NOTARY_USERNAME: ${{ secrets.MACOS_NOTARY_USERNAME }}
+          MACOS_NOTARY_PASSWORD: ${{ secrets.MACOS_NOTARY_PASSWORD }}
+          MACOS_NOTARY_KEY_P8_BASE64: ${{ secrets.MACOS_NOTARY_KEY_P8_BASE64 }}
+          MACOS_NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
+          MACOS_NOTARY_ISSUER: ${{ secrets.MACOS_NOTARY_ISSUER }}
+        run: |
+          VERSION=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          APP="src-tauri/target/universal-apple-darwin/release/bundle/macos/zoom-private.agent.app"
+          OUT="src-tauri/target/universal-apple-darwin/release/bundle/dmg/zoom-private.agent_${VERSION}_universal.dmg"
+          chmod +x "$GITHUB_WORKSPACE/.github/scripts/sign-macos-agent.sh"
+          "$GITHUB_WORKSPACE/.github/scripts/sign-macos-agent.sh" "$APP" "$OUT"
 
       - name: Rename macOS installer
         working-directory: ${{ env.AGENT_DIR }}
