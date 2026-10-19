@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="accessibility_service_description" translatable="false">BetterDesk remote control accessibility service</string>
+</resources>
