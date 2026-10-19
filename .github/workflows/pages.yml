@@ -40,12 +40,13 @@ jobs:
           cp web-nodejs/public/img/zoom-*.png web-nodejs/public/img/zoom-*.ico docs/img/
           touch docs/.nojekyll
 
-          # Absolute → relative so assets resolve under the project subpath.
+          # Inject the API-base config FIRST (matches the original absolute path),
+          # then normalise remaining absolute asset paths to work under the subpath.
+          sed -i 's#<script src="/js/landing.js" defer></script>#<script src="config.js"></script>\n<script src="js/landing.js" defer></script>#' docs/index.html
           sed -i 's#/img/#img/#g; s#/js/#js/#g; s#href="/landing"#href="./"#g' docs/index.html
 
           API="${LANDING_API_BASE:-https://landing-service-production-e08d.up.railway.app}"
           printf 'window.BETTERDESK_API_BASE = "%s";\n' "$API" > docs/config.js
-          sed -i 's#<script src="/js/landing.js" defer></script>#<script src="config.js"></script>\n<script src="js/landing.js" defer></script>#' docs/index.html
 
           echo "--- config.js ---"; cat docs/config.js
           grep -n 'config.js\|landing.js\|img/' docs/index.html | head
