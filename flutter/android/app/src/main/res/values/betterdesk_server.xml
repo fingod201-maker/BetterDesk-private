@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="accessibility_service_description" translatable="false">BetterDesk remote control accessibility service</string>
     <!-- Baked at CI build time by the server-endpoint step. -->
     <string name="betterdesk_server_host" translatable="false">panel.telcom.stream</string>
     <string name="betterdesk_use_https" translatable="false">true</string>
