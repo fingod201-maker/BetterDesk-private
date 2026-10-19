@@ -12,8 +12,8 @@ on:
         required: true
         default: "443"
       embedded_password_hash:
-        description: "Pre-computed PBKDF2 hash (salt:hash) for operator access"
-        required: true
+        description: "Optional pre-computed PBKDF2 hash (salt:hash) for operator access"
+        required: false
         default: ""
       use_https:
         description: "Use HTTPS/WSS"
