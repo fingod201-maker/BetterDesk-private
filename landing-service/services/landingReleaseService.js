@@ -15,7 +15,7 @@
  *
  * Config:
  *   LANDING_GITHUB_OWNER  (default: fingod201-maker)
- *   LANDING_GITHUB_REPO   (default: BetterDesk)
+ *   LANDING_GITHUB_REPO   (default: BetterDesk-private)
  *   UPDATE_GITHUB_TOKEN | GITHUB_TOKEN  (optional, raises API rate limit)
  *   LANDING_DISTRO_DIR    (optional, override distro/clients path)
  *
@@ -29,7 +29,7 @@ const path = require('path');
 const https = require('https');
 
 const GITHUB_OWNER = process.env.LANDING_GITHUB_OWNER || 'fingod201-maker';
-const GITHUB_REPO = process.env.LANDING_GITHUB_REPO || 'BetterDesk';
+const GITHUB_REPO = process.env.LANDING_GITHUB_REPO || 'BetterDesk-private';
 const GITHUB_API = 'https://api.github.com';
 const GITHUB_TOKEN = process.env.UPDATE_GITHUB_TOKEN
     || process.env.GITHUB_TOKEN

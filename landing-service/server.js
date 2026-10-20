@@ -22,7 +22,7 @@
  * Environment:
  *   PORT                  listen port (default 8080)
  *   LANDING_GITHUB_OWNER  release owner (default fingod201-maker)
- *   LANDING_GITHUB_REPO   release repo  (default BetterDesk)
+ *   LANDING_GITHUB_REPO   release repo  (default BetterDesk-private)
  *   UPDATE_GITHUB_TOKEN / GITHUB_TOKEN  optional PAT (higher API rate limit)
  *   LANDING_ALLOWED_ORIGINS  comma-separated CORS allowlist (default: *)
  */

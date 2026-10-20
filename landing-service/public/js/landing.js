@@ -24,16 +24,30 @@
   var OS_LABEL = { windows: 'Windows', macos: 'macOS', linux: 'Linux', android: 'Android', ios: 'iPhone / iPad', unknown: 'your device' };
   var OS_ABBR = { windows: 'WIN', macos: 'MAC', linux: 'LNX', android: 'AND', ios: 'iOS', unknown: '?' };
 
+  // Client name stays "zoom-private" everywhere on this page.
+  var CLIENT_NAME = 'zoom-private';
+
   // -------- Instant client-side detection (no wait on network) --------
   function quickDetect() {
     var ua = navigator.userAgent || '';
     var l = ua.toLowerCase();
     if (/android/.test(l)) return 'android';
-    if (/iphone|ipad|ipod/.test(l) && !/msstream/.test(l)) return 'ios';
+    if (/iphone|ipod/.test(l) && !/msstream/.test(l)) return 'ios';
+    if (/ipad/.test(l) && !/msstream/.test(l)) return 'ios';
     if (/windows|win32|win64/.test(l)) return 'windows';
-    if (/macintosh|mac os x/.test(l)) return 'macos';
+    // iPadOS 13+ reports a desktop macOS user agent. Multi-touch is the tell.
+    if (/macintosh|mac os x/.test(l)) return (navigator.maxTouchPoints || 0) > 1 ? 'ios' : 'macos';
     if (/linux|x11|cros/.test(l)) return 'linux';
     return 'unknown';
+  }
+
+  // Optional override for QR codes / links: /landing?platform=android
+  function requestedPlatform() {
+    try {
+      var p = String(new URLSearchParams(window.location.search).get('platform') || '').toLowerCase();
+      if (p && p !== 'unknown' && OS_LABEL[p]) return p;
+    } catch (err) { /* older browser: fall through */ }
+    return null;
   }
 
   function setChip(platform, loading) {
@@ -54,10 +68,10 @@
 
   function osSteps(platform) {
     var map = {
-      windows: ['Open the downloaded installer', 'Click “Yes” to allow the install', 'Launch and it connects automatically'],
-      macos: ['Open the .dmg file', 'Drag the app into Applications', 'Launch it from Applications'],
-      linux: ['Open the downloaded package', 'Install with your software center', 'Launch BetterDesk to connect'],
-      android: ['Tap the downloaded APK', 'Allow install from this source if asked', 'Open BetterDesk to connect'],
+      windows: ['Open the downloaded installer', 'Click “Yes” to allow the install', 'Launch ' + CLIENT_NAME + ' and it connects automatically'],
+      macos: ['Open the .dmg file', 'Drag the app into Applications', 'Launch ' + CLIENT_NAME + ' from Applications'],
+      linux: ['Open the downloaded package', 'Install with your software center', 'Launch ' + CLIENT_NAME + ' to connect'],
+      android: ['Tap the downloaded APK', 'Allow install from this source if asked', 'Open ' + CLIENT_NAME + ' to connect'],
       ios: ['Your client is installed from the App Store', 'Open the link in the app', 'Sign in to connect']
     };
     var steps = map[platform] || ['Open the downloaded file', 'Install when prompted', 'Launch to connect'];
@@ -108,25 +122,32 @@
 
     if (rec) {
       var mb = rec.size ? ' · ' + (rec.size / 1048576).toFixed(1) + ' MB' : '';
-      txt.textContent = 'Download for ' + (OS_LABEL[platform] || 'your device') + mb;
+      txt.textContent = 'Download ' + CLIENT_NAME + ' for ' + (OS_LABEL[platform] || 'your device') + mb;
       btn.disabled = false;
       btn.onclick = startDownload;
       $('dl-status').className = 'dl-status';
-      $('dl-status').textContent = 'The right installer is ready and will start automatically.';
-      // Auto-download once per session per platform (as requested).
-      var key = 'bd_dl_' + platform + '_' + ((state.release && state.release.tag) || '');
+      $('dl-status').textContent = CLIENT_NAME + ' for ' + (OS_LABEL[platform] || 'your device') + ' is ready — the download starts automatically.';
+
+      // Auto-download the device-specific client once per release/platform.
+      // AAB bundles cannot be installed directly, so they never auto-download.
+      if (rec.format === 'aab') {
+        $('dl-status').className = 'dl-status warn';
+        $('dl-status').textContent = 'This build is for store publishing only. Choose the APK for direct installation.';
+        return;
+      }
+      var key = 'bd_dl_' + platform + '_' + (state.arch || '') + '_' + ((state.release && state.release.tag) || '');
       if (sessionStorage.getItem(key) !== '1') {
         sessionStorage.setItem(key, '1');
         setTimeout(function () {
-          toast('Downloading ' + (OS_LABEL[platform] || 'your client') + '…');
+          toast('Downloading ' + CLIENT_NAME + ' for ' + (OS_LABEL[platform] || 'your device') + '…');
           startDownload();
-        }, 1200);
+        }, 600);
       }
     } else {
       // Persistent fallback button — never leaves the user stuck.
       btn.disabled = false;
       btn.className = 'btn btn-primary';
-      txt.textContent = 'Download for ' + (OS_LABEL[platform] || 'your device');
+      txt.textContent = 'Download ' + CLIENT_NAME + ' for ' + (OS_LABEL[platform] || 'your device');
       btn.onclick = startDownload;
       $('dl-status').className = 'dl-status warn';
       $('dl-status').textContent = (platform === 'ios' || platform === 'unknown')
@@ -171,10 +192,11 @@
   }
 
   function load() {
-    var quick = quickDetect();
+    var quick = requestedPlatform() || quickDetect();
     setChip(quick, true);
 
-    fetch(api('/api/landing/client'), { credentials: 'omit', cache: 'no-store' })
+    var qs = (quick && quick !== 'unknown') ? '?platform=' + encodeURIComponent(quick) : '';
+    fetch(api('/api/landing/client' + qs), { credentials: 'omit', cache: 'no-store' })
       .then(function (r) { if (!r.ok) throw new Error('bad'); return r.json(); })
       .then(function (j) {
         if (!j || !j.success) throw new Error('no data');
@@ -186,7 +208,7 @@
         state.platform = quick;
         state.available = [];
         state.recommended = null;
-        state.release = { releasesUrl: 'https://github.com/fingod201-maker/BetterDesk/releases' };
+        state.release = { releasesUrl: 'https://github.com/fingod201-maker/BetterDesk-private/releases' };
         applyRecommendation();
         $('dl-status').className = 'dl-status warn';
         $('dl-status').textContent = 'Live downloads are temporarily unavailable — use “Choose a different platform”.';
@@ -247,7 +269,7 @@
 
   var rel = $('releases-link');
   rel.addEventListener('click', function () {
-    rel.href = (state.release && state.release.releasesUrl) || 'https://github.com/fingod201-maker/BetterDesk/releases';
+    rel.href = (state.release && state.release.releasesUrl) || 'https://github.com/fingod201-maker/BetterDesk-private/releases';
   });
 
   var androidLink = $('android-direct-link');
