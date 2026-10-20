@@ -34,6 +34,7 @@ const { apiClient: goApiClient } = require('./services/betterdeskApi');
 const { initRemoteRelay } = require('./services/remoteRelay');
 const { initCdapTerminalProxy } = require('./services/cdapTerminalProxy');
 const { initCdapMediaProxies } = require('./services/cdapMediaProxy');
+const { goApiProxy } = require('./middleware/goApiProxy');
 const { initMeshAshxProxy } = require('./services/meshAshxProxy');
 const { startDiscoveryService } = require('./services/lanDiscovery');
 const { initDeviceStatusPush } = require('./services/deviceStatusPush');
@@ -178,6 +179,22 @@ app.use(rustdeskApiRoutes);
 // BetterDesk Desktop Client API — device-facing endpoints that use
 // Bearer token or X-Device-Id header, not browser CSRF cookies.
 app.use('/api/bd', bdApiRoutes);
+
+// Device enrollment - public-by-design endpoints (rate limited and
+// proof-signed on the Go server). Agent clients have no browser session or
+// CSRF token, so forward to the Go API with an unchanged path/query so its
+// X-BD-Enrollment-Signature payload (method + raw path) stays identical.
+// The JSON body was already consumed by express.json(); goApiProxy re-serializes
+// it from req.bodyJSON.
+app.post('/api/devices/register', (req, res, next) => {
+    if (req.body && typeof req.body === 'object' && !Array.isArray(req.body)) {
+        const raw = Buffer.from(JSON.stringify(req.body));
+        req.bodyJSON = raw;
+        req.headers['content-length'] = String(raw.length);
+    }
+    next();
+}, goApiProxy);
+app.get('/api/devices/register/status', goApiProxy);
 
 // i18n middleware
 app.use(initI18n());

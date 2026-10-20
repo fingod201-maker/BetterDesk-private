@@ -47,6 +47,15 @@ function goApiProxy(req, res) {
     }
     headers.host = target.host;
 
+    // Express body parsers (express.json) may have already consumed the
+    // request stream. When `req.bodyJSON` carries the re-serialized body, send
+    // it explicitly instead of piping the (now-empty) request stream.
+    let bodyPayload = null;
+    if (Buffer.isBuffer(req.bodyJSON)) {
+        headers['content-length'] = String(req.bodyJSON.length);
+        bodyPayload = req.bodyJSON;
+    }
+
     const isTls = target.protocol === 'https:';
     const port = target.port || (isTls ? 443 : 80);
     const transport = isTls ? https : http;
@@ -82,7 +91,11 @@ function goApiProxy(req, res) {
         }
     });
 
-    req.pipe(proxyReq);
+    if (bodyPayload) {
+        proxyReq.end(bodyPayload);
+    } else {
+        req.pipe(proxyReq);
+    }
 }
 
 module.exports = { goApiProxy, getGoApiOrigin };

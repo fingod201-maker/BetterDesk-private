@@ -1,9 +1,14 @@
 use anyhow::{anyhow, Result};
+use base64::{engine::general_purpose::STANDARD as B64_STD, Engine as _};
+use chrono::{SecondsFormat, Utc};
+use ed25519_dalek::{Signer, SigningKey};
 use log::{info, warn};
+use rand::RngCore;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::net::SocketAddr;
+use std::path::PathBuf;
 use std::time::Duration;
 use url::Url;
 
@@ -14,6 +19,104 @@ const DEFAULT_API_PORT: u16 = 21114;
 const LEGACY_API_PORT: u16 = 21120;
 const DISCOVERY_PORT: u16 = 21119;
 const DISCOVERY_RECV_BUF_SIZE: usize = 4096;
+
+// ---------------------------------------------------------------------------
+// Device identity key + enrollment proof (bd-enrollment-v1)
+// ---------------------------------------------------------------------------
+
+/// Per-machine Ed25519 signing identity. BetterDesk Go servers (3.5.156+)
+/// require a signed proof of possession of the enrolled public key before
+/// they will mint a CDAP device token. The key is generated once and persisted
+/// next to agent-config.json so reinstalls keep the same bound identity.
+#[derive(Serialize, Deserialize)]
+struct DeviceIdentity {
+    private_key_b64: String,
+    public_key_b64: String,
+}
+
+fn device_identity_path() -> Result<PathBuf> {
+    let dir = directories::ProjectDirs::from("com", "betterdesk", "agent")
+        .map(|d| d.config_dir().to_path_buf())
+        .ok_or_else(|| anyhow!("config directory unavailable"))?;
+    std::fs::create_dir_all(&dir)?;
+    Ok(dir.join("device-identity.json"))
+}
+
+fn load_or_create_identity() -> Result<(SigningKey, String)> {
+    let path = device_identity_path()?;
+    if path.exists() {
+        if let Ok(raw) = std::fs::read_to_string(&path) {
+            if let Ok(stored) = serde_json::from_str::<DeviceIdentity>(&raw) {
+                if let Ok(decoded) = B64_STD.decode(&stored.private_key_b64) {
+                    if let Ok(bytes) = <&[u8; 32]>::try_from(decoded.as_slice()) {
+                        let key = SigningKey::from_bytes(bytes);
+                        let public_b64 = B64_STD.encode(key.verifying_key().as_bytes());
+                        if public_b64 == stored.public_key_b64 {
+                            return Ok((key, public_b64));
+                        }
+                    }
+                }
+            }
+        }
+        warn!("device identity file corrupt or tampered - regenerating");
+    }
+
+    let mut seed = [0u8; 32];
+    rand::rngs::OsRng.fill_bytes(&mut seed);
+    let key = SigningKey::from_bytes(&seed);
+    let public_b64 = B64_STD.encode(key.verifying_key().as_bytes());
+    let identity = DeviceIdentity {
+        private_key_b64: B64_STD.encode(key.to_bytes()),
+        public_key_b64: public_b64.clone(),
+    };
+    std::fs::write(&path, serde_json::to_string_pretty(&identity)?)?;
+    Ok((key, public_b64))
+}
+
+/// Bundle identifier declared for this installation (bundled branding via env
+/// override, or the well-known default). The Go server requires it for
+/// support-agent (`os_agent`) enrollment.
+fn enrollment_bundle_id() -> String {
+    if let Ok(path) = std::env::var("BETTERDESK_AGENT_BRANDING") {
+        if let Ok(raw) = std::fs::read_to_string(&path) {
+            if let Ok(value) = serde_json::from_str::<serde_json::Value>(&raw) {
+                if let Some(id) = value.get("bundle_id").and_then(|b| b.as_str()) {
+                    let id = id.trim();
+                    if !id.is_empty() {
+                        return id.to_string();
+                    }
+                }
+            }
+        }
+    }
+    String::from("com.betterdesk.agent")
+}
+
+/// Build the `X-BD-Enrollment-*` proof-of-possession headers the Go server
+/// validates via `verifyEnrollmentDeviceProof`:
+///   Ed25519 over `bd-enrollment-v1\n{method}\n{path}\n{device_id}\n{public_key}\n{timestamp}\n{nonce}`
+/// where `path` is the raw request path as seen by the server and `timestamp`
+/// is RFC3339 UTC (±5 min skew enforced server-side, nonce replay-protected).
+fn enrollment_proof_headers(
+    method: &str,
+    path: &str,
+    device_id: &str,
+    public_key_b64: &str,
+    key: &SigningKey,
+) -> [(&'static str, String); 3] {
+    let timestamp = Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true);
+    let nonce = uuid::Uuid::new_v4().simple().to_string();
+    let payload = format!(
+        "bd-enrollment-v1\n{}\n{}\n{}\n{}\n{}\n{}",
+        method, path, device_id, public_key_b64, timestamp, nonce
+    );
+    let signature = B64_STD.encode(key.sign(payload.as_bytes()).to_bytes());
+    [
+        ("X-BD-Enrollment-Timestamp", timestamp),
+        ("X-BD-Enrollment-Nonce", nonce),
+        ("X-BD-Enrollment-Signature", signature),
+    ]
+}
 
 #[derive(Debug, Clone)]
 struct ResolvedApiEndpoint {
@@ -492,6 +595,12 @@ pub async fn register_get_status(config: &mut AgentConfig) -> Result<EnrollmentS
         format!("BD-{}", base32_encode_upper(&result[..8], 13))
     };
 
+    // Enrollment requires a device identity: support-agent (`os_agent`) devices
+    // must declare bundle_id + public_key and prove possession of the key with
+    // the X-BD-Enrollment-* headers (Go server 3.5.156+, replay-protected).
+    let (identity_key, public_key_b64) = load_or_create_identity()?;
+    let bundle_id = enrollment_bundle_id();
+
     let payload = serde_json::json!({
         "device_id": id_hash,
         "uuid": device_uid,
@@ -499,10 +608,23 @@ pub async fn register_get_status(config: &mut AgentConfig) -> Result<EnrollmentS
         "version": sysinfo.os_version,
         "platform": format!("{} {}", sysinfo.os, sysinfo.arch),
         "device_type": "os_agent",
+        "bundle_id": bundle_id,
+        "public_key": public_key_b64,
     });
 
+    // Sign over the raw request path the server will see (query excluded).
+    let proof_path = Url::parse(&url)
+        .map(|u| u.path().to_string())
+        .unwrap_or_else(|_| String::from("/api/devices/register"));
+
     let client = build_http_client(15)?;
-    let resp = client.post(&url).json(&payload).send().await?;
+    let mut req = client.post(&url).json(&payload);
+    for (name, value) in
+        enrollment_proof_headers("POST", &proof_path, &id_hash, &public_key_b64, &identity_key)
+    {
+        req = req.header(name, value);
+    }
+    let resp = req.send().await?;
     let status = resp.status();
     let body = resp.text().await.unwrap_or_default();
 
@@ -578,8 +700,23 @@ pub async fn poll_enrollment_status(address: &str, device_id: &str) -> Result<En
     // device_id is a BD-[A-Z2-7]+ string — no URL encoding needed.
     let url = format!("{}/devices/register/status?device_id={}", api_url, device_id);
 
+    // The Go server issues the approved device_token only for proof-signed
+    // polls (Ed25519 over the raw request path, same scheme as registration).
     let client = build_http_client(10)?;
-    let resp = client.get(&url).send().await?;
+    let mut req = client.get(&url);
+    if let Ok((identity_key, public_key_b64)) = load_or_create_identity() {
+        let proof_path = Url::parse(&url)
+            .map(|u| u.path().to_string())
+            .unwrap_or_else(|_| String::from("/api/devices/register/status"));
+        for (name, value) in
+            enrollment_proof_headers("GET", &proof_path, device_id, &public_key_b64, &identity_key)
+        {
+            req = req.header(name, value);
+        }
+    } else {
+        warn!("device identity unavailable - status poll without enrollment proof");
+    }
+    let resp = req.send().await?;
     let status_code = resp.status();
     let body = resp.text().await.unwrap_or_default();
 
@@ -636,6 +773,11 @@ pub async fn register(config: &mut AgentConfig) -> Result<String> {
         format!("BD-{}", base32_encode_upper(&result[..8], 13))
     };
 
+    // Enrollment requires a device identity for support-agent (`os_agent`)
+    // devices: bundle_id + public_key + X-BD-Enrollment-* proof headers.
+    let (identity_key, public_key_b64) = load_or_create_identity()?;
+    let bundle_id = enrollment_bundle_id();
+
     let payload = serde_json::json!({
         "device_id": id_hash,
         "uuid": device_uid,
@@ -643,11 +785,23 @@ pub async fn register(config: &mut AgentConfig) -> Result<String> {
         "version": sysinfo.os_version,
         "platform": format!("{} {}", sysinfo.os, sysinfo.arch),
         "device_type": "os_agent",
+        "bundle_id": bundle_id,
+        "public_key": public_key_b64,
     });
 
-    let client = build_http_client(15)?;
+    // Sign over the raw request path the server will see (query excluded).
+    let proof_path = Url::parse(&url)
+        .map(|u| u.path().to_string())
+        .unwrap_or_else(|_| String::from("/api/devices/register"));
 
-    let resp = client.post(&url).json(&payload).send().await?;
+    let client = build_http_client(15)?;
+    let mut req = client.post(&url).json(&payload);
+    for (name, value) in
+        enrollment_proof_headers("POST", &proof_path, &id_hash, &public_key_b64, &identity_key)
+    {
+        req = req.header(name, value);
+    }
+    let resp = req.send().await?;
     let status = resp.status();
     let body = resp.text().await.unwrap_or_default();
 

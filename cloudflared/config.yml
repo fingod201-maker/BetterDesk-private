@@ -14,6 +14,13 @@ ingress:
     path: ^/cdap(/.*)?$
     service: http://127.0.0.1:21122
 
+  # Device enrollment - forward straight to the Go API (Ed25519 enrollment
+  # proof signs the raw request path, so it must not be rewritten by the
+  # console; also avoids console CSRF on the agent endpoints).
+  - hostname: panel.telcom.stream
+    path: ^/api/devices/register(/status)?$
+    service: http://127.0.0.1:21114
+
   # Web console / admin panel + client REST API + browser CDAP media proxy.
   - hostname: panel.telcom.stream
     service: http://127.0.0.1:5000
