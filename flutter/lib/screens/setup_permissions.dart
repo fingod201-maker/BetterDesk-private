@@ -26,6 +26,11 @@ class _SetupPermissionsScreenState extends State<SetupPermissionsScreen>
   SetupStatus? _status;
   bool _busy = false;
 
+  /// Google Play policy requires a prominent, in-app disclosure describing
+  /// why the Accessibility service is used, with affirmative user consent,
+  /// BEFORE the user is sent to the Accessibility settings screen.
+  bool _disclosureAccepted = false;
+
   @override
   void initState() {
     super.initState();
@@ -58,6 +63,51 @@ class _SetupPermissionsScreenState extends State<SetupPermissionsScreen>
       if (mounted) setState(() => _status = s);
     } finally {
       if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// Play policy: show the Accessibility use disclosure and get explicit
+  /// consent before opening the Accessibility settings screen.
+  Future<void> _openAccessibilityWithDisclosure() async {
+    if (_disclosureAccepted) {
+      await _run(_setup.openAccessibilitySettings);
+      return;
+    }
+
+    final agreed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Allow remote control?'),
+        content: const SingleChildScrollView(
+          child: Text(
+            'To let an authorized operator support or control this device, '
+            'BetterDesk uses the Android Accessibility service.\n\n'
+            'This allows the operator to view the screen and send touch '
+            'gestures (taps, swipes) to this device while connected.\n\n'
+            'It is used only for remote support and unattended access. Your '
+            'operator is identified by the connection details in this app. '
+            'You can turn it off at any time in Settings > Accessibility.\n\n'
+            'Continue to enable BetterDesk Remote Control?',
+            style: TextStyle(fontSize: 14),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Agree & continue'),
+          ),
+        ],
+      ),
+    );
+
+    if (agreed == true) {
+      _disclosureAccepted = true;
+      await _run(_setup.openAccessibilitySettings);
     }
   }
 
@@ -112,7 +162,7 @@ class _SetupPermissionsScreenState extends State<SetupPermissionsScreen>
                       'Accessibility settings list, then come back',
                   granted: s?.accessibility,
                   button: 'Open Settings',
-                  onPressed: () => _run(_setup.openAccessibilitySettings),
+                  onPressed: _openAccessibilityWithDisclosure,
                   hint: (s?.restrictedSettingsRequired ?? false)
                       ? 'Android blocked the toggle. On the app info page use\n'
                           '⋮ → "Allow restricted settings", then enable Accessibility.'
