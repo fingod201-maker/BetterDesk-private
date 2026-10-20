@@ -82,7 +82,7 @@ jobs:
           test -f "$F"
           sed -i 's/output\.getFilter(OutputFile\.ABI)/output.getFilter("ABI")/g' "$F"
           sed -i '/^import com\.android\.build\.OutputFile$/d' "$F"
-          if grep -n "OutputFile" "$F"; then
+          if grep -nE "com\.android\.build\.OutputFile|OutputFile\.ABI" "$F"; then
             echo "Flutter Gradle plugin patch failed"
             exit 1
           fi
