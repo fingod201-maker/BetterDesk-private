@@ -20,6 +20,7 @@ import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Handler
+import android.os.HandlerThread
 import android.os.IBinder
 import android.os.Looper
 import android.util.Log
@@ -119,11 +120,21 @@ class UnattendedAccessService : Service() {
     private var projection: MediaProjection? = null
     private var virtualDisplay: VirtualDisplay? = null
     private var imageReader: ImageReader? = null
+    private var captureThread: HandlerThread? = null
     private val mainHandler = Handler(Looper.getMainLooper())
+
+    /** Throttle screen capture so we never starve the device with JPEG encodes. */
+    @Volatile
+    private var lastFrameAt = 0L
+    private val frameIntervalMs = 200L
+
+    /** Downscale very large displays before JPEG encoding (memory/ANR guard). */
+    private val maxCaptureDimension = 1600
 
     override fun onCreate() {
         super.onCreate()
         Log.i(TAG, "UnattendedAccessService onCreate")
+        CrashLogger.install(this)
 
         // Initialize a headless Flutter engine so the app can run UI-less
         // while still being able to render the configuration UI on demand.
@@ -137,16 +148,37 @@ class UnattendedAccessService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.i(TAG, "UnattendedAccessService onStartCommand action=${intent?.action}")
+        CrashLogger.install(this)
 
-        if (intent?.action == ACTION_START_PROJECTION) {
-            // Must be a mediaProjection FGS before getMediaProjection() on API 34+.
-            startAsForeground(includeMediaProjection = true)
-            handleProjectionConsent(intent)
-        } else {
-            startAsForeground(includeMediaProjection = projection != null)
-            promptForRegrantIfNeeded()
+        try {
+            if (intent?.action == ACTION_START_PROJECTION) {
+                // Must be a mediaProjection FGS before getMediaProjection() on API 34+.
+                val foregroundStarted = startAsForeground(includeMediaProjection = true)
+                if (foregroundStarted) {
+                    handleProjectionConsent(intent)
+                } else {
+                    failPendingProjection(
+                        "Foreground service could not start for screen capture"
+                    )
+                    promptForRegrantIfNeeded()
+                }
+            } else {
+                startAsForeground(includeMediaProjection = projection != null)
+                promptForRegrantIfNeeded()
+            }
+        } catch (t: Throwable) {
+            // Never let a foreground-service failure kill the process — that
+            // shows up to the user as the app simply "closing".
+            Log.e(TAG, "onStartCommand failed: ${t.javaClass.simpleName}", t)
+            failPendingProjection(t.message ?: t.javaClass.simpleName)
         }
         return START_STICKY
+    }
+
+    private fun failPendingProjection(message: String) {
+        val callback = pendingProjectionCallback
+        pendingProjectionCallback = null
+        callback?.onProjectionResult(false, message)
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -164,17 +196,47 @@ class UnattendedAccessService : Service() {
 
     // ---- Foreground service ----
 
-    private fun startAsForeground(includeMediaProjection: Boolean) {
+    /**
+     * Promote the service to the foreground.
+     *
+     * Returns true when the notification is posted. On API 34+ starting a
+     * `mediaProjection` FGS can throw [android.app.ForegroundServiceStartNotAllowedException]
+     * or a [SecurityException] on OEM builds; we degrade to a plain
+     * `connectedDevice` service instead of crashing.
+     */
+    private fun startAsForeground(includeMediaProjection: Boolean): Boolean {
         val notification = buildNotification()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             var type = ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
             if (includeMediaProjection) {
                 type = type or ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
             }
-            startForeground(NOTIFICATION_ID, notification, type)
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
+            try {
+                startForeground(NOTIFICATION_ID, notification, type)
+                return true
+            } catch (t: Throwable) {
+                Log.e(
+                    TAG,
+                    "startForeground(type=$type) failed: ${t.javaClass.simpleName}: ${t.message}",
+                    t
+                )
+                if (includeMediaProjection) {
+                    try {
+                        startForeground(
+                            NOTIFICATION_ID,
+                            notification,
+                            ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
+                        )
+                        return true
+                    } catch (t2: Throwable) {
+                        Log.e(TAG, "Fallback startForeground failed", t2)
+                    }
+                }
+            }
+            return false
         }
+        startForeground(NOTIFICATION_ID, notification)
+        return true
     }
 
     // ---- MediaProjection ----
@@ -238,9 +300,16 @@ class UnattendedAccessService : Service() {
 
         // Screen capture must use an uncompressed producer format; RGBA_8888
         // is the only reliable format for a VirtualDisplay surface.
+        val captureHandler = ensureCaptureThread()
         val reader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)
         reader.setOnImageAvailableListener({ r ->
             try {
+                val now = System.currentTimeMillis()
+                if (now - lastFrameAt < frameIntervalMs) {
+                    // Drop this frame; acquireLatestImage() below discards any
+                    // still-buffered frames so we never fall behind.
+                    return@setOnImageAvailableListener
+                }
                 val image = r.acquireLatestImage() ?: return@setOnImageAvailableListener
                 try {
                     val plane = image.planes[0]
@@ -256,17 +325,32 @@ class UnattendedAccessService : Service() {
                         paddedWidth, height, Bitmap.Config.ARGB_8888
                     )
                     padded.copyPixelsFromBuffer(buffer)
-                    val frame = if (paddedWidth == width) {
+                    val cropped = if (paddedWidth == width) {
                         padded
                     } else {
                         Bitmap.createBitmap(padded, 0, 0, width, height)
                     }
 
+                    val longest = maxOf(cropped.width, cropped.height)
+                    val frame = if (longest > maxCaptureDimension) {
+                        val scale = maxCaptureDimension.toFloat() / longest
+                        Bitmap.createScaledBitmap(
+                            cropped,
+                            (cropped.width * scale).toInt().coerceAtLeast(1),
+                            (cropped.height * scale).toInt().coerceAtLeast(1),
+                            true
+                        )
+                    } else {
+                        cropped
+                    }
+
                     val out = ByteArrayOutputStream()
                     frame.compress(Bitmap.CompressFormat.JPEG, 70, out)
                     latestFrame = out.toByteArray()
+                    lastFrameAt = now
 
-                    if (frame !== padded) frame.recycle()
+                    if (frame !== cropped) frame.recycle()
+                    if (cropped !== padded) cropped.recycle()
                     padded.recycle()
                 } finally {
                     image.close()
@@ -274,12 +358,12 @@ class UnattendedAccessService : Service() {
             } catch (e: Exception) {
                 Log.w(TAG, "frame capture error: ${e.message}")
             }
-        }, mainHandler)
+        }, captureHandler)
 
         virtualDisplay = proj.createVirtualDisplay(
             "BetterDeskCapture", width, height, dpi,
             DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-            reader.surface, null, mainHandler
+            reader.surface, null, captureHandler
         )
         imageReader = reader
         projectionActive = true
@@ -307,9 +391,24 @@ class UnattendedAccessService : Service() {
             try { current.stop() } catch (_: Exception) {}
         }
 
+        captureThread?.quitSafely()
+        captureThread = null
+
+        lastFrameAt = 0L
         projectionActive = false
         latestFrame = null
         MainActivity.mediaProjection = null
+    }
+
+    private fun ensureCaptureThread(): Handler {
+        var thread = captureThread
+        if (thread == null || !thread.isAlive) {
+            thread = HandlerThread("BetterDeskCapture").also {
+                it.start()
+                captureThread = it
+            }
+        }
+        return Handler(thread.looper)
     }
 
     // ---- Re-grant reminder (Android cannot persist the projection token) ----

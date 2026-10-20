@@ -49,6 +49,11 @@ class MainActivity : FlutterActivity() {
     private var pendingScreenCaptureResult: MethodChannel.Result? = null
     private val mainHandler = Handler(Looper.getMainLooper())
 
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        CrashLogger.install(this)
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         setupChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "betterdesk/setup")
@@ -197,15 +202,21 @@ class MainActivity : FlutterActivity() {
             }
         }
 
-        UnattendedAccessService.startProjection(
-            this, resultCode, data,
-            object : UnattendedAccessService.ProjectionResultCallback {
-                override fun onProjectionResult(success: Boolean, message: String?) {
-                    if (!success) Log.w(TAG, "Screen capture attach failed: $message")
-                    finish()
+        try {
+            UnattendedAccessService.startProjection(
+                this, resultCode, data,
+                object : UnattendedAccessService.ProjectionResultCallback {
+                    override fun onProjectionResult(success: Boolean, message: String?) {
+                        if (!success) Log.w(TAG, "Screen capture attach failed: $message")
+                        finish()
+                    }
                 }
-            }
-        )
+            )
+        } catch (t: Throwable) {
+            // A failure here must not tear down the activity ("app closes").
+            Log.e(TAG, "startProjection failed", t)
+            finish()
+        }
 
         // Never leave the Flutter wizard waiting if the service is slow/killed.
         mainHandler.postDelayed({ finish() }, 5000)
