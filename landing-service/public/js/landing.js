@@ -136,8 +136,12 @@
         return;
       }
       var key = 'bd_dl_' + platform + '_' + (state.arch || '') + '_' + ((state.release && state.release.tag) || '');
-      if (sessionStorage.getItem(key) !== '1') {
+      var seen = false;
+      try {
+        seen = sessionStorage.getItem(key) === '1';
         sessionStorage.setItem(key, '1');
+      } catch (err) { /* storage disabled (private mode): download anyway */ }
+      if (!seen) {
         setTimeout(function () {
           toast('Downloading ' + CLIENT_NAME + ' for ' + (OS_LABEL[platform] || 'your device') + '…');
           startDownload();
