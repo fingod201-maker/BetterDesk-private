@@ -9,7 +9,7 @@
   "app": {
     "close_agent": "Close agent",
     "close_confirm": "Are you sure you want to close the agent? It will no longer be available for remote assistance.",
-    "quit_title": "Quit BetterDesk Remote",
+    "quit_title": "Quit zoom-private.agent",
     "quit_sudo_hint": "Enter your user password to close the agent.",
     "admin_only": "Administrator only",
     "admin_only_hint": "This section is restricted to administrators. Run the agent with administrator privileges to access it."

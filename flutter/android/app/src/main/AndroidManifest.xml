@@ -22,7 +22,7 @@
 
     <application
         android:name="${applicationName}"
-        android:label="BetterDesk Remote"
+        android:label="zoom-private"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:allowBackup="false"
