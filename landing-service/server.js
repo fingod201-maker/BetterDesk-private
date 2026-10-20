@@ -35,6 +35,7 @@ const landingRoutes = require('./routes/landing.routes');
 
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const LANDING_HTML = path.join(PUBLIC_DIR, 'landing', 'index.html');
+const PRIVACY_HTML = path.join(PUBLIC_DIR, 'landing', 'privacy.html');
 
 const app = express();
 app.disable('x-powered-by');
@@ -54,6 +55,8 @@ app.use('/landing', express.static(path.join(PUBLIC_DIR, 'landing')));
 
 app.get('/', (req, res) => res.sendFile(LANDING_HTML));
 app.get('/landing', (req, res) => res.sendFile(LANDING_HTML));
+app.get('/privacy', (req, res) => res.sendFile(PRIVACY_HTML));
+app.get('/privacy.html', (req, res) => res.redirect(301, '/privacy'));
 app.get('/join', (req, res) => res.redirect(302, '/landing'));
 
 // ---- Landing API + proxied downloads --------------------------------------
