@@ -9,7 +9,7 @@
   "app": {
     "close_agent": "關閉代理程式",
     "close_confirm": "您確定要關閉代理程式嗎？關閉後將無法再提供遠端協助。",
-    "quit_title": "結束 zoom-private.agent",
+    "quit_title": "結束 BetterDesk Remote",
     "quit_sudo_hint": "請輸入您的使用者密碼以關閉代理程式。",
     "admin_only": "僅限管理員",
     "admin_only_hint": "此區段僅限管理員使用。請以管理員權限執行代理程式以存取此區段。",

@@ -15,7 +15,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "zoom-private.agent",
+        "title": "BetterDesk Remote",
         "width": 400,
         "height": 470,
         "minWidth": 380,
