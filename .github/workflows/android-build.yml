@@ -75,6 +75,19 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Patch Flutter Gradle plugin for AGP 8
+        run: |
+          set -euo pipefail
+          F="$FLUTTER_ROOT/packages/flutter_tools/gradle/src/main/groovy/flutter.groovy"
+          test -f "$F"
+          sed -i 's/output\.getFilter(OutputFile\.ABI)/output.getFilter("ABI")/g' "$F"
+          sed -i '/^import com\.android\.build\.OutputFile$/d' "$F"
+          if grep -n "OutputFile" "$F"; then
+            echo "Flutter Gradle plugin patch failed"
+            exit 1
+          fi
+          grep -n 'getFilter' "$F"
+
       - name: Set up Android SDK + NDK
         uses: android-actions/setup-android@v3
         with:
