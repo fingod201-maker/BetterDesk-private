@@ -34,8 +34,9 @@ type Message struct {
 // Agent connects to a BetterDesk CDAP gateway, authenticates, registers
 // a system manifest, and handles commands / media sessions.
 type Agent struct {
-	cfg     *Config
-	version string
+	cfg       *Config
+	configPath string
+	version   string
 
 	conn *websocket.Conn
 	mu   sync.Mutex // serialise writes
@@ -73,10 +74,11 @@ type Agent struct {
 }
 
 // New creates a new Agent with the supplied configuration.
-func New(cfg *Config, version string) *Agent {
+func New(cfg *Config, version string, configPath string) *Agent {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Agent{
 		cfg:          cfg,
+		configPath:   configPath,
 		version:      version,
 		sysCollector: NewSystemCollector(),
 		clipboard:    NewClipboardHandler(),
@@ -238,6 +240,11 @@ func (a *Agent) runOnce() error {
 // ── Authentication ───────────────────────────────────────────────────
 
 func (a *Agent) authenticate() error {
+	// Auto-enroll if using device_token but no token yet
+	if err := a.ensureEnrolled(); err != nil {
+		return err
+	}
+
 	payload := map[string]string{
 		"method":         a.cfg.AuthMethod,
 		"device_id":      a.cfg.DeviceID,
@@ -285,6 +292,47 @@ func (a *Agent) authenticate() error {
 	a.role = result.Role
 	a.sessionID = result.SessionTok
 	return nil
+}
+
+// ensureEnrolled performs proof-signed enrollment via REST API if the agent
+// is configured for device_token auth but has no device_token yet.
+// This enables zero-touch deployment: the agent self-enrolls on first run.
+func (a *Agent) ensureEnrolled() error {
+	if a.cfg.AuthMethod != "device_token" {
+		return nil // Not using device_token auth, nothing to do
+	}
+	if a.cfg.DeviceToken != "" {
+		return nil // Already have a token
+	}
+
+	log.Printf("[enroll] No device token found, starting proof-signed enrollment...")
+
+	token, deviceID, err := a.enrollWithProof()
+	if err != nil {
+		return fmt.Errorf("enrollment failed: %w", err)
+	}
+
+	// Update config with the new token and device ID
+	a.cfg.DeviceToken = token
+	if deviceID != "" {
+		a.cfg.DeviceID = deviceID
+	}
+
+	// Persist config so we don't re-enroll on restart
+	if err := a.saveConfig(); err != nil {
+		log.Printf("[enroll] Warning: failed to save config: %v", err)
+	}
+
+	log.Printf("[enroll] Enrollment successful, device_id=%s", a.cfg.DeviceID)
+	return nil
+}
+
+// saveConfig persists the current config to the config file.
+func (a *Agent) saveConfig() error {
+	if a.configPath == "" {
+		return nil // No path to save to
+	}
+	return a.cfg.Save(a.configPath)
 }
 
 // ── Registration ─────────────────────────────────────────────────────

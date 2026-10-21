@@ -21,21 +21,22 @@ import (
 var version = "1.0.0"
 
 func main() {
-	var (
-		configFile = flag.String("config", "", "Config file path (JSON)")
-		server     = flag.String("server", "", "Gateway WebSocket URL (ws://host:21122/cdap)")
-		authMethod = flag.String("auth", "", "Auth method: api_key, device_token, user_password")
-		apiKey     = flag.String("key", "", "API key")
-		devToken   = flag.String("token", "", "Device enrollment token")
-		username   = flag.String("user", "", "Username")
-		password   = flag.String("pass", "", "Password")
-		deviceID   = flag.String("device-id", "", "Device ID (default: auto)")
-		deviceName = flag.String("device-name", "", "Device name (default: hostname)")
-		deviceType = flag.String("device-type", "", "Device type (default: os_agent)")
-		logLevel   = flag.String("log-level", "", "Log level: debug, info, warning, error")
-		dataDir    = flag.String("data-dir", "", "Data directory")
-		showVer    = flag.Bool("version", false, "Print version and exit")
-	)
+var (
+	configFile = flag.String("config", "", "Config file path (JSON)")
+	configPath = flag.String("config-path", "", "Config file path for saving (enables auto-enroll persistence)")
+	server     = flag.String("server", "", "Gateway WebSocket URL (ws://host:21122/cdap)")
+	authMethod = flag.String("auth", "", "Auth method: api_key, device_token, user_password")
+	apiKey     = flag.String("key", "", "API key")
+	devToken   = flag.String("token", "", "Device enrollment token")
+	username   = flag.String("user", "", "Username")
+	password   = flag.String("pass", "", "Password")
+	deviceID   = flag.String("device-id", "", "Device ID (default: auto)")
+	deviceName = flag.String("device-name", "", "Device name (default: hostname)")
+	deviceType = flag.String("device-type", "", "Device type (default: os_agent)")
+	logLevel   = flag.String("log-level", "", "Log level: debug, info, warning, error")
+	dataDir    = flag.String("data-dir", "", "Data directory")
+	showVer    = flag.Bool("version", false, "Print version and exit")
+)
 	flag.Parse()
 
 	if *showVer {
@@ -89,7 +90,7 @@ func main() {
 
 	log.Printf("[agent] BetterDesk Agent %s starting (device: %s, type: %s)", version, cfg.DeviceName, cfg.DeviceType)
 
-	a := agent.New(cfg, version)
+	a := agent.New(cfg, version, *configPath)
 
 	// Graceful shutdown on SIGINT/SIGTERM
 	sigCh := make(chan os.Signal, 1)

@@ -50,10 +50,10 @@ type Config struct {
 	HwAccel string `json:"hw_accel,omitempty"`
 
 	// Lifecycle callbacks for embedded UIs (support agent, tests).
-	ConsentHandler      func(sessionID, operator string) bool
-	SessionStartHandler func(sessionID, operator, mode string)
-	SessionEndHandler   func(sessionID string)
-	ChatMessageHandler  func(fromName, text string)
+	ConsentHandler      func(sessionID, operator string) bool          `json:"-"`
+	SessionStartHandler func(sessionID, operator, mode string)       `json:"-"`
+	SessionEndHandler   func(sessionID string)                       `json:"-"`
+	ChatMessageHandler  func(fromName, text string)                  `json:"-"`
 
 	// ── TLS hardening (Phase 4) ──────────────────────────────────────
 	// EnforceTLS rejects plaintext ws:// for any non-local host (returns an
@@ -205,9 +205,8 @@ func (c *Config) Validate() error {
 			return fmt.Errorf("api_key required for api_key auth")
 		}
 	case "device_token":
-		if c.DeviceToken == "" {
-			return fmt.Errorf("device_token required for device_token auth")
-		}
+		// Allow empty token - will be auto-enrolled via proof-signed enrollment
+		// if DeviceToken is empty at runtime
 	case "user_password":
 		if c.Username == "" || c.Password == "" {
 			return fmt.Errorf("username and password required for user_password auth")
@@ -268,4 +267,16 @@ func defaultDataDir() string {
 		return filepath.Join(os.Getenv("ProgramData"), "BetterDesk", "Agent")
 	}
 	return "/var/lib/betterdesk-agent"
+}
+
+// Save writes the config to the given file path as JSON.
+func (c *Config) Save(path string) error {
+	data, err := json.MarshalIndent(c, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal config: %w", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0644)
 }
