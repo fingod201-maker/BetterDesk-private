@@ -141,16 +141,19 @@ jobs:
             -log-level debug > agent.log 2>&1 &
           echo $! > agent.pid
           echo "Agent PID: $(cat agent.pid)"
+          printf '%s' "$ADMIN_TOKEN" > admin.token
 
       - name: Wait for agent to register and appear online
+        working-directory: /tmp/bd-e2e
         run: |
+          AUTH="Authorization: Bearer $(cat admin.token)"
           for i in $(seq 1 30); do
-            STATS=$(curl -sf http://127.0.0.1:21114/api/server/stats 2>/dev/null || echo '{}')
-            PEER_COUNT=$(echo "$STATS" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('peer_count', d.get('total',0)))" 2>/dev/null || echo "0")
-            echo "Poll $i/30: peer_count=$PEER_COUNT"
-            if [ "$PEER_COUNT" -ge 1 ] 2>/dev/null; then
+            LIST=$(curl -sf http://127.0.0.1:21114/api/cdap/devices -H "$AUTH" 2>/dev/null || echo '{"total":0}')
+            TOTAL=$(echo "$LIST" | python3 -c "import sys,json; print(json.load(sys.stdin).get('total',0))" 2>/dev/null || echo "0")
+            echo "Poll $i/30: cdap device total=$TOTAL"
+            if [ "$TOTAL" -ge 1 ] 2>/dev/null; then
               echo "Agent registered and online!"
-              echo "$STATS" | head -c 1000
+              echo "$LIST" | head -c 1000
               echo
               exit 0
             fi
@@ -166,12 +169,12 @@ jobs:
       # ---------------------------------------------------------------
       # Verify peer detail via API
       # ---------------------------------------------------------------
-      - name: Verify peer detail
+      - name: Verify peer detail via API
         run: |
-          PEER=$(curl -sf http://127.0.0.1:21114/api/peers/e2e-device-01 2>/dev/null || echo '{}')
-          echo "Peer detail: $PEER" | head -c 1000
-          echo
-          echo "$PEER" | python3 -c "import sys,json; d=json.load(sys.stdin); assert d.get('device_id')=='e2e-device-01', 'device_id mismatch'; print('E2E test PASSED: device registered and queryable')"
+          curl -s -w '\nHTTP %{http_code}\n' -N http://127.0.0.1:21114/api/cdap/devices/e2e-device-01 \
+            -H "Authorization: Bearer $(cat /tmp/bd-e2e/admin.token)" -o /tmp/bd-e2e/peer.out || true
+          cat /tmp/bd-e2e/peer.out
+          python3 -c "import json; d=json.load(open('/tmp/bd-e2e/peer.out')); assert d.get('device_id')=='e2e-device-01' or d.get('id')=='e2e-device-01', 'device_id mismatch'; print('E2E test PASSED: device registered and queryable')"
 
       # ---------------------------------------------------------------
       # Cleanup
