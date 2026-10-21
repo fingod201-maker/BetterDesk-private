@@ -283,12 +283,16 @@ pub fn get_network_adapters() -> Vec<crate::sysinfo_collect::NetworkAdapter> {
 
 #[tauri::command]
 pub async fn reconnect_agent(state: State<'_, AgentState>) -> Result<String, String> {
-    let (address, device_id) = {
+    let (address, device_id, console_url) = {
         let config = state.config.lock().map_err(|e| e.to_string())?;
         if !config.is_registered() {
             return Err("Device not registered".to_string());
         }
-        (config.server_address.clone(), config.device_id.clone())
+        (
+            config.server_address.clone(),
+            config.device_id.clone(),
+            config.console_url.clone(),
+        )
     };
 
     let client = crate::registration::build_http_client(10).map_err(|e| e.to_string())?;
@@ -309,12 +313,16 @@ pub async fn reconnect_agent(state: State<'_, AgentState>) -> Result<String, Str
 
 #[tauri::command]
 pub async fn send_diagnostics(state: State<'_, AgentState>) -> Result<String, String> {
-    let (address, device_id) = {
+    let (address, device_id, console_url) = {
         let config = state.config.lock().map_err(|e| e.to_string())?;
         if !config.is_registered() {
             return Err("Device not registered".to_string());
         }
-        (config.server_address.clone(), config.device_id.clone())
+        (
+            config.server_address.clone(),
+            config.device_id.clone(),
+            config.console_url.clone(),
+        )
     };
 
     let sysinfo = SystemSnapshot::collect();
@@ -646,7 +654,7 @@ pub async fn send_chat_message(
     message: String,
     state: State<'_, AgentState>,
 ) -> Result<(), String> {
-    let (msg, address, device_id) = {
+    let (msg, address, device_id, console_url) = {
         let config = state.config.lock().map_err(|e| e.to_string())?;
         if !config.is_registered() {
             return Err("Device not registered".to_string());
@@ -658,7 +666,12 @@ pub async fn send_chat_message(
             content: message.clone(),
             timestamp: chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string(),
         };
-        (msg, config.server_address.clone(), config.device_id.clone())
+        (
+            msg,
+            config.server_address.clone(),
+            config.device_id.clone(),
+            config.console_url.clone(),
+        )
     };
 
     // Store locally first.
@@ -679,7 +692,7 @@ pub async fn send_chat_message(
         "timestamp": msg.timestamp,
     });
 
-    let url = format_console_url(&address, "/bd/chat/send");
+    let url = console_base(&address, &console_url, "/bd/chat/send");
     // `X-Device-Id` is required by the `identifyDevice` middleware on the
     // console; otherwise the relay rejects the message with 401. The helper
     // also follows the HTTP→HTTPS redirect so the POST body survives.
@@ -733,12 +746,17 @@ pub async fn request_help(
     description: String,
     state: State<'_, AgentState>,
 ) -> Result<(), String> {
-    let (address, device_id, device_name) = {
+    let (address, device_id, device_name, console_url) = {
         let config = state.config.lock().map_err(|e| e.to_string())?;
         if !config.is_registered() {
             return Err("Device not registered".to_string());
         }
-        (config.server_address.clone(), config.device_id.clone(), config.device_name.clone())
+        (
+            config.server_address.clone(),
+            config.device_id.clone(),
+            config.device_name.clone(),
+            config.console_url.clone(),
+        )
     };
 
     // The Node.js console route (`/api/bd/help-request`) reads `message` and
@@ -755,7 +773,7 @@ pub async fn request_help(
         "timestamp": chrono::Utc::now().to_rfc3339(),
     });
 
-    let url = format_console_url(&address, "/bd/help-request");
+    let url = console_base(&address, &console_url, "/bd/help-request");
 
     let resp =
         send_console_json(reqwest::Method::POST, &url, &device_id, &payload, 10).await?;
@@ -770,12 +788,16 @@ pub async fn request_help(
 
 #[tauri::command]
 pub async fn cancel_help_request(state: State<'_, AgentState>) -> Result<(), String> {
-    let (address, device_id) = {
+    let (address, device_id, console_url) = {
         let config = state.config.lock().map_err(|e| e.to_string())?;
         if !config.is_registered() {
             return Err("Device not registered".to_string());
         }
-        (config.server_address.clone(), config.device_id.clone())
+        (
+            config.server_address.clone(),
+            config.device_id.clone(),
+            config.console_url.clone(),
+        )
     };
 
     let payload = serde_json::json!({
@@ -783,7 +805,7 @@ pub async fn cancel_help_request(state: State<'_, AgentState>) -> Result<(), Str
         "action": "cancel",
     });
 
-    let url = format_console_url(&address, "/bd/help-request");
+    let url = console_base(&address, &console_url, "/bd/help-request");
 
     // Best-effort: no DELETE route exists server-side, so the result is ignored.
     let _ = send_console_json(reqwest::Method::DELETE, &url, &device_id, &payload, 10).await;
@@ -1110,6 +1132,17 @@ fn format_console_url(address: &str, path: &str) -> String {
     } else {
         format!("http://{}:5000/api{}", addr, path)
     }
+}
+
+/// Console URL for a console-side path, honouring an explicit `console_url`
+/// (needed when the console is reached through a TLS tunnel on port 443).
+fn console_base(address: &str, console_url: &str, path: &str) -> String {
+    let explicit = console_url.trim();
+    if !explicit.is_empty() {
+        let base = explicit.trim_end_matches('/');
+        return format!("{}/api{}", base, path);
+    }
+    format_console_url(address, path)
 }
 
 /// Format system uptime as human-readable string.

@@ -21,6 +21,13 @@ ingress:
     path: ^/api/devices/register(/status)?$
     service: http://127.0.0.1:21114
 
+  # Agent API calls - heartbeat / sysinfo keep the device ONLINE and the
+  # client uses them to resolve the API origin. Routed to the Go API so the
+  # desktop client can use the public host as its server_address.
+  - hostname: panel.telcom.stream
+    path: ^/api/(heartbeat|sysinfo|login-options|server/stats)(/.*)?$
+    service: http://127.0.0.1:21114
+
   # Web console / admin panel + client REST API + browser CDAP media proxy.
   - hostname: panel.telcom.stream
     service: http://127.0.0.1:5000

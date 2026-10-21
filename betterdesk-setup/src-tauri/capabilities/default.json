@@ -1,0 +1,6 @@
+{
+  "identifier": "default",
+  "description": "zoom-private Setup capabilities",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

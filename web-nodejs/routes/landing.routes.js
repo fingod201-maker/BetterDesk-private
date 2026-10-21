@@ -36,6 +36,7 @@ function publicAsset(asset) {
         contentType: asset.contentType,
         source: asset.source,
         downloadPath: asset.downloadPath,
+        sha256: asset.sha256 || null,
     };
 }
 
@@ -208,6 +209,69 @@ router.get('/landing/download', async (req, res) => {
         } else {
             res.destroy();
         }
+    }
+});
+
+/**
+ * GET /api/landing/agent-profile
+ *
+ * Connection profile a freshly installed client needs: the API origin it
+ * enrolls against, the CDAP gateway URL and the console URL. The setup
+ * launcher bakes these into agent-config.json so the agent connects on the
+ * first start instead of asking the user for a server address.
+ *
+ * Public by design — the values contain no secrets beyond the server public
+ * key, which the clients need for verification.
+ */
+router.get('/api/landing/agent-profile', (req, res) => {
+    try {
+        const endpoints = require('../services/clientConfigHost').resolveRustDeskEndpoints(req);
+        const conn = require('../services/agentBundleConnection');
+        const keyService = require('../services/keyService');
+
+        const host = endpoints.host || conn.defaultServerHost();
+        const useHttps = conn.defaultUseHttps();
+
+        // Public API origin: the tunnel exposes the Go API on 443, so the
+        // agent talks to the same host it downloaded itself from.
+        let apiOrigin = '';
+        let apiPort = 0;
+        if (endpoints.api) {
+            try {
+                const u = new URL(endpoints.api);
+                apiOrigin = u.origin;
+                apiPort = u.port ? Number(u.port) : (u.protocol === 'https:' ? 443 : 80);
+            } catch (_e) { /* fall through */ }
+        }
+        if (!apiOrigin) {
+            const urls = conn.buildServerUrls(host, useHttps, conn.defaultApiPort());
+            apiOrigin = urls.address;
+            apiPort = conn.defaultApiPort();
+        }
+
+        // Behind a TLS tunnel the CDAP gateway lives on the same public host
+        // under /cdap — the raw 21122 port is not exposed.
+        const explicitCdap = String(process.env.PUBLIC_CDAP_URL || '').trim();
+        const cdapUrl = explicitCdap
+            || (apiPort === 443 ? `wss://${host}/cdap` : `ws://${host}:${conn.defaultCdapPort()}/cdap`);
+
+        const consoleUrl = apiPort === 443 ? `https://${host}` : `http://${host}:5000`;
+
+        res.set('Cache-Control', 'no-store');
+        res.json({
+            success: true,
+            data: {
+                server_address: apiOrigin,
+                api_url: `${apiOrigin}/api`,
+                cdap_url: cdapUrl,
+                cdap_port: conn.defaultCdapPort(),
+                console_url: consoleUrl,
+                server_key: keyService.getPublicKey() || '',
+            },
+        });
+    } catch (err) {
+        console.error('[landing] agent-profile error:', err);
+        res.status(500).json({ success: false, error: 'Could not resolve the agent connection profile.' });
     }
 });
 

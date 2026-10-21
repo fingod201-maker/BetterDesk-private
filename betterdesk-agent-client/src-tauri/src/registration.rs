@@ -303,22 +303,30 @@ async fn try_resolve_api_endpoint(address: &str) -> Result<ResolvedApiEndpoint> 
                 Err(_) => continue,
             };
 
-            if !stats_resp.status().is_success() {
-                continue;
-            }
-
+            // The Go API protects /api/server/stats with an API key on newer
+            // servers (401). An unauthorized JSON answer still proves that a
+            // BetterDesk Go API is listening, so only a non-JSON answer (or a
+            // hard error) disqualifies the candidate.
+            let stats_status = stats_resp.status();
             let stats_body: serde_json::Value = match stats_resp.json().await {
                 Ok(body) => body,
                 Err(_) => continue,
             };
 
-            if stats_body.get("peers_count").is_none() && stats_body.get("version").is_none() {
+            let looks_like_go_api = (stats_status.is_success()
+                && (stats_body.get("peers_count").is_some() || stats_body.get("version").is_some()))
+                || stats_status.as_u16() == 401
+                || stats_status.as_u16() == 403;
+
+            if !looks_like_go_api {
                 continue;
             }
 
             // Distinguish the real Go API from the web console reverse/proxy layer.
             // The panel may expose /api/server/stats, but only the Go API serves the
-            // public enrollment status endpoint with JSON.
+            // public enrollment status endpoint with JSON. That endpoint answers
+            // 404 with a JSON body for an unknown device, so the status code is
+            // not checked here — only the payload shape.
             let register_status_url = build_register_status_probe_url(&host, port, scheme);
             let register_status_resp = match client.get(&register_status_url).send().await {
                 Ok(resp) => resp,

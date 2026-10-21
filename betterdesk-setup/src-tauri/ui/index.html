@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>zoom-private Setup</title>
+  <style>
+    :root {
+      --bg: #f5f6fa;
+      --card: #ffffff;
+      --ink: #16181d;
+      --muted: #6b7280;
+      --line: #e5e7eb;
+      --brand: #2d8cff;
+      --ok: #17a673;
+      --err: #d64545;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+    }
+    .wrap { padding: 26px 26px 22px; }
+    h1 { font-size: 19px; margin: 0 0 2px; letter-spacing: -0.2px; }
+    .sub { color: var(--muted); margin: 0 0 18px; font-size: 13px; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 16px 16px 14px;
+      margin-bottom: 14px;
+    }
+    .row { display: flex; gap: 10px; align-items: center; }
+    .row + .row { margin-top: 10px; }
+    label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 5px; }
+    input[type=text] {
+      width: 100%;
+      padding: 9px 11px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      font-size: 13px;
+      background: #fff;
+      color: var(--ink);
+    }
+    input[type=text]:focus { outline: 2px solid rgba(45, 140, 255, 0.35); border-color: var(--brand); }
+    button {
+      border: 0;
+      border-radius: 8px;
+      padding: 10px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      background: var(--brand);
+      color: #fff;
+    }
+    button.ghost { background: #eef1f6; color: var(--ink); }
+    button:disabled { opacity: 0.55; cursor: default; }
+    .meta { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+    .pill {
+      font-size: 11px;
+      padding: 3px 9px;
+      border-radius: 999px;
+      background: #eef1f6;
+      color: #444;
+    }
+    #step { font-weight: 600; font-size: 13px; }
+    #log {
+      margin-top: 10px;
+      max-height: 210px;
+      overflow: auto;
+      background: #10131a;
+      color: #cfd6e4;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .status { margin-top: 12px; font-size: 13px; }
+    .status.ok { color: var(--ok); }
+    .status.err { color: var(--err); }
+    .foot { color: var(--muted); font-size: 12px; margin-top: 14px; }
+    .foot a { color: var(--brand); cursor: pointer; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>zoom-private Setup</h1>
+    <p class="sub">Installs the support client on this device and connects it to the console.</p>
+
+    <div class="card">
+      <div class="row">
+        <div style="flex:1">
+          <label for="console">Console address</label>
+          <input id="console" type="text" spellcheck="false" autocomplete="off" />
+        </div>
+      </div>
+      <div class="meta">
+        <span class="pill" id="os">detecting…</span>
+        <span class="pill" id="arch"></span>
+        <span class="pill" id="installed"></span>
+      </div>
+      <div class="row" style="margin-top:14px">
+        <button id="go">Install and connect</button>
+        <button class="ghost" id="console-link">Open console</button>
+      </div>
+      <div class="status" id="status"></div>
+    </div>
+
+    <div class="card">
+      <div id="step">Ready</div>
+      <div id="log"></div>
+    </div>
+
+    <p class="foot">
+      The client is downloaded by this app, not by your browser — that is why
+      Windows SmartScreen and macOS Gatekeeper do not block it.
+      Managed deployments can pin the published SHA-256 via
+      <code>scripts/trust/mdm/</code>.
+    </p>
+  </div>
+
+  <script src="./setup.js"></script>
+</body>
+</html>

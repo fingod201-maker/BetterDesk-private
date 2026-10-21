@@ -64,6 +64,21 @@ pub struct AgentConfig {
     #[serde(default = "default_cdap_port")]
     pub cdap_port: u16,
 
+    /// Full CDAP WebSocket URL, e.g. "wss://panel.example.com/cdap".
+    ///
+    /// Set this when the CDAP gateway is reached through a TLS tunnel where
+    /// the raw 21122 port is not exposed. Empty means "derive it from
+    /// server_address + cdap_port".
+    #[serde(default)]
+    pub cdap_url: String,
+
+    /// Full web console URL, e.g. "https://panel.example.com".
+    ///
+    /// Used for chat / help requests. Empty means "derive it from
+    /// server_address".
+    #[serde(default)]
+    pub console_url: String,
+
     // ── Device identity ─────────────────────────────────────────────────────
 
     /// Unique device identifier assigned during registration.
@@ -192,6 +207,8 @@ impl Default for AgentConfig {
             server_address: String::new(),
             api_key: String::new(),
             cdap_port: 21122,
+            cdap_url: String::new(),
+            console_url: String::new(),
             device_id: String::new(),
             device_name: hostname::get()
                 .map(|h| h.to_string_lossy().to_string())
@@ -397,6 +414,7 @@ impl AgentConfig {
             hw_accel: self.hw_accel.clone(),
             data_dir,
             cdap_port: self.cdap_port,
+            cdap_url: self.cdap_url.clone(),
             enforce_tls: self.enforce_tls,
             server_cert_pin: self.server_cert_pin.clone(),
         }

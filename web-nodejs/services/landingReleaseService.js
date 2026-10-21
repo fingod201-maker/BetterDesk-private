@@ -211,9 +211,11 @@ async function fetchGithubAssets() {
     // Merge assets across recent releases so an Android-only (or desktop-only)
     // release never hides the other platforms. Newer releases win.
     const byKey = new Map();
+    const checksumAssets = [];
     ordered.forEach((rel, releaseIndex) => {
         if (!rel || !Array.isArray(rel.assets)) return;
         for (const a of rel.assets) {
+            if (/\.sha256$/i.test(a.name)) { checksumAssets.push(a); continue; }
             const meta = classifyAsset(a.name);
             if (!meta) continue;
             const key = `${meta.platform}/${meta.arch}/${meta.format}`;
@@ -239,6 +241,16 @@ async function fetchGithubAssets() {
         }
     });
 
+    // Attach the published SHA-256 sums so the setup launcher (and any other
+    // consumer) can verify the bytes it downloads.
+    const sums = await fetchChecksumMap(checksumAssets);
+    if (Object.keys(sums).length) {
+        for (const asset of byKey.values()) {
+            const sum = sums[asset.name];
+            if (sum) asset.sha256 = sum;
+        }
+    }
+
     return {
         release: release ? {
             tag: release.tag_name,
@@ -249,6 +261,66 @@ async function fetchGithubAssets() {
         } : null,
         assets: [...byKey.values()],
     };
+}
+
+/**
+ * Download the release CHECKSUMS.sha256 sidecars and parse them into
+ * { assetName: sha256 }. Missing or unreadable checksum files are ignored —
+ * verification stays optional on the client side.
+ */
+async function fetchChecksumMap(checksumAssets) {
+    const map = {};
+    for (const asset of checksumAssets.slice(0, 5)) {
+        let text = '';
+        try {
+            text = await downloadText(asset.url);
+        } catch (err) {
+            continue;
+        }
+        for (const line of String(text).split(/\r?\n/)) {
+            const m = line.trim().match(/^([a-f0-9]{64})\s+\*?(.+)$/i);
+            if (!m) continue;
+            const name = m[2].trim();
+            const sum = m[1].toLowerCase();
+            map[name] = sum;
+            // The checksum file lists the asset path as it exists in the build
+            // workspace (e.g. agent-bundles/bundle-linux-x64/<file>.zip) — also
+            // index it by its plain file name so lookups by asset name work.
+            const base = name.split('/').pop();
+            if (base && !map[base]) map[base] = sum;
+        }
+        if (Object.keys(map).length) break;
+    }
+    return map;
+}
+
+/** Fetch a text asset (checksum sidecar) with the GitHub auth header. */
+function downloadText(url) {
+    return new Promise((resolve, reject) => {
+        if (!url) { reject(new Error('no url')); return; }
+        const headers = { 'User-Agent': USER_AGENT, Accept: 'application/octet-stream' };
+        if (GITHUB_TOKEN) headers.Authorization = `Bearer ${GITHUB_TOKEN}`;
+        const follow = (target, withAuth = true) => {
+            const h = { ...headers };
+            if (!withAuth) delete h.Authorization;
+            const req = https.get(target, { headers: h }, (res) => {
+                if ((res.statusCode === 301 || res.statusCode === 302) && res.headers.location) {
+                    res.resume();
+                    return follow(res.headers.location, false);
+                }
+                if (res.statusCode !== 200) {
+                    res.resume();
+                    return reject(new Error(`Upstream ${res.statusCode}`));
+                }
+                const chunks = [];
+                res.on('data', (c) => chunks.push(c));
+                res.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+            });
+            req.on('error', reject);
+            req.setTimeout(30000, () => { req.destroy(); reject(new Error('timeout')); });
+        };
+        follow(url);
+    });
 }
 
 /** Recursively scan distro/clients for downloadable custom builds. */

@@ -15,12 +15,12 @@ OS="$(uname -s)"
 
 case "$OS" in
   Darwin)
-    INSTALL_DIR="$HOME/Applications"
-    CONFIG_DIR="$HOME/Library/Application Support/BetterDesk/agent"
+    INSTALL_DIR="${BETTERDESK_INSTALL_DIR:-$HOME/Applications}"
+    CONFIG_DIR="${BETTERDESK_CONFIG_DIR:-$HOME/Library/Application Support/BetterDesk/agent}"
     ;;
   Linux)
-    INSTALL_DIR="$HOME/.local/share/betterdesk"
-    CONFIG_DIR="$HOME/.config/betterdesk/agent"
+    INSTALL_DIR="${BETTERDESK_INSTALL_DIR:-$HOME/.local/share/betterdesk}"
+    CONFIG_DIR="${BETTERDESK_CONFIG_DIR:-$HOME/.config/betterdesk/agent}"
     ;;
   *)
     echo "Unsupported OS: $OS" >&2
@@ -184,7 +184,9 @@ Exec=$EXECUTABLE
 X-GNOME-Autostart-enabled=true
 DESKTOP_EOF
     echo "Autostart registered (XDG autostart)"
-    nohup "$EXECUTABLE" >/dev/null 2>&1 &
+    # The client only reads its config from BETTERDESK_AGENT_CONFIG_DIR when it
+    # is set — without systemd/launchd we must export it ourselves.
+    BETTERDESK_AGENT_CONFIG_DIR="$CONFIG_DIR" nohup "$EXECUTABLE" >/dev/null 2>&1 &
   fi
 fi
 

@@ -128,6 +128,9 @@ pub struct SidecarConfig {
     pub hw_accel: String,
     pub data_dir: PathBuf,
     pub cdap_port: u16,
+    /// Explicit CDAP WebSocket URL (tunnel deployments, e.g. wss://host/cdap).
+    /// Empty derives the URL from server_address + cdap_port.
+    pub cdap_url: String,
     /// Opt-in: reject plaintext `ws://` for non-local hosts. Default `false`
     /// keeps HTTP a fully supported transport (the Go agent only warns).
     pub enforce_tls: bool,
@@ -139,6 +142,13 @@ pub struct SidecarConfig {
 impl SidecarConfig {
     /// Build the WebSocket URL from the server address (strips API port, uses cdap_port).
     pub fn cdap_ws_url(&self) -> String {
+        // An explicit URL wins — it is what a TLS tunnel deployment needs
+        // (e.g. wss://panel.example.com/cdap on port 443).
+        let explicit = self.cdap_url.trim();
+        if !explicit.is_empty() {
+            return explicit.to_string();
+        }
+
         let addr = self.server_address.trim();
         let with_scheme = if addr.starts_with("http://") || addr.starts_with("https://") {
             addr.to_string()
