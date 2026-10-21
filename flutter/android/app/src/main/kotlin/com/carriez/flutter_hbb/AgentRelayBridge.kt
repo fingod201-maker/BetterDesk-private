@@ -127,7 +127,13 @@ object AgentRelayBridge {
         val https = (bakedString("betterdesk_use_https") ?: "true")
             .let { !(it.equals("false", true) || it.equals("n", true) || it.equals("0")) }
         val scheme = if (https) "https" else "http"
-        return PanelConfig("$scheme://$host")
+        // Only bake a port when it is NOT the scheme default — Go server and
+        // cloudflared deployments use 443, desktop tooling may use a custom port.
+        val bakedPort = (bakedString("betterdesk_server_port")
+            ?: bakedString("betterdesk_operator_port"))?.trim()?.toIntOrNull() ?: 0
+        val hostWithPort: String =
+            if (bakedPort !in intArrayOf(0, 80, 443) && !host.contains(":")) "$host:$bakedPort" else host
+        return PanelConfig("$scheme://$hostWithPort")
     }
 
     // ── enrollment (mirrors the Go support agent) ─────────────────────────
@@ -177,7 +183,10 @@ object AgentRelayBridge {
                 ("Android " + Build.VERSION.RELEASE + " " +
                     (Build.SUPPORTED_ABIS.firstOrNull() ?: "")).trim()
             )
-            put("version", Build.VERSION.SDK_INT)
+            put(
+                "version",
+                ("Android " + Build.VERSION.RELEASE + " (SDK " + Build.VERSION.SDK_INT + ")")
+            )
             put("device_type", "os_agent")
             put("bundle_id", "com.betterdesk.agent")
             put("tags", JSONArray().put("support-agent").put("android").put("fleet"))

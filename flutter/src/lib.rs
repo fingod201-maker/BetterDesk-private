@@ -399,7 +399,6 @@ fn hex_decode(hex: &str) -> Option<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agent_relay_tests_pointer_utils as _;
 
     #[test]
     fn base_url_omits_default_https_port() {
@@ -591,16 +590,41 @@ async fn agent_dial_loop() {
 async fn agent_session(ws: AgentWs) {
     let (mut sink, mut stream) = ws.split();
     let (tx, mut rx) = mpsc::unbounded_channel::<Message>();
-    *AGENT_TX.get_or_init(|| StdMutex::new(None)).lock().unwrap() = Some(tx);
+    let pong_tx = tx.clone();
+
+    // Route captured frames of THIS session into our channel. Clearing any
+    // stale sender first guarantees feed_frame() failures point at the dead
+    // socket, not the previous session's channel.
+    if let Ok(mut g) = AGENT_TX.get_or_init(|| StdMutex::new(None)).lock() {
+        *g = Some(tx);
+    }
 
     let _ = sink.send(Message::text(
         serde_json::json!({ "type": "agent-ready", "device_id": agent_device_id() }).to_string(),
     )).await;
 
-    let writer = async move {
-        while let Some(msg) = rx.recv().await {
-            if sink.send(msg).await.is_err() {
-                break;
+    // Writer: sends queued frames and periodically pings the relay so the
+    // connection survives NAT/CGNAT idle drops while we stand by (each ping
+    // also flushes tungstenite's auto-generated Pong frames). Terminates when
+    // the channel closes (the session teardown drops ping-tx) or a send fails.
+    let writer = async {
+        loop {
+            tokio::select! {
+                msg = rx.recv() => {
+                    match msg {
+                        None => break,
+                        Some(m) => {
+                            if sink.send(m).await.is_err() {
+                                break;
+                            }
+                        }
+                    }
+                }
+                _ = tokio::time::sleep(std::time::Duration::from_secs(15)) => {
+                    if sink.send(Message::Ping(Vec::new())).await.is_err() {
+                        break;
+                    }
+                }
             }
         }
     };
@@ -610,9 +634,7 @@ async fn agent_session(ws: AgentWs) {
             match msg {
                 Ok(Message::Text(txt)) => handle_agent_text(&txt),
                 Ok(Message::Ping(p)) => {
-                    if let Some(sfx) = AGENT_TX.get().and_then(|m| m.lock().unwrap().clone()) {
-                        let _ = sfx.send(Message::Pong(p));
-                    }
+                    let _ = pong_tx.send(Message::Pong(p));
                 }
                 Ok(Message::Close(_)) | Err(_) => break,
                 _ => {}
@@ -620,8 +642,18 @@ async fn agent_session(ws: AgentWs) {
         }
     };
 
-    tokio::join!(writer, reader);
-    *AGENT_TX.get_or_init(|| StdMutex::new(None)).lock().unwrap() = None;
+    // select!: whichever side ends first tears the session down. This is the
+    // critical fix — the relay closes the agent after 90 s of idle; with
+    // join!() the writer could await the channel forever because the only
+    // sender lived inside AGENT_TX and was only cleared after join.
+    tokio::select! {
+        _ = reader => {}
+        _ = writer => {}
+    }
+
+    if let Ok(mut g) = AGENT_TX.get_or_init(|| StdMutex::new(None)).lock() {
+        *g = None;
+    }
 }
 
 fn agent_device_id() -> String {
