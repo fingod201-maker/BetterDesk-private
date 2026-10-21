@@ -38,8 +38,9 @@ jobs:
           cache: true
 
       - name: Build BetterDesk Go server
+        working-directory: betterdesk-server
         run: |
-          env CGO_ENABLED=0 go build -o /tmp/betterdesk-server -ldflags="-s -w" ./betterdesk-server
+          env CGO_ENABLED=0 go build -o /tmp/betterdesk-server -ldflags="-s -w" .
           /tmp/betterdesk-server --version
 
       # ---------------------------------------------------------------
@@ -61,9 +62,10 @@ jobs:
       # Build Go sidecar agent
       # ---------------------------------------------------------------
       - name: Build Go sidecar agent (linux-amd64)
+        working-directory: betterdesk-agent
         run: |
           env CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
-            go build -o /tmp/betterdesk-agent -ldflags="-s -w" ./betterdesk-agent
+            go build -o /tmp/betterdesk-agent -ldflags="-s -w" .
           /tmp/betterdesk-agent --version
 
       # ---------------------------------------------------------------
