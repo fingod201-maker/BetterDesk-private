@@ -249,7 +249,6 @@ jobs:
           if-no-files-found: error
 
   release:
-    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.version != '')
     needs: [build-windows, build-linux, build-macos]
     runs-on: ubuntu-latest
     permissions:
@@ -270,7 +269,10 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ inputs.version || github.ref_name }}
+          # Portable bundles always publish under their own tag namespace so a
+          # bundle release never overwrites the versioned client release.
+          tag_name: ${{ inputs.version && format('portable-{0}', inputs.version) || 'portable-latest' }}
+          name: ${{ inputs.version && format('Portable bundles {0}', inputs.version) || 'Portable bundles (latest)' }}
           overwrite: true
           generate_release_notes: true
           files: |
