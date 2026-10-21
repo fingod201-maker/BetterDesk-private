@@ -455,7 +455,7 @@ func streamWithFFmpeg(ctx context.Context, a *Agent, s *DesktopStreamer, fps, qu
 			for i, a := range strat.FullCommand {
 				full[i] = strings.ReplaceAll(a, "%QUALITY%", fmt.Sprintf("%d", quality))
 			}
-			cmd = exec.CommandContext(ctx, full[0], full[1:]...)
+			cmd = execCommandContext(ctx, full[0], full[1:]...)
 		} else {
 			args := []string{"-hide_banner", "-loglevel", "error"}
 			// Hardware device init must precede the input.
@@ -474,7 +474,7 @@ func streamWithFFmpeg(ctx context.Context, a *Agent, s *DesktopStreamer, fps, qu
 			} else {
 				args = append(args, plan.encoderTail(fps, quality)...)
 			}
-			cmd = exec.CommandContext(ctx, ffmpegPath, args...)
+			cmd = execCommandContext(ctx, ffmpegPath, args...)
 		}
 		stderr := &bytes.Buffer{}
 		cmd.Stderr = stderr

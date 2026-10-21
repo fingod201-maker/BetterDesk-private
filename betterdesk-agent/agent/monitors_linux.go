@@ -40,7 +40,7 @@ func monitorsXrandr() []MonitorInfo {
 	if _, err := exec.LookPath("xrandr"); err != nil {
 		return nil
 	}
-	out, err := exec.Command("xrandr", "--listmonitors").Output()
+	out, err := execCommand("xrandr", "--listmonitors").Output()
 	if err != nil {
 		return nil
 	}
@@ -79,7 +79,7 @@ func monitorsWlrRandr() []MonitorInfo {
 	if _, err := exec.LookPath("wlr-randr"); err != nil {
 		return nil
 	}
-	out, err := exec.Command("wlr-randr").Output()
+	out, err := execCommand("wlr-randr").Output()
 	if err != nil {
 		return nil
 	}
@@ -133,7 +133,7 @@ func monitorsSwaymsg() []MonitorInfo {
 	if _, err := exec.LookPath("swaymsg"); err != nil {
 		return nil
 	}
-	out, err := exec.Command("swaymsg", "-t", "get_outputs", "--raw").Output()
+	out, err := execCommand("swaymsg", "-t", "get_outputs", "--raw").Output()
 	if err != nil {
 		return nil
 	}

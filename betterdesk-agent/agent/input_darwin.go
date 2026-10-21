@@ -80,7 +80,7 @@ func cliclick(args ...string) error {
 				"Also enable Accessibility permission in System Settings > Privacy & Security > Accessibility",
 		)
 	}
-	out, err := exec.Command(path, args...).CombinedOutput()
+	out, err := execCommand(path, args...).CombinedOutput()
 	if err != nil {
 		// Detect Accessibility permission denial (common on macOS 14+).
 		if strings.Contains(string(out), "permission") || strings.Contains(string(out), "not allowed") {
@@ -94,7 +94,7 @@ func cliclick(args ...string) error {
 }
 
 func osascript(script string) error {
-	return exec.Command("osascript", "-e", script).Run()
+	return execCommand("osascript", "-e", script).Run()
 }
 
 func darwinClickAction(button int, up bool) string {

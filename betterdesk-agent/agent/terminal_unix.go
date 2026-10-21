@@ -6,7 +6,6 @@ import (
 	"io"
 	"log"
 	"os"
-	"os/exec"
 
 	"github.com/creack/pty"
 )
@@ -20,7 +19,7 @@ func StartTerminal(id string, cols, rows int, shell string, onOutput func([]byte
 		}
 	}
 
-	cmd := exec.Command(shell)
+	cmd := execCommand(shell)
 	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
 
 	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{

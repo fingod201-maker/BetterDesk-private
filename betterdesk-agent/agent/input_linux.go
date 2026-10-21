@@ -106,7 +106,7 @@ func xdotool(args ...string) error {
 	if err != nil {
 		return fmt.Errorf("xdotool not found — install it with: sudo apt install xdotool")
 	}
-	return exec.Command(path, args...).Run()
+	return execCommand(path, args...).Run()
 }
 
 func commandExists(name string) bool {
@@ -191,7 +191,7 @@ func injectInputWayland(evt *InputEvent) error {
 		}
 		// wtype is more reliable than ydotool type on many compositors.
 		if path, err := exec.LookPath("wtype"); err == nil {
-			return exec.Command(path, "-d", "0", evt.Text).Run()
+			return execCommand(path, "-d", "0", evt.Text).Run()
 		}
 		return ydotool("type", "--key-delay", "12", "--", evt.Text)
 
@@ -208,7 +208,7 @@ func ydotool(args ...string) error {
 			"ydotool not found — install it and start ydotoold: sudo apt install ydotool && sudo ydotoold &",
 		)
 	}
-	return exec.Command(path, args...).Run()
+	return execCommand(path, args...).Run()
 }
 
 func scrollSteps(delta int) int {

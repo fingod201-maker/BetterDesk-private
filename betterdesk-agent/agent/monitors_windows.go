@@ -4,7 +4,6 @@ package agent
 
 import (
 	"encoding/json"
-	"os/exec"
 	"strings"
 )
 
@@ -12,7 +11,7 @@ import (
 // device-context APIs exist in syscall but pulling them in for what is a
 // once-per-session enumeration costs more than the PowerShell hop.
 func enumerateMonitors() []MonitorInfo {
-	out, err := exec.Command("powershell.exe", "-NoProfile", "-Command",
+	out, err := execCommand("powershell.exe", "-NoProfile", "-Command",
 		`Get-WmiObject -Namespace root\wmi -Class WmiMonitorBasicDisplayParams |
 		ForEach-Object { [pscustomobject]@{ Name = $_.InstanceName } } |
 		ConvertTo-Json -Compress`).Output()

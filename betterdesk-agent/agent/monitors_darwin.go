@@ -3,7 +3,6 @@
 package agent
 
 import (
-	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
@@ -14,7 +13,7 @@ import (
 // Apple's continual format churn — only Resolution and the human display
 // name are required.
 func enumerateMonitors() []MonitorInfo {
-	out, err := exec.Command("system_profiler", "SPDisplaysDataType").Output()
+	out, err := execCommand("system_profiler", "SPDisplaysDataType").Output()
 	if err != nil {
 		return []MonitorInfo{{Index: 0, Name: "Display", Primary: true}}
 	}

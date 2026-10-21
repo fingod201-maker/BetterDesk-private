@@ -527,7 +527,7 @@ fn services_list() -> Result<Value> {
 
 #[cfg(target_os = "linux")]
 fn collect_services() -> Result<Vec<ServiceItem>> {
-    let out = std::process::Command::new("systemctl")
+    let out = crate::proc::hidden("systemctl")
         .args([
             "list-units",
             "--type=service",
@@ -584,7 +584,7 @@ fn collect_services() -> Result<Vec<ServiceItem>> {
 
 #[cfg(target_os = "windows")]
 fn collect_services() -> Result<Vec<ServiceItem>> {
-    let out = std::process::Command::new("powershell.exe")
+    let out = crate::proc::hidden("powershell.exe")
         .args([
             "-NoProfile",
             "-NonInteractive",
@@ -641,7 +641,7 @@ fn collect_services() -> Result<Vec<ServiceItem>> {
 
 #[cfg(target_os = "macos")]
 fn collect_services() -> Result<Vec<ServiceItem>> {
-    let out = std::process::Command::new("launchctl")
+    let out = crate::proc::hidden("launchctl")
         .args(["list"])
         .output()
         .map_err(|e| anyhow!("launchctl unavailable: {}", e))?;
@@ -715,7 +715,7 @@ fn processes_list() -> Result<Value> {
 #[cfg(target_os = "linux")]
 fn events_list(limit: usize) -> Result<Value> {
     let n = limit.to_string();
-    let out = std::process::Command::new("journalctl")
+    let out = crate::proc::hidden("journalctl")
         .args([
             "-n", &n, "--no-pager", "-o", "short-iso",
             "--output-fields=__REALTIME_TIMESTAMP,_COMM,MESSAGE,PRIORITY",
@@ -768,7 +768,7 @@ fn events_list(limit: usize) -> Result<Value> {
         "Get-EventLog -LogName System -Newest {} | Select-Object @{{n='time';e={{$_.TimeGenerated.ToString('s')}}}}, @{{n='source';e={{$_.Source}}}}, @{{n='message';e={{$_.Message}}}}, @{{n='level';e={{$_.EntryType.ToString().ToLower()}}}} | ConvertTo-Json -Compress",
         limit.min(500)
     );
-    let out = std::process::Command::new("powershell.exe")
+    let out = crate::proc::hidden("powershell.exe")
         .args(["-NoProfile", "-NonInteractive", "-Command", &cmd])
         .output()
         .map_err(|e| anyhow!("powershell unavailable: {}", e))?;
@@ -786,7 +786,7 @@ fn events_list(limit: usize) -> Result<Value> {
 
 #[cfg(target_os = "macos")]
 fn events_list(limit: usize) -> Result<Value> {
-    let out = std::process::Command::new("log")
+    let out = crate::proc::hidden("log")
         .args(["show", "--last", "1h", "--style", "compact"])
         .output()
         .map_err(|e| anyhow!("log unavailable: {}", e))?;
@@ -1108,7 +1108,7 @@ fn capture_to_file(path: &Path) -> Result<()> {
 
     let mut last_err = String::new();
     for (bin, args) in attempts {
-        match std::process::Command::new(bin).args(&args).output() {
+        match crate::proc::hidden(bin).args(&args).output() {
             Ok(out) if out.status.success() && path.exists() => return Ok(()),
             Ok(out) => {
                 last_err = format!(
@@ -1128,7 +1128,7 @@ fn capture_to_file(path: &Path) -> Result<()> {
 
 #[cfg(target_os = "macos")]
 fn capture_to_file(path: &Path) -> Result<()> {
-    let out = std::process::Command::new("screencapture")
+    let out = crate::proc::hidden("screencapture")
         .args(["-x", "-t", "jpg", &path.to_string_lossy()])
         .output()
         .map_err(|e| anyhow!("screencapture unavailable: {}", e))?;
@@ -1150,7 +1150,7 @@ fn capture_to_file(path: &Path) -> Result<()> {
         $bmp.Save('{}', [System.Drawing.Imaging.ImageFormat]::Jpeg);"#,
         p
     );
-    let out = std::process::Command::new("powershell.exe")
+    let out = crate::proc::hidden("powershell.exe")
         .args(["-NoProfile", "-NonInteractive", "-Command", &ps])
         .output()
         .map_err(|e| anyhow!("powershell unavailable: {}", e))?;
@@ -1358,13 +1358,13 @@ fn terminal_execute(command: &str) -> Result<Value> {
 
     #[cfg(target_os = "windows")]
     let mut cmd = {
-        let mut c = std::process::Command::new("cmd.exe");
+        let mut c = crate::proc::hidden("cmd.exe");
         c.args(["/C", command]);
         c
     };
     #[cfg(not(target_os = "windows"))]
     let mut cmd = {
-        let mut c = std::process::Command::new("sh");
+        let mut c = crate::proc::hidden("sh");
         c.args(["-c", command]);
         c
     };

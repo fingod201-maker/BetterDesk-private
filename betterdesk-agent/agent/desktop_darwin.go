@@ -4,7 +4,6 @@ package agent
 
 import (
 	"fmt"
-	"os/exec"
 )
 
 // captureDevice returns the ffmpeg input format for screen capture on macOS.
@@ -42,7 +41,7 @@ func checkScreenRecordingPermission() error {
 	// screencapture -x suppresses the shutter sound.
 	// Writing to /dev/null is effectively a no-op that still triggers the
 	// permission check. An exit code ≠1 means the permission was denied.
-	cmd := exec.Command("screencapture", "-x", "-t", "png", "/dev/null")
+	cmd := execCommand("screencapture", "-x", "-t", "png", "/dev/null")
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf(
 			"screen recording permission denied — open System Settings > Privacy & Security > Screen Recording and enable BetterDesk Agent (exit: %v)",

@@ -89,7 +89,7 @@ func (a *Agent) streamAudio(ctx context.Context, s *AudioStreamer) {
 		"-f", "ogg",
 		"-",
 	)
-	cmd := exec.CommandContext(ctx, ffmpegPath, args...)
+	cmd := execCommandContext(ctx, ffmpegPath, args...)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return

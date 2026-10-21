@@ -4,7 +4,6 @@ package agent
 
 import (
 	"fmt"
-	"os/exec"
 )
 
 // captureScreenshotPlatform captures a screenshot on Windows using
@@ -26,7 +25,7 @@ $bytes = $ms.ToArray()
 $ms.Dispose()
 [System.Console]::OpenStandardOutput().Write($bytes, 0, $bytes.Length)
 `
-	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", script)
+	cmd := execCommand("powershell", "-NoProfile", "-NonInteractive", "-Command", script)
 	out, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("screenshot capture failed: %w", err)

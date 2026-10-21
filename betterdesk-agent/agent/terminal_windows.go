@@ -6,7 +6,6 @@ import (
 	"io"
 	"log"
 	"os"
-	"os/exec"
 )
 
 // StartTerminal spawns a shell on Windows using pipes (no PTY).
@@ -18,7 +17,7 @@ func StartTerminal(id string, cols, rows int, shell string, onOutput func([]byte
 		}
 	}
 
-	cmd := exec.Command(shell, "/Q")
+	cmd := execCommand(shell, "/Q")
 	cmd.Env = os.Environ()
 
 	stdin, err := cmd.StdinPipe()

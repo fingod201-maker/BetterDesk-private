@@ -21,7 +21,7 @@ func captureScreenshotPlatform() ([]byte, error) {
 	// macOS: screencapture is always the right tool; try it first when on darwin.
 	if path, err := exec.LookPath("screencapture"); err == nil {
 		// -x = no shutter sound, -t jpg = JPEG format, - = write to stdout
-		cmd := exec.Command(path, "-x", "-t", "jpg", "-")
+		cmd := execCommand(path, "-x", "-t", "jpg", "-")
 		out, err := cmd.Output()
 		if err == nil && len(out) > 0 {
 			return out, nil
@@ -39,7 +39,7 @@ func captureScreenshotPlatform() ([]byte, error) {
 	if os.Getenv("WAYLAND_DISPLAY") != "" && os.Getenv("DISPLAY") == "" {
 		// grim: wlroots / sway / labwc
 		if path, err := exec.LookPath("grim"); err == nil {
-			cmd := exec.Command(path, "-")
+			cmd := execCommand(path, "-")
 			out, err := cmd.Output()
 			if err == nil && len(out) > 0 {
 				return out, nil
@@ -48,7 +48,7 @@ func captureScreenshotPlatform() ([]byte, error) {
 
 		// wayshot: another lightweight wlroots screenshotter
 		if path, err := exec.LookPath("wayshot"); err == nil {
-			cmd := exec.Command(path, "--stdout")
+			cmd := execCommand(path, "--stdout")
 			out, err := cmd.Output()
 			if err == nil && len(out) > 0 {
 				return out, nil
@@ -57,7 +57,7 @@ func captureScreenshotPlatform() ([]byte, error) {
 
 		// GNOME / KDE Wayland (XDG Desktop Portal)
 		if path, err := exec.LookPath("gnome-screenshot"); err == nil {
-			cmd := exec.Command(path, "-f", "/dev/stdout")
+			cmd := execCommand(path, "-f", "/dev/stdout")
 			out, err := cmd.Output()
 			if err == nil && len(out) > 0 {
 				return out, nil
@@ -68,7 +68,7 @@ func captureScreenshotPlatform() ([]byte, error) {
 	// Linux X11 / XWayland path:
 	// scrot writes to stdout when given "-" as filename.
 	if path, err := exec.LookPath("scrot"); err == nil {
-		cmd := exec.Command(path, "-o", "-", "--quality", "80")
+		cmd := execCommand(path, "-o", "-", "--quality", "80")
 		out, err := cmd.Output()
 		if err == nil && len(out) > 0 {
 			return out, nil
@@ -77,7 +77,7 @@ func captureScreenshotPlatform() ([]byte, error) {
 
 	// ImageMagick import
 	if path, err := exec.LookPath("import"); err == nil {
-		cmd := exec.Command(path, "-window", "root", "jpeg:-")
+		cmd := execCommand(path, "-window", "root", "jpeg:-")
 		out, err := cmd.Output()
 		if err == nil && len(out) > 0 {
 			return out, nil
@@ -86,7 +86,7 @@ func captureScreenshotPlatform() ([]byte, error) {
 
 	// Last resort: gnome-screenshot on X11
 	if path, err := exec.LookPath("gnome-screenshot"); err == nil {
-		cmd := exec.Command(path, "-f", "/dev/stdout")
+		cmd := execCommand(path, "-f", "/dev/stdout")
 		out, err := cmd.Output()
 		if err == nil && len(out) > 0 {
 			return out, nil

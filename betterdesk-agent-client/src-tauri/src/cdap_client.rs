@@ -979,11 +979,11 @@ fn read_clipboard_text() -> String {
     #[cfg(target_os = "linux")]
     {
         // Try xclip, then xsel.
-        let out = std::process::Command::new("xclip")
+        let out = crate::proc::hidden("xclip")
             .args(["-selection", "clipboard", "-o"])
             .output()
             .or_else(|_| {
-                std::process::Command::new("xsel")
+                crate::proc::hidden("xsel")
                     .arg("--clipboard")
                     .arg("--output")
                     .output()
@@ -994,7 +994,7 @@ fn read_clipboard_text() -> String {
     }
     #[cfg(target_os = "macos")]
     {
-        std::process::Command::new("pbpaste")
+        crate::proc::hidden("pbpaste")
             .output()
             .ok()
             .and_then(|o| String::from_utf8(o.stdout).ok())
@@ -1002,7 +1002,7 @@ fn read_clipboard_text() -> String {
     }
     #[cfg(target_os = "windows")]
     {
-        std::process::Command::new("powershell")
+        crate::proc::hidden("powershell")
             .args(["-NoProfile", "-Command", "Get-Clipboard"])
             .output()
             .ok()
@@ -1020,7 +1020,7 @@ fn write_clipboard_text(text: &str) {
     #[cfg(target_os = "linux")]
     {
         // Try xclip, then xsel.
-        let _ = std::process::Command::new("xclip")
+        let _ = crate::proc::hidden("xclip")
             .args(["-selection", "clipboard"])
             .stdin(std::process::Stdio::piped())
             .spawn()
@@ -1031,7 +1031,7 @@ fn write_clipboard_text(text: &str) {
                 c.wait()
             })
             .or_else(|_| {
-                std::process::Command::new("xsel")
+                crate::proc::hidden("xsel")
                     .arg("--clipboard")
                     .arg("--input")
                     .stdin(std::process::Stdio::piped())
@@ -1046,7 +1046,7 @@ fn write_clipboard_text(text: &str) {
     }
     #[cfg(target_os = "macos")]
     {
-        let _ = std::process::Command::new("pbcopy")
+        let _ = crate::proc::hidden("pbcopy")
             .stdin(std::process::Stdio::piped())
             .spawn()
             .and_then(|mut c| {
@@ -1059,7 +1059,7 @@ fn write_clipboard_text(text: &str) {
     #[cfg(target_os = "windows")]
     {
         let escaped = text.replace('\'', "''");
-        let _ = std::process::Command::new("powershell")
+        let _ = crate::proc::hidden("powershell")
             .args([
                 "-NoProfile",
                 "-Command",

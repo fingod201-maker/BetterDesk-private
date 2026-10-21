@@ -183,7 +183,6 @@ pub fn collect_network_adapters() -> Vec<NetworkAdapter> {
 
 #[cfg(target_os = "windows")]
 fn collect_installed_windows() -> Vec<InstalledApp> {
-    use std::process::Command;
 
     let reg_paths = [
         r"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
@@ -196,7 +195,7 @@ fn collect_installed_windows() -> Vec<InstalledApp> {
 
     for path in &reg_paths {
         // List subkeys.
-        let Ok(output) = Command::new("reg")
+        let Ok(output) = crate::proc::hidden("reg")
             .args(["query", path])
             .output()
         else {
@@ -205,7 +204,7 @@ fn collect_installed_windows() -> Vec<InstalledApp> {
 
         let listing = String::from_utf8_lossy(&output.stdout);
         for subkey in listing.lines().map(str::trim).filter(|l| !l.is_empty()) {
-            let Ok(values) = Command::new("reg")
+            let Ok(values) = crate::proc::hidden("reg")
                 .args(["query", subkey, "/v", "DisplayName"])
                 .output()
             else {
@@ -238,8 +237,7 @@ fn collect_installed_windows() -> Vec<InstalledApp> {
 
 #[cfg(target_os = "windows")]
 fn reg_query_value(subkey: &str, value_name: &str) -> String {
-    use std::process::Command;
-    let Ok(output) = Command::new("reg")
+    let Ok(output) = crate::proc::hidden("reg")
         .args(["query", subkey, "/v", value_name])
         .output()
     else {
@@ -271,11 +269,10 @@ fn reg_extract_value(raw: &str, value_name: &str) -> String {
 
 #[cfg(target_os = "windows")]
 fn collect_services_windows() -> Vec<SystemService> {
-    use std::process::Command;
 
     // sc query returns all running services. We follow up with sc qc for start type
     // only if the list is small enough to avoid timeout.
-    let Ok(output) = Command::new("sc").args(["query", "type=", "service", "state=", "all"]).output()
+    let Ok(output) = crate::proc::hidden("sc").args(["query", "type=", "service", "state=", "all"]).output()
     else {
         return vec![];
     };
@@ -329,7 +326,7 @@ fn collect_installed_linux() -> Vec<InstalledApp> {
     }
 
     // Fallback: rpm -qa (RHEL/Fedora/SUSE).
-    if let Ok(output) = std::process::Command::new("rpm")
+    if let Ok(output) = crate::proc::hidden("rpm")
         .args(["-qa", "--queryformat", "%{NAME}|%{VERSION}|%{VENDOR}|%{INSTALLTIME:date}\n"])
         .output()
     {
@@ -387,10 +384,9 @@ fn parse_dpkg_status(content: &str) -> Vec<InstalledApp> {
 
 #[cfg(target_os = "linux")]
 fn collect_services_linux() -> Vec<SystemService> {
-    use std::process::Command;
 
     // systemctl list-units --type=service --all --plain --no-legend
-    let Ok(output) = Command::new("systemctl")
+    let Ok(output) = crate::proc::hidden("systemctl")
         .args(["list-units", "--type=service", "--all", "--plain", "--no-legend"])
         .output()
     else {
@@ -425,7 +421,7 @@ fn collect_services_linux() -> Vec<SystemService> {
     // Enrich with start-type for reasonable-sized lists.
     if services.len() <= 200 {
         for svc in services.iter_mut() {
-            if let Ok(out) = Command::new("systemctl")
+            if let Ok(out) = crate::proc::hidden("systemctl")
                 .args(["show", &svc.name, "--property=UnitFileState"])
                 .output()
             {
@@ -445,9 +441,8 @@ fn collect_services_linux() -> Vec<SystemService> {
 
 #[cfg(target_os = "macos")]
 fn collect_installed_macos() -> Vec<InstalledApp> {
-    use std::process::Command;
 
-    let Ok(output) = Command::new("ls").arg("/Applications").output() else {
+    let Ok(output) = crate::proc::hidden("ls").arg("/Applications").output() else {
         return vec![];
     };
 
@@ -472,9 +467,8 @@ fn collect_installed_macos() -> Vec<InstalledApp> {
 
 #[cfg(target_os = "macos")]
 fn collect_services_macos() -> Vec<SystemService> {
-    use std::process::Command;
 
-    let Ok(output) = Command::new("launchctl").arg("list").output() else {
+    let Ok(output) = crate::proc::hidden("launchctl").arg("list").output() else {
         return vec![];
     };
 

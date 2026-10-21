@@ -22,20 +22,20 @@ func (ch *ClipboardHandler) Get() string {
 
 	switch runtime.GOOS {
 	case "darwin":
-		cmd = exec.Command("pbpaste")
+		cmd = execCommand("pbpaste")
 	case "linux", "freebsd", "openbsd", "netbsd":
 		if _, err := exec.LookPath("xclip"); err == nil {
-			cmd = exec.Command("xclip", "-selection", "clipboard", "-o")
+			cmd = execCommand("xclip", "-selection", "clipboard", "-o")
 		} else if _, err := exec.LookPath("xsel"); err == nil {
-			cmd = exec.Command("xsel", "--clipboard", "--output")
+			cmd = execCommand("xsel", "--clipboard", "--output")
 		} else if _, err := exec.LookPath("wl-paste"); err == nil {
-			cmd = exec.Command("wl-paste", "--no-newline")
+			cmd = execCommand("wl-paste", "--no-newline")
 		} else {
 			log.Printf("[clipboard] No clipboard tool found (install xclip, xsel, or wl-paste)")
 			return ""
 		}
 	case "windows":
-		cmd = exec.Command("powershell", "-NoProfile", "-Command", "Get-Clipboard")
+		cmd = execCommand("powershell", "-NoProfile", "-Command", "Get-Clipboard")
 	default:
 		return ""
 	}
@@ -54,20 +54,20 @@ func (ch *ClipboardHandler) Set(text string) {
 
 	switch runtime.GOOS {
 	case "darwin":
-		cmd = exec.Command("pbcopy")
+		cmd = execCommand("pbcopy")
 	case "linux", "freebsd", "openbsd", "netbsd":
 		if _, err := exec.LookPath("xclip"); err == nil {
-			cmd = exec.Command("xclip", "-selection", "clipboard")
+			cmd = execCommand("xclip", "-selection", "clipboard")
 		} else if _, err := exec.LookPath("xsel"); err == nil {
-			cmd = exec.Command("xsel", "--clipboard", "--input")
+			cmd = execCommand("xsel", "--clipboard", "--input")
 		} else if _, err := exec.LookPath("wl-copy"); err == nil {
-			cmd = exec.Command("wl-copy")
+			cmd = execCommand("wl-copy")
 		} else {
 			log.Printf("[clipboard] No clipboard tool found")
 			return
 		}
 	case "windows":
-		cmd = exec.Command("powershell", "-NoProfile", "-Command", "Set-Clipboard -Value $input")
+		cmd = execCommand("powershell", "-NoProfile", "-Command", "Set-Clipboard -Value $input")
 	default:
 		return
 	}

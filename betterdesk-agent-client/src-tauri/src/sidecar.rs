@@ -36,7 +36,7 @@ use serde::Serialize;
 use std::{
     io::Write,
     path::PathBuf,
-    process::{Child, ChildStdin, Command, Stdio},
+    process::{Child, ChildStdin, Stdio},
     sync::{
         atomic::{AtomicBool, AtomicU32, Ordering},
         Arc, Mutex,
@@ -316,7 +316,7 @@ impl SidecarManager {
     // ── Private helpers ────────────────────────────────────────────────────
 
     fn spawn_process(&self, binary: &PathBuf, config_path: &PathBuf) -> Result<()> {
-        let mut cmd = Command::new(binary);
+        let mut cmd = crate::proc::hidden(binary);
         cmd.arg("-config")
             .arg(config_path)
             .stdin(Stdio::piped())
@@ -595,7 +595,7 @@ impl Drop for Inner {
 /// explicitly — without them xdg-desktop-portal screencast fails and ffmpeg
 /// falls back to x11grab (black screen on Wayland).
 #[cfg(target_os = "linux")]
-fn apply_linux_session_env(cmd: &mut Command) {
+fn apply_linux_session_env(cmd: &mut std::process::Command) {
     const KEYS: &[&str] = &[
         "DISPLAY",
         "WAYLAND_DISPLAY",
@@ -661,7 +661,7 @@ fn apply_linux_session_env(cmd: &mut Command) {
 }
 
 #[cfg(not(target_os = "linux"))]
-fn apply_linux_session_env(_cmd: &mut Command) {}
+fn apply_linux_session_env(_cmd: &mut std::process::Command) {}
 
 #[cfg(target_os = "linux")]
 fn default_xdg_runtime_dir() -> Option<String> {
@@ -732,7 +732,7 @@ fn find_binary(data_dir: &PathBuf) -> Result<PathBuf> {
     }
 
     // 4. System PATH.
-    if let Ok(output) = Command::new(if cfg!(windows) { "where" } else { "which" })
+    if let Ok(output) = crate::proc::hidden(if cfg!(windows) { "where" } else { "which" })
         .arg(if cfg!(windows) {
             "betterdesk-agent.exe"
         } else {

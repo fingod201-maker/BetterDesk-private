@@ -28,7 +28,11 @@ pub fn sync_os_autostart(_app: &tauri::AppHandle, enabled: bool) {
         };
 
         if enabled {
-            let status = std::process::Command::new("reg")
+            // `--autostart` keeps the window hidden at login: the client
+            // starts in the tray only (see lib.rs). Without the flag a
+            // console/UI window would pop up on every user logon.
+            let launch = format!("\"{}\" --autostart", exe_path);
+            let status = crate::proc::hidden("reg")
                 .args([
                     "add",
                     "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
@@ -37,7 +41,7 @@ pub fn sync_os_autostart(_app: &tauri::AppHandle, enabled: bool) {
                     "/t",
                     "REG_SZ",
                     "/d",
-                    &exe_path,
+                    &launch,
                     "/f",
                 ])
                 .status();
@@ -47,7 +51,7 @@ pub fn sync_os_autostart(_app: &tauri::AppHandle, enabled: bool) {
                 Err(e) => warn!("[autostart] Cannot run reg add: {}", e),
             }
         } else {
-            let status = std::process::Command::new("reg")
+            let status = crate::proc::hidden("reg")
                 .args([
                     "delete",
                     "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
