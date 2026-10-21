@@ -171,8 +171,10 @@ function formatRank(format) {
 function nameScore(name) {
     const n = String(name || '').toLowerCase();
     let s = 0;
+    if (/zoom-private/.test(n)) s += 4;   // branded public bundle
     if (/setup|installer/.test(n)) s += 4;
     if (/\bclient\b/.test(n)) s += 3;
+    if (/bundle/.test(n)) s += 2;
     if (/release/.test(n)) s += 2;
     if (/universal/.test(n)) s += 2;
     if (/arm64|v8a|amd64|x86_64|x64/.test(n)) s += 1;

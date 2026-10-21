@@ -9,3 +9,8 @@ Distribute the public certificate (not the private key) with your MDM or alongsi
 
 After trust is established, SmartScreen/Gatekeeper will not block your signed builds.
 MDM allowlisting can deploy the same certificate and app hash without per-OS vendor certs.
+
+See `mdm/` for the managed-deployment package (Intune detection rule, macOS
+configuration profile, Linux managed install, allowlist manifest and pinned
+checksums) — installing through the MDM is what removes the Mark-of-the-Web /
+quarantine flag and therefore the prompts.

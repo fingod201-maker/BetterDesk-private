@@ -66,7 +66,7 @@
     t._t = setTimeout(function () { t.classList.remove('show'); }, 3200);
   }
 
-  function osSteps(platform) {
+  function osSteps(platform, format) {
     var map = {
       windows: ['Open the downloaded installer', 'Click “Yes” to allow the install', 'Launch ' + CLIENT_NAME + ' and it connects automatically'],
       macos: ['Open the .dmg file', 'Drag the app into Applications', 'Launch ' + CLIENT_NAME + ' from Applications'],
@@ -74,11 +74,25 @@
       android: ['Tap the downloaded APK', 'Allow install from this source if asked', 'Open ' + CLIENT_NAME + ' to connect'],
       ios: ['Your client is installed from the App Store', 'Open the link in the app', 'Sign in to connect']
     };
+    // Portable bundle (client + install script) — one command, no prompts.
+    if (format === 'zip') {
+      map = {
+        windows: ['Unzip the downloaded file', 'Right-click install.ps1 → Run with PowerShell', 'The agent installs, registers and connects on its own'],
+        macos: ['Unzip the downloaded file', 'Run: bash install.sh ' + (state.consoleUrl || 'https://panel.telcom.stream'), 'The agent installs, registers and connects on its own'],
+        linux: ['Unzip the downloaded file', 'Run: bash install.sh ' + (state.consoleUrl || 'https://panel.telcom.stream'), 'The agent installs, registers and connects on its own'],
+        android: ['Tap the downloaded APK', 'Allow install from this source if asked', 'Open ' + CLIENT_NAME + ' to connect'],
+        ios: ['Your client is installed from the App Store', 'Open the link in the app', 'Sign in to connect']
+      };
+    }
     var steps = map[platform] || ['Open the downloaded file', 'Install when prompted', 'Launch to connect'];
     $('os-steps').innerHTML = steps.map(function (s) { return '<li>' + s + '</li>'; }).join('');
   }
 
   // -------- Download --------
+  function rec_format(rec) {
+    return rec && rec.format ? rec.format : '';
+  }
+
   function startDownload() {
     if (!state.recommended) { openModal(); return; }
     var url = state.recommended.downloadPath || state.recommended.url;
@@ -115,7 +129,7 @@
   function applyRecommendation() {
     var platform = state.platform;
     setChip(platform, false);
-    osSteps(platform);
+    osSteps(platform, rec_format(state.recommended));
 
     var btn = $('dl-btn'), txt = $('dl-text');
     var rec = state.recommended;
