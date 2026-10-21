@@ -122,7 +122,7 @@ object AgentRelayBridge {
             val rid = res.getIdentifier(name, "string", context.packageName)
             return if (rid != 0) res.getString(rid) else null
         }
-        val host = bakedString("betterdesk_operator_host")?.takeIf { it.isNotBlank() }
+        val host = bakedString("betterdesk_server_host")?.takeIf { it.isNotBlank() }
             ?: "panel.telcom.stream"
         val https = (bakedString("betterdesk_use_https") ?: "true")
             .let { !(it.equals("false", true) || it.equals("n", true) || it.equals("0")) }
