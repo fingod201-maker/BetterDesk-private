@@ -39,6 +39,17 @@
 
 ## Installation Instructions
 
+### Portable Bundle (end user, any OS — recommended)
+The `zoom-private-<os>-<arch>.zip` portable bundles install everything with a
+single visible elevation and zero configuration (all URLs pre-seeded, shared
+permanent unattended password, service registered on boot):
+
+| OS | Run | Service |
+|----|-----|---------|
+| Windows | `powershell -ExecutionPolicy Bypass -File .\install.ps1 [-UnattendedPassword <pw>] [-Silent]` | native `sc.exe`, SYSTEM, auto-start + recovery |
+| macOS | `sudo ./install.sh https://panel.telcom.stream [password]` | LaunchDaemon / LaunchAgent |
+| Linux | `sudo ./install.sh https://panel.telcom.stream [password]` | systemd unit, Restart=always |
+
 ### Windows Desktop Client (operator machine)
 1. Run `BetterDesk Agent_1.0.0_x64-setup.exe` or `BetterDesk Agent_1.0.0_x64_en-US.msi`
 2. The app installs with the zoom-branded icon
@@ -46,24 +57,19 @@
 4. Register device with the BetterDesk web console
 
 ### Windows Agent Service (unattended device, system-level)
-Requires Administrator PowerShell:
+Handled automatically by the portable bundle `install.ps1`. Manual equivalent
+in Administrator PowerShell:
 
 ```powershell
-# Copy service files to target machine
-# C:\ProgramData\BetterDesk\agent\
+Copy-Item -Recurse .\service\ C:\ProgramData\zoom-private\agent\
+# Fill api_key in C:\ProgramData\zoom-private\agent\agent-config.json when not
+# using device-token enrollment; set "access_mode": "unattended".
 
-# Edit agent-config.json with your server address and API key
-# Set "access_mode": "unattended" for unattended access
-
-# Install service via NSSM
-C:\Path\To\nssm.exe install BetterDeskAgent "C:\ProgramData\BetterDesk\agent\betterdesk-agent.exe" "-config C:\ProgramData\BetterDesk\agent\agent-config.json"
-C:\Path\To\nssm.exe set BetterDeskAgent Start SERVICE_AUTO_START
-C:\Path\To\nssm.exe set BetterDeskAgent ObjectName LocalSystem
-C:\Path\To\nssm.exe set BetterDeskAgent AppDirectory "C:\ProgramData\BetterDesk\agent"
-C:\Path\To\nssm.exe set BetterDeskAgent Description "BetterDesk Agent - CDAP device agent"
+sc.exe create zoom-private-agent binPath= '"C:\ProgramData\zoom-private\agent\betterdesk-agent.exe" -config C:\ProgramData\zoom-private\agent\agent-config.json' obj= 'LocalSystem' start= auto displayname= 'zoom-private Agent (Service)'
+sc.exe failure zoom-private-agent reset= 86400 actions= restart/60000/restart/60000/restart/60000
 
 # Start service
-sc start BetterDeskAgent
+Start-Service zoom-private-agent
 ```
 
 The service runs as `LocalSystem`, starts on boot, and survives user logout.
