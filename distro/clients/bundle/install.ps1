@@ -48,6 +48,16 @@ Write-Host "Installing client: $client"
 New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
 New-Item -ItemType Directory -Path $ConfigDir -Force | Out-Null
 
+# Stop a running client/sidecar first — otherwise the executable is locked and
+# the upgrade fails with "being used by another process".
+foreach ($proc in @('zoom-private.agent', 'betterdesk-agent-client', 'betterdesk-agent')) {
+    Get-Process -Name $proc -ErrorAction SilentlyContinue | ForEach-Object {
+        Write-Host "Stopping running process: $($_.ProcessName) (pid $($_.Id))"
+        try { Stop-Process -Id $_.Id -Force -ErrorAction Stop } catch { }
+    }
+}
+Start-Sleep -Milliseconds 800
+
 $target = Join-Path $InstallDir (Split-Path -Leaf $client)
 Copy-Item -LiteralPath $client -Destination $target -Force
 

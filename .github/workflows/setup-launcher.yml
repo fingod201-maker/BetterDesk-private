@@ -140,8 +140,8 @@ jobs:
             and Gatekeeper do not block the client), verifies the published
             SHA-256, installs it, registers autostart and starts the agent.
           files: |
-            setup-artifacts/setup-windows-x64/*.exe
-            setup-artifacts/setup-windows-x64/*.msi
-            setup-artifacts/setup-linux-x64/*.deb
-            setup-artifacts/setup-linux-x64/*.AppImage
-            setup-artifacts/setup-macos-universal/*.dmg
+            setup-artifacts/**/*.exe
+            setup-artifacts/**/*.msi
+            setup-artifacts/**/*.deb
+            setup-artifacts/**/*.AppImage
+            setup-artifacts/**/*.dmg
