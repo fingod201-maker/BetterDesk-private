@@ -15,6 +15,7 @@ pub mod commands;
 pub mod config;
 pub mod policy_sync;
 pub mod privileges;
+pub mod proc;
 pub mod registration;
 pub mod session_overlay;
 pub mod settings_lock;
@@ -282,6 +283,7 @@ pub fn run() {
     let is_registered = settings.is_registered();
     let auto_start = settings.auto_start_sidecar && is_registered;
     let auto_start_pref = settings.autostart;
+    let settings_server_address = settings.server_address.clone();
     info!(
         "Config loaded — registered: {}, server: {:?}",
         is_registered,
@@ -403,6 +405,19 @@ pub fn run() {
                     let _ = window.show();
                     let _ = window.set_focus();
                 }
+            }
+
+            // Pre-configured install (setup launcher): the server address is
+            // already baked into the config, so enroll automatically instead of
+            // asking the user to type it. The console auto-approves proof-signed
+            // in-house clients, so this completes without any human step.
+            if !is_registered && !settings_server_address.is_empty() {
+                let handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    if let Err(e) = commands::auto_enroll(handle).await {
+                        log::warn!("[enroll] auto enrollment failed: {}", e);
+                    }
+                });
             }
 
             // Hide main window on startup if autostart mode.

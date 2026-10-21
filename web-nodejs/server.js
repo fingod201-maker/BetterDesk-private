@@ -39,6 +39,7 @@ const { initMeshAshxProxy } = require('./services/meshAshxProxy');
 const { startDiscoveryService } = require('./services/lanDiscovery');
 const { initDeviceStatusPush } = require('./services/deviceStatusPush');
 const { initHelpRequestEmailService } = require('./services/helpRequestEmailService');
+const enrollmentAutoApprove = require('./services/enrollmentAutoApprove');
 const routes = require('./routes');
 const rustdeskApiRoutes = require('./routes/rustdesk-api.routes');
 const bdApiRoutes = require('./routes/bd-api.routes');
@@ -572,6 +573,10 @@ async function startServer() {
         // Initialize real-time device status push (Go event bus → browser)
         initDeviceStatusPush(server, sessionMiddleware, config.betterdeskApiUrl, config.betterdeskApiKey);
         initHelpRequestEmailService(config.betterdeskApiUrl, config.betterdeskApiKey);
+
+        // Auto-approve in-house clients that present a valid installation
+        // proof — no human step in the console for our own devices.
+        enrollmentAutoApprove.start();
 
         // Start LAN Discovery UDP service
         startDiscoveryService();

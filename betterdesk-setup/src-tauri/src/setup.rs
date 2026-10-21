@@ -381,7 +381,9 @@ pub fn apply_profile(config_path: &Path, profile: &AgentProfile) -> Result<()> {
         ));
     }
     let raw = std::fs::read_to_string(config_path)?;
-    let mut value: serde_json::Value = serde_json::from_str(&raw)
+    // Windows PowerShell writes UTF-8 with a BOM — strip it before parsing.
+    let raw = raw.trim_start_matches('\u{feff}');
+    let mut value: serde_json::Value = serde_json::from_str(raw)
         .map_err(|e| anyhow!("Agent config is not valid JSON: {}", e))?;
     if !value.is_object() {
         value = serde_json::json!({});

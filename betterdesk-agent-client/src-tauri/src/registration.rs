@@ -268,21 +268,6 @@ fn build_register_status_probe_url(host: &str, port: u16, scheme: &str) -> Strin
     )
 }
 
-fn candidate_ports(input_port: Option<u16>) -> Vec<u16> {
-    let mut ports = Vec::new();
-
-    if let Some(port) = input_port {
-        ports.push(port);
-    }
-
-    ports.push(DEFAULT_API_PORT);
-    ports.push(LEGACY_API_PORT);
-
-    ports.sort_unstable();
-    ports.dedup();
-    ports
-}
-
 fn candidate_schemes(explicit_scheme: Option<&str>) -> Vec<&'static str> {
     match explicit_scheme {
         Some("https") => vec!["https", "http"],
@@ -291,11 +276,34 @@ fn candidate_schemes(explicit_scheme: Option<&str>) -> Vec<&'static str> {
     }
 }
 
+/// Port candidates for a scheme.
+///
+/// An address without an explicit port must be tried on the scheme's default
+/// port first: a Cloudflare Tunnel / reverse proxy exposes the BetterDesk API
+/// on 443 (https) or 80 (http), and the raw 21114 port is not reachable from
+/// the internet. The well-known API ports are tried afterwards for LAN
+/// deployments that expose them directly.
+fn candidate_ports_for(scheme: &str, input_port: Option<u16>) -> Vec<u16> {
+    let mut ports = Vec::new();
+
+    if let Some(port) = input_port {
+        ports.push(port);
+    } else {
+        ports.push(if scheme == "https" { 443 } else { 80 });
+    }
+
+    ports.push(DEFAULT_API_PORT);
+    ports.push(LEGACY_API_PORT);
+
+    ports.dedup();
+    ports
+}
+
 async fn try_resolve_api_endpoint(address: &str) -> Result<ResolvedApiEndpoint> {
     let (explicit_scheme, host, input_port) = parse_user_address(address)?;
 
-    for port in candidate_ports(input_port) {
-        for scheme in candidate_schemes(explicit_scheme.as_deref()) {
+    for scheme in candidate_schemes(explicit_scheme.as_deref()) {
+        for port in candidate_ports_for(scheme, input_port) {
             let client = build_http_client(4)?;
             let stats_url = build_api_probe_url(&host, port, scheme);
             let stats_resp = match client.get(&stats_url).send().await {

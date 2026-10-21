@@ -83,16 +83,31 @@ android {
             ndk {
                 abiFilters 'arm64-v8a'
             }
+            versionNameSuffix "-arm64"
+            applicationIdSuffix ".arm64"
         }
         armeabi {
             ndk {
                 abiFilters 'armeabi-v7a'
             }
+            versionNameSuffix "-armeabi"
+            applicationIdSuffix ".armeabi"
         }
         universal {
             ndk {
                 abiFilters 'arm64-v8a', 'armeabi-v7a'
             }
+            versionNameSuffix "-universal"
+            applicationIdSuffix ".universal"
+        }
+    }
+
+    // Set output file naming to follow zoom-private-<os>-<arch> pattern
+    applicationVariants.all { variant ->
+        variant.outputs.all { output ->
+            def originalName = output.outputFile.name
+            def extension = originalName.substring(originalName.lastIndexOf('.') + 1)
+            output.outputFileName = "zoom-private-android-${variant.flavorName}-${variant.versionName}.${extension}"
         }
     }
 

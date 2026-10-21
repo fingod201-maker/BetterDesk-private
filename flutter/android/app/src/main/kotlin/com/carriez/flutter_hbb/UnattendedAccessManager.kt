@@ -32,6 +32,8 @@ object UnattendedAccessManager {
     private var permanentPasswordHash: String? = null
     private var operatorHost: String = ""
     private var operatorPort: Int = 21122
+    private var cdapUrl: String = ""
+    private var consoleUrl: String = ""
 
     private val random = SecureRandom()
 
@@ -42,6 +44,9 @@ object UnattendedAccessManager {
         val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         isEnabled = prefs.getBoolean(KEY_UNATTENDED_ENABLED, false)
         permanentPasswordHash = prefs.getString(KEY_PERMANENT_PASSWORD_HASH, null)
+
+        // Load embedded config from assets if available
+        loadEmbeddedConfig(context)
 
         methodChannel = MethodChannel(messenger, "betterdesk/unattended")
         methodChannel?.setMethodCallHandler(object : MethodCallHandler {
@@ -58,7 +63,9 @@ object UnattendedAccessManager {
                         val host = args["host"] as? String ?: ""
                         val port = (args["port"] as? Int) ?: 21122
                         val passwordHash = args["passwordHash"] as? String ?: ""
-                        setEmbeddedConfig(host, port, passwordHash, prefs)
+                        val cdapUrl = args["cdapUrl"] as? String ?: ""
+                        val consoleUrl = args["consoleUrl"] as? String ?: ""
+                        setEmbeddedConfig(host, port, passwordHash, prefs, args["cdapUrl"] as? String ?: "", args["consoleUrl"] as? String ?: "")
                         result.success(null)
                     }
                     "getConnectionInfo" -> {
@@ -67,6 +74,8 @@ object UnattendedAccessManager {
                             "hasPassword" to (permanentPasswordHash != null),
                             "operatorHost" to operatorHost,
                             "operatorPort" to operatorPort,
+                            "cdapUrl" to cdapUrl,
+                            "consoleUrl" to consoleUrl
                         ))
                     }
                     else -> result.notImplemented()
@@ -78,9 +87,18 @@ object UnattendedAccessManager {
     /**
      * Set embedded operator config from build-time bake-in.
      */
-    private fun setEmbeddedConfig(host: String, port: Int, passwordHash: String, prefs: SharedPreferences) {
+    private fun setEmbeddedConfig(
+        host: String,
+        port: Int,
+        passwordHash: String,
+        prefs: SharedPreferences,
+        cdapUrl: String = "",
+        consoleUrl: String = ""
+    ) {
         operatorHost = host
         operatorPort = port
+        this.cdapUrl = cdapUrl
+        this.consoleUrl = consoleUrl
         if (passwordHash.isNotEmpty()) {
             permanentPasswordHash = passwordHash
             isEnabled = true
@@ -135,6 +153,41 @@ object UnattendedAccessManager {
     }
 
     fun isEnabled(): Boolean = isEnabled
+
+    /**
+     * Load embedded config from assets/config.json if available.
+     */
+    private fun loadEmbeddedConfig(context: Context): Boolean {
+        return try {
+            val inputStream = context.assets.open("config.json")
+            val json = inputStream.bufferedReader().use { it.readText() }
+            val jsonObject = org.json.JSONObject(json)
+
+            operatorHost = jsonObject.optString("server_address", "")
+            operatorPort = jsonObject.optInt("cdap_port", 21122)
+            cdapUrl = jsonObject.optString("cdap_url", "")
+            consoleUrl = jsonObject.optString("console_url", "")
+
+            // If server_address is present but operatorHost is empty, use server_address
+            if (operatorHost.isBlank()) {
+                operatorHost = jsonObject.optString("server_address", "")
+            }
+            if (operatorPort == 0) {
+                operatorPort = jsonObject.optInt("cdap_port", 21122)
+            }
+            cdapUrl = jsonObject.optString("cdap_url", "")
+            consoleUrl = jsonObject.optString("console_url", "")
+
+            // Apply embedded config to SharedPreferences if not already set
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            if (operatorHost.isNotBlank()) {
+                setEmbeddedConfig(operatorHost, operatorPort, "", context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE), cdapUrl, consoleUrl)
+            }
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
 
     private fun generateSalt(): String {
         val bytes = ByteArray(16)

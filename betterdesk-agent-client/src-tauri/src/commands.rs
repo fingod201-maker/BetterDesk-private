@@ -150,13 +150,13 @@ pub fn quit_app(app: tauri::AppHandle) {
 #[tauri::command]
 pub async fn authenticate_sudo(password: String) -> Result<bool, String> {
     use std::io::Write;
-    use std::process::{Command, Stdio};
+    use std::process::Stdio;
 
     if password.is_empty() {
         return Ok(false);
     }
 
-    let mut child = Command::new("sudo")
+    let mut child = crate::proc::hidden("sudo")
         .args(["-S", "-v"])
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
@@ -437,7 +437,7 @@ pub fn copy_to_clipboard(text: String) -> Result<(), String> {
     // Use Tauri's clipboard API via shell command fallback.
     #[cfg(target_os = "windows")]
     {
-        std::process::Command::new("powershell")
+        crate::proc::hidden("powershell")
             .args(["-Command", &format!("Set-Clipboard -Value '{}'", text.replace('\'', "''"))])
             .output()
             .map_err(|e| e.to_string())?;
@@ -446,12 +446,12 @@ pub fn copy_to_clipboard(text: String) -> Result<(), String> {
     #[cfg(target_os = "linux")]
     {
         use std::io::Write;
-        let mut child = std::process::Command::new("xclip")
+        let mut child = crate::proc::hidden("xclip")
             .args(["-selection", "clipboard"])
             .stdin(std::process::Stdio::piped())
             .spawn()
             .or_else(|_| {
-                std::process::Command::new("xsel")
+                crate::proc::hidden("xsel")
                     .args(["--clipboard", "--input"])
                     .stdin(std::process::Stdio::piped())
                     .spawn()
@@ -466,7 +466,7 @@ pub fn copy_to_clipboard(text: String) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
         use std::io::Write;
-        let mut child = std::process::Command::new("pbcopy")
+        let mut child = crate::proc::hidden("pbcopy")
             .stdin(std::process::Stdio::piped())
             .spawn()
             .map_err(|e| e.to_string())?;
@@ -477,6 +477,69 @@ pub fn copy_to_clipboard(text: String) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+// ─────────────────────────── Auto enrollment ───────────────────────────
+
+/// Enroll a pre-configured device without any user interaction.
+///
+/// Used by the setup launcher: the config already carries the server address,
+/// so the client registers itself at boot, waits for the server to approve it
+/// (the console auto-approves proof-signed in-house clients) and starts the
+/// sidecar afterwards. No wizard, no manual approval.
+pub async fn auto_enroll(app: tauri::AppHandle) -> Result<(), String> {
+    use tauri::Manager;
+
+    for attempt in 0..120u32 {
+        let mut config = {
+            let state = app.state::<AgentState>();
+            let guard = state.config.lock().map_err(|e| e.to_string())?;
+            guard.clone()
+        };
+
+        match registration::register_get_status(&mut config).await {
+            Ok(enrollment) => {
+                {
+                    let state = app.state::<AgentState>();
+                    let mut guard = state.config.lock().map_err(|e| e.to_string())?;
+                    *guard = config.clone();
+                }
+                if enrollment.status == "approved" {
+                    info!(
+                        "Auto enrollment approved — device {}",
+                        enrollment.device_id
+                    );
+                    if config.is_registered() && config.auto_start_sidecar {
+                        let state = app.state::<AgentState>();
+                        match build_sidecar_config(&state).await {
+                            Ok(sidecar_cfg) => {
+                                state.sidecar.stop();
+                                if let Err(e) = state.sidecar.start(&sidecar_cfg, app.clone()) {
+                                    log::warn!("[sidecar] Auto-enroll start failed: {}", e);
+                                } else {
+                                    info!("[sidecar] started after auto enrollment");
+                                }
+                            }
+                            Err(e) => log::warn!("[sidecar] skipping auto-enroll start: {}", e),
+                        }
+                    }
+                    return Ok(());
+                }
+                info!(
+                    "Auto enrollment attempt {}: status {} — waiting for approval",
+                    attempt + 1,
+                    enrollment.status
+                );
+            }
+            Err(e) => {
+                info!("Auto enrollment attempt {} failed: {}", attempt + 1, e);
+            }
+        }
+
+        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+    }
+
+    Err("Auto enrollment did not complete in time".to_string())
 }
 
 // ─────────────────────────── Registration Flow ───────────────────────────
@@ -502,7 +565,16 @@ pub async fn register_device(
     // Clone config so MutexGuard is not held across await.
     let mut config_clone = {
         let mut config = state.config.lock().map_err(|e| e.to_string())?;
-        config.server_address = address;
+        // An empty address means "use the configured server" (pre-configured
+        // installs from the setup launcher must not be reset to blank).
+        let target = if address.trim().is_empty() {
+            config.server_address.clone()
+        } else {
+            address.trim().to_string()
+        };
+        if !target.is_empty() {
+            config.server_address = target;
+        }
         config.clone()
     };
 
@@ -1301,7 +1373,7 @@ pub fn run_system_preflight() -> PreflightReport {
 
     if !ffmpeg_available {
         warnings.push("ffmpeg not found — install ffmpeg for remote desktop video".into());
-    } else if let Ok(out) = std::process::Command::new(&ffmpeg_path)
+    } else if let Ok(out) = crate::proc::hidden(&ffmpeg_path)
         .args(["-hide_banner", "-encoders"])
         .output()
     {
@@ -1340,7 +1412,7 @@ pub fn run_system_preflight() -> PreflightReport {
                 warnings.push(
                     "gst-launch-1.0 not found — install gstreamer1 for Wayland screen capture (e.g. sudo dnf install gstreamer1)".into(),
                 );
-            } else if let Ok(out) = std::process::Command::new("gst-inspect-1.0")
+            } else if let Ok(out) = crate::proc::hidden("gst-inspect-1.0")
                 .arg("pipewiresrc")
                 .output()
             {
