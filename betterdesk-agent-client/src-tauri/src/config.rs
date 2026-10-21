@@ -219,11 +219,40 @@ impl Default for AgentConfig {
 }
 
 impl AgentConfig {
+    /// Directory that holds the agent config, the device identity key and the
+    /// sidecar runtime data.
+    ///
+    /// Defaults to the platform config dir. `BETTERDESK_AGENT_CONFIG_DIR`
+    /// overrides it so portable deployments (unzipped bundle + install
+    /// script) can pin a deterministic location on every OS.
+    pub fn agent_config_dir() -> PathBuf {
+        if let Ok(dir) = std::env::var("BETTERDESK_AGENT_CONFIG_DIR") {
+            let trimmed = dir.trim();
+            if !trimmed.is_empty() {
+                let path = PathBuf::from(trimmed);
+                let _ = std::fs::create_dir_all(&path);
+                return path;
+            }
+        }
+        directories::ProjectDirs::from("com", "betterdesk", "agent")
+            .map(|d| d.config_dir().to_path_buf())
+            .unwrap_or_else(|| PathBuf::from("."))
+    }
+
     /// Configuration file path.
     fn config_path() -> PathBuf {
-        let dir = directories::ProjectDirs::from("com", "betterdesk", "agent")
-            .map(|d| d.config_dir().to_path_buf())
-            .unwrap_or_else(|| PathBuf::from("."));
+        if let Ok(explicit) = std::env::var("BETTERDESK_AGENT_CONFIG") {
+            let trimmed = explicit.trim();
+            if !trimmed.is_empty() {
+                let path = PathBuf::from(trimmed);
+                if let Some(parent) = path.parent() {
+                    let _ = std::fs::create_dir_all(parent);
+                }
+                return path;
+            }
+        }
+        let dir = Self::agent_config_dir();
+        let _ = std::fs::create_dir_all(&dir);
         dir.join("agent-config.json")
     }
 

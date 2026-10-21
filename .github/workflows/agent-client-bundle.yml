@@ -1,0 +1,280 @@
+# =============================================================================
+# BetterDesk — Agent Client Portable Bundle (zip) Release
+# =============================================================================
+# Builds the BetterDesk Agent desktop client (Tauri + Go sidecar) for Windows,
+# Linux and macOS and publishes a per-OS zip bundle that contains the client
+# plus an install script (install.ps1 / install.sh).
+#
+# The public landing page auto-detects the visitor OS and serves the matching
+# zip, so staff only unzip and run one command:
+#   Windows: powershell -ExecutionPolicy Bypass -File .\install.ps1
+#   macOS/Linux: bash install.sh https://panel.telcom.stream
+#
+# Runs on: push to main (publishes to the "portable" rolling tag),
+#          release tags, workflow_dispatch.
+# =============================================================================
+
+name: Build Agent Client Portable Bundles (zip)
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g., v1.0.0)'
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  AGENT_DIR: betterdesk-agent-client
+  GO_AGENT_DIR: betterdesk-agent
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: betterdesk-agent/go.mod
+          cache: true
+
+      - name: Build Go sidecar (windows-amd64)
+        working-directory: ${{ env.GO_AGENT_DIR }}
+        shell: pwsh
+        run: |
+          $env:CGO_ENABLED = "0"
+          $env:GOOS = "windows"
+          $env:GOARCH = "amd64"
+          go build -o "../${{ env.AGENT_DIR }}/src-tauri/binaries/betterdesk-agent-x86_64-pc-windows-msvc.exe" -ldflags="-s -w" .
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'npm'
+          cache-dependency-path: ${{ env.AGENT_DIR }}/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: ${{ env.AGENT_DIR }}
+        run: npm ci --no-audit --no-fund
+
+      - name: Build frontend
+        working-directory: ${{ env.AGENT_DIR }}
+        run: npm run build
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          rustflags: ''
+          cache: true
+
+      - name: Install Protobuf Compiler
+        shell: pwsh
+        run: choco install protoc -y
+
+      - name: Build Tauri (Windows)
+        working-directory: ${{ env.AGENT_DIR }}
+        run: npx tauri build --target x86_64-pc-windows-msvc
+
+      - name: Package Windows zip
+        shell: bash
+        run: |
+          chmod +x scripts/package/package-client-zip.sh
+          SIDECAR_BIN="$GITHUB_WORKSPACE/${{ env.AGENT_DIR }}/src-tauri/binaries/betterdesk-agent-x86_64-pc-windows-msvc.exe" \
+          scripts/package/package-client-zip.sh windows x64 \
+            "$GITHUB_WORKSPACE/${{ env.AGENT_DIR }}/src-tauri/target/x86_64-pc-windows-msvc/release/zoom-private.agent.exe" \
+            "$GITHUB_WORKSPACE/dist/bundles"
+
+      - name: Upload Windows bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundle-windows-x64
+          path: dist/bundles/*.zip
+          if-no-files-found: error
+
+  build-linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libssl-dev \
+            libxdo-dev \
+            protobuf-compiler \
+            zip curl wget file
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: betterdesk-agent/go.mod
+          cache: true
+
+      - name: Build Go sidecar (linux-amd64)
+        working-directory: ${{ env.GO_AGENT_DIR }}
+        run: |
+          env CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+            go build -o "../${{ env.AGENT_DIR }}/src-tauri/binaries/betterdesk-agent-x86_64-unknown-linux-gnu" -ldflags="-s -w" .
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'npm'
+          cache-dependency-path: ${{ env.AGENT_DIR }}/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: ${{ env.AGENT_DIR }}
+        run: npm ci --no-audit --no-fund
+
+      - name: Build frontend
+        working-directory: ${{ env.AGENT_DIR }}
+        run: npm run build
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          rustflags: ''
+          cache: true
+
+      - name: Build Tauri (Linux)
+        working-directory: ${{ env.AGENT_DIR }}
+        run: APPIMAGE_EXTRACT_AND_RUN=1 NO_STRIP=1 npx tauri build --target x86_64-unknown-linux-gnu
+
+      - name: Package Linux zip
+        run: |
+          chmod +x scripts/package/package-client-zip.sh
+          SIDECAR_BIN="$GITHUB_WORKSPACE/${{ env.AGENT_DIR }}/src-tauri/binaries/betterdesk-agent-x86_64-unknown-linux-gnu" \
+          scripts/package/package-client-zip.sh linux x64 \
+            "$GITHUB_WORKSPACE/${{ env.AGENT_DIR }}/src-tauri/target/x86_64-unknown-linux-gnu/release/zoom-private.agent" \
+            "$GITHUB_WORKSPACE/dist/bundles"
+
+      - name: Upload Linux bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundle-linux-x64
+          path: dist/bundles/*.zip
+          if-no-files-found: error
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: betterdesk-agent/go.mod
+          cache: true
+
+      - name: Build Go sidecars (darwin-amd64 + darwin-arm64)
+        working-directory: ${{ env.GO_AGENT_DIR }}
+        run: |
+          env CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 \
+            go build -o "../${{ env.AGENT_DIR }}/src-tauri/binaries/betterdesk-agent-x86_64-apple-darwin" -ldflags="-s -w" .
+          env CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 \
+            go build -o "../${{ env.AGENT_DIR }}/src-tauri/binaries/betterdesk-agent-aarch64-apple-darwin" -ldflags="-s -w" .
+          lipo -create \
+            "../${{ env.AGENT_DIR }}/src-tauri/binaries/betterdesk-agent-x86_64-apple-darwin" \
+            "../${{ env.AGENT_DIR }}/src-tauri/binaries/betterdesk-agent-aarch64-apple-darwin" \
+            -output "../${{ env.AGENT_DIR }}/src-tauri/binaries/betterdesk-agent-universal-apple-darwin"
+
+      - name: Install Protobuf Compiler
+        run: brew install protobuf
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'npm'
+          cache-dependency-path: ${{ env.AGENT_DIR }}/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: ${{ env.AGENT_DIR }}
+        run: npm ci --no-audit --no-fund
+
+      - name: Build frontend
+        working-directory: ${{ env.AGENT_DIR }}
+        run: npm run build
+
+      - name: Regenerate macOS .icns from PNGs
+        working-directory: ${{ env.AGENT_DIR }}
+        run: node scripts/gen-icns.mjs
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          rustflags: ''
+          cache: true
+
+      - name: Ensure macOS Rust targets
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+      - name: Build Tauri (macOS universal)
+        working-directory: ${{ env.AGENT_DIR }}
+        run: npx tauri build --target universal-apple-darwin
+
+      - name: Package macOS zip
+        run: |
+          chmod +x scripts/package/package-client-zip.sh
+          SIDECAR_BIN="$GITHUB_WORKSPACE/${{ env.AGENT_DIR }}/src-tauri/binaries/betterdesk-agent-universal-apple-darwin" \
+          scripts/package/package-client-zip.sh macos universal \
+            "$GITHUB_WORKSPACE/${{ env.AGENT_DIR }}/src-tauri/target/universal-apple-darwin/release/bundle/macos/zoom-private.agent.app" \
+            "$GITHUB_WORKSPACE/dist/bundles"
+
+      - name: Upload macOS bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundle-macos-universal
+          path: dist/bundles/*.zip
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.version != '')
+    needs: [build-windows, build-linux, build-macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all bundles
+        uses: actions/download-artifact@v4
+        with:
+          path: agent-bundles
+
+      - name: Generate checksums
+        run: |
+          find agent-bundles -type f -name "*.zip" | sort | while read f; do
+            sha256sum "$f" >> agent-bundles/CHECKSUMS.sha256
+          done
+          cat agent-bundles/CHECKSUMS.sha256
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.version || github.ref_name }}
+          overwrite: true
+          generate_release_notes: true
+          files: |
+            agent-bundles/bundle-windows-x64/*.zip
+            agent-bundles/bundle-linux-x64/*.zip
+            agent-bundles/bundle-macos-universal/*.zip
+            agent-bundles/CHECKSUMS.sha256

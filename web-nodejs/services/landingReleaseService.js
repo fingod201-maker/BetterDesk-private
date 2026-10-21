@@ -29,7 +29,7 @@ const path = require('path');
 const https = require('https');
 
 const GITHUB_OWNER = process.env.LANDING_GITHUB_OWNER || 'fingod201-maker';
-const GITHUB_REPO = process.env.LANDING_GITHUB_REPO || 'BetterDesk';
+const GITHUB_REPO = process.env.LANDING_GITHUB_REPO || 'BetterDesk-private';
 const GITHUB_API = 'https://api.github.com';
 const GITHUB_TOKEN = process.env.UPDATE_GITHUB_TOKEN
     || process.env.GITHUB_TOKEN
@@ -98,7 +98,22 @@ const EXT_MAP = {
     '.appimage': { format: 'appimage', platform: 'linux', contentType: 'application/octet-stream' },
     '.apk': { format: 'apk', platform: 'android', contentType: 'application/vnd.android.package-archive' },
     '.aab': { format: 'aab', platform: 'android', contentType: 'application/octet-stream' },
+    '.zip': { format: 'zip', platform: null, contentType: 'application/zip' },
 };
+
+/**
+ * Infer the target platform of a platform-agnostic archive (`.zip`) from its
+ * file name. Portable bundles are named `betterdesk-client-<os>-<arch>.zip`.
+ * Returns null when the name carries no usable platform hint.
+ */
+function inferPlatformFromName(name) {
+    const n = String(name || '').toLowerCase();
+    if (/android/.test(n)) return 'android';
+    if (/windows|win64|win32|win-x64|msi|nsis/.test(n)) return 'windows';
+    if (/macos|mac-os|osx|darwin|apple|mac_x64|mac-arm/.test(n)) return 'macos';
+    if (/linux|ubuntu|debian|fedora|centos|appimage|apt/.test(n)) return 'linux';
+    return null;
+}
 
 /** Detect CPU architecture. Defaults to x64 when unknown. */
 function classifyArch(name) {
@@ -126,20 +141,28 @@ function classifyAsset(name) {
     const mapped = EXT_MAP[ext];
     if (!mapped) return null;
 
+    const platform = mapped.platform || inferPlatformFromName(name);
+    if (!platform) return null;
+
     return {
-        platform: mapped.platform,
+        platform,
         format: mapped.format,
         arch: classifyArch(name),
         contentType: mapped.contentType,
     };
 }
 
-/** Rank a format so the most "installer-like" asset wins ties. */
+/**
+ * Rank a format so the most "installer-like" asset wins ties.
+ * Portable zip bundles (client + install script) rank first because they work
+ * on unsigned builds where SmartScreen / Gatekeeper would block a raw binary.
+ */
 function formatRank(format) {
     switch (format) {
-        case 'msi': case 'pkg': case 'deb': case 'apk': return 0;
-        case 'exe': case 'dmg': case 'appimage': return 1;
-        case 'rpm': return 2;
+        case 'zip': return 0;
+        case 'msi': case 'pkg': case 'deb': case 'apk': return 1;
+        case 'exe': case 'dmg': case 'appimage': return 2;
+        case 'rpm': return 3;
         default: return 5;
     }
 }
