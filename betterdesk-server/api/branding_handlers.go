@@ -690,6 +690,7 @@ type pendingDeviceInfo struct {
 	Hostname  string `json:"hostname"`
 	Platform  string `json:"platform"`
 	Version   string `json:"version"`
+	PublicKey string `json:"public_key,omitempty"`
 	IP        string `json:"ip"`
 	CreatedAt string `json:"created_at"`
 }
@@ -700,6 +701,7 @@ func (s *Server) storePendingDevice(req *EnrollmentRequest, clientIP string) {
 		Hostname:  req.Hostname,
 		Platform:  req.Platform,
 		Version:   req.Version,
+		PublicKey: req.PublicKey,
 		IP:        clientIP,
 		CreatedAt: timeNowISO(),
 	}

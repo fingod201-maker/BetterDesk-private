@@ -566,6 +566,9 @@ pub async fn poll_enrollment_status(
             let mut config = state.config.lock().map_err(|e| e.to_string())?;
             config.registered = true;
             config.device_id = enrollment.device_id.clone();
+            if !enrollment.device_token.trim().is_empty() {
+                config.auth_token = enrollment.device_token.trim().to_string();
+            }
             // If neither api_key nor auth_token is set (server did not emit a
             // fresh device_token on re-approval), recover from OS keyring.
             if config.auth_token.is_empty() && config.api_key.is_empty() {

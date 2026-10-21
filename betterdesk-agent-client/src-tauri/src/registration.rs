@@ -35,9 +35,9 @@ struct DeviceIdentity {
 }
 
 fn device_identity_path() -> Result<PathBuf> {
-    let dir = directories::ProjectDirs::from("com", "betterdesk", "agent")
-        .map(|d| d.config_dir().to_path_buf())
-        .ok_or_else(|| anyhow!("config directory unavailable"))?;
+    // Keep the identity next to agent-config.json so portable deployments
+    // (BETTERDESK_AGENT_CONFIG_DIR) keep a stable, bound key.
+    let dir = crate::config::AgentConfig::agent_config_dir();
     std::fs::create_dir_all(&dir)?;
     Ok(dir.join("device-identity.json"))
 }
@@ -565,6 +565,9 @@ pub struct EnrollmentStatus {
     pub status: String,
     pub device_id: String,
     pub message: String,
+    /// Server-issued device token (only present when approved).
+    #[serde(default)]
+    pub device_token: String,
 }
 
 /// Register this device with the BetterDesk server.
@@ -657,6 +660,7 @@ pub async fn register_get_status(config: &mut AgentConfig) -> Result<EnrollmentS
                 status: "approved".to_string(),
                 device_id: registered_id,
                 message: String::new(),
+                device_token: enrollment.device_token.trim().to_string(),
             })
         }
         "pending" => {
@@ -677,6 +681,7 @@ pub async fn register_get_status(config: &mut AgentConfig) -> Result<EnrollmentS
                 status: "pending".to_string(),
                 device_id: registered_id,
                 message: enrollment.message,
+                device_token: String::new(),
             })
         }
         "rejected" => Err(anyhow!(
@@ -741,6 +746,7 @@ pub async fn poll_enrollment_status(address: &str, device_id: &str) -> Result<En
         status: enrollment.status,
         device_id: result_device_id,
         message: enrollment.message,
+        device_token: enrollment.device_token.trim().to_string(),
     })
 }
 
