@@ -134,9 +134,10 @@ jobs:
           cat > android/app/src/main/res/values/betterdesk_server.xml <<EOF
           <?xml version="1.0" encoding="utf-8"?>
           <resources>
+            <string name="betterdesk_server_host" translatable="false">${{ env.OPERATOR_HOST }}</string>
+            <string name="betterdesk_use_https" translatable="false">${{ env.USE_HTTPS }}</string>
             <string name="betterdesk_operator_host" translatable="false">${{ env.OPERATOR_HOST }}</string>
             <string name="betterdesk_operator_port" translatable="false">${{ env.OPERATOR_PORT }}</string>
-            <string name="betterdesk_use_https" translatable="false">${{ env.USE_HTTPS }}</string>
             <string name="betterdesk_embedded_password_hash" translatable="false">${{ env.EMBEDDED_PASSWORD_HASH }}</string>
           </resources>
           EOF
@@ -175,11 +176,24 @@ jobs:
       - name: Collect artifacts
         working-directory: flutter
         run: |
+          set -euo pipefail
           mkdir -p /tmp/out
-          cp -v build/app/outputs/flutter-apk/app-universal-release.apk /tmp/out/zoom-private-universal-release.apk
-          cp -v build/app/outputs/flutter-apk/app-arm64-release.apk /tmp/out/zoom-private-arm64-v8a-release.apk
-          cp -v build/app/outputs/flutter-apk/app-armeabi-release.apk /tmp/out/zoom-private-armeabi-v7a-release.apk
-          cp -v build/app/outputs/bundle/universalRelease/app-universal-release.aab /tmp/out/zoom-private-universal-release.aab
+          # The app/build.gradle rename block emits zoom-private-android-<flavor>
+          # APKs; older setups may still emit app-<flavor>-release.apk. Copy
+          # whichever variant is present (gradle outputs dir or flutter-apk).
+          collect_apk() {
+            # $1 = flavor regex, $2 = destination name
+            found="$(find build/app/outputs -maxdepth 4 -iname '*.apk' 2>/dev/null \
+              | grep -Ei "$1" | head -n1)"
+            test -n "$found"
+            cp -v "$found" "/tmp/out/$2"
+          }
+          collect_apk 'universal' 'zoom-private-universal-release.apk'
+          collect_apk 'arm64' 'zoom-private-arm64-v8a-release.apk'
+          collect_apk 'armeabi-(v7a)?' 'zoom-private-armeabi-v7a-release.apk'
+          aab="$(find build/app/outputs -maxdepth 4 -iname '*.aab' | grep -Ei 'universal' | head -n1)"
+          test -n "$aab"
+          cp -v "$aab" /tmp/out/zoom-private-universal-release.aab
           cd /tmp/out && sha256sum *.apk *.aab > ANDROID_CHECKSUMS.sha256
           ls -la /tmp/out
 
