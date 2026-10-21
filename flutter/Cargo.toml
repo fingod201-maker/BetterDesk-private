@@ -23,6 +23,7 @@ base64 = "0.22"
 ndk = "0.7"
 ndk-sys = "0.6"
 jni = "0.21"
+ed25519-dalek = { version = "2", default-features = false, features = ["std"] }
 
 [features]
 default = []

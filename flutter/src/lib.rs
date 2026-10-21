@@ -685,10 +685,55 @@ fn handle_agent_text(txt: &str) {
     }
 }
 
+    // ── enrollment identity (Ed25519) ──────────────────────────────────────
+    // The BetterDesk server treats os_agent registrations as support-agent
+    // enrollments: they must prove possession of an installation key by
+    // signing the canonical enrollment payload
+    //   "bd-enrollment-v1\n<method>\n<path>\n<device_id>\n<pubkey>\n<ts>\n<nonce>"
+    // The seed is generated and stored by the app (Android Keystore-backed
+    // storage); Rust only derives the public key and signs.
+
+    fn b64_decode(data: &str) -> Option<Vec<u8>> {
+        use base64::Engine;
+        base64::engine::general_purpose::STANDARD.decode(data.trim()).ok()
+    }
+
+    fn b64_encode(data: &[u8]) -> String {
+        use base64::Engine;
+        base64::engine::general_purpose::STANDARD.encode(data)
+    }
+
+    /// Base64 (std) of the 32-byte Ed25519 public key for the given seed.
+    fn enrollment_public_key(seed_b64: &str) -> Option<String> {
+        use ed25519_dalek::SigningKey;
+        let seed = b64_decode(seed_b64)?;
+        if seed.len() != 32 {
+            return None;
+        }
+        let mut fixed = [0u8; 32];
+        fixed.copy_from_slice(&seed);
+        let signing = SigningKey::from_bytes(&fixed);
+        Some(b64_encode(signing.verifying_key().as_bytes()))
+    }
+
+    /// Base64 (std) Ed25519 signature over the UTF-8 payload.
+    fn enrollment_sign(seed_b64: &str, payload: &str) -> Option<String> {
+        use ed25519_dalek::{Signer, SigningKey};
+        let seed = b64_decode(seed_b64)?;
+        if seed.len() != 32 {
+            return None;
+        }
+        let mut fixed = [0u8; 32];
+        fixed.copy_from_slice(&seed);
+        let signing = SigningKey::from_bytes(&fixed);
+        let sig = signing.sign(payload.as_bytes());
+        Some(b64_encode(&sig.to_bytes()))
+    }
+
     // ── JNI exports (called from Kotlin AgentRelayBridge) ─────────────────
 
     use jni::objects::{JByteArray, JClass, JString};
-    use jni::sys::{jboolean, jint};
+    use jni::sys::{jboolean, jint, jstring};
     use jni::JNIEnv;
 
     fn cstring_from_java(env: &mut JNIEnv<'_>, s: &JString) -> std::ffi::CString {
@@ -698,6 +743,46 @@ fn handle_agent_text(txt: &str) {
                 .unwrap_or_default(),
         )
         .unwrap_or_default()
+    }
+
+    /// Hand a Rust string back to Java (null when the value is empty).
+    fn java_string(env: &mut JNIEnv<'_>, value: String) -> jstring {
+        if value.is_empty() {
+            return std::ptr::null_mut();
+        }
+        match env.new_string(value) {
+            Ok(v) => v.into_raw(),
+            Err(_) => std::ptr::null_mut(),
+        }
+    }
+
+    #[no_mangle]
+    pub unsafe extern "system" fn Java_com_carriez_flutter_hbb_AgentRelayBridge_nativeEnrollmentPublicKey(
+        mut env: JNIEnv,
+        _cls: JClass,
+        seed: JString,
+    ) -> jstring {
+        let seed_c = cstring_from_java(&mut env, &seed);
+        let seed_str = seed_c.to_str().unwrap_or("").to_string();
+        let out = enrollment_public_key(&seed_str).unwrap_or_default();
+        java_string(&mut env, out)
+    }
+
+    #[no_mangle]
+    pub unsafe extern "system" fn Java_com_carriez_flutter_hbb_AgentRelayBridge_nativeEnrollmentSign(
+        mut env: JNIEnv,
+        _cls: JClass,
+        seed: JString,
+        payload: JString,
+    ) -> jstring {
+        let seed_c = cstring_from_java(&mut env, &seed);
+        let payload_c = cstring_from_java(&mut env, &payload);
+        let out = enrollment_sign(
+            seed_c.to_str().unwrap_or(""),
+            payload_c.to_str().unwrap_or(""),
+        )
+        .unwrap_or_default();
+        java_string(&mut env, out)
     }
 
     #[no_mangle]
