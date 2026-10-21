@@ -72,6 +72,26 @@ object AgentRelayBridge {
         if (loaded) runCatching { nativeDisconnect() }
     }
 
+    // ── capture geometry (JPEG frame size) ───────────────────────────────
+    // The operator viewer sends coordinates in the frame's own pixel space
+    // (or normalized 0..1). The dispatcher needs the capture size to map
+    // frame pixels onto the real display resolution.
+
+    @Volatile
+    private var captureWidth: Int = 0
+
+    @Volatile
+    private var captureHeight: Int = 0
+
+    fun noteCaptureSize(width: Int, height: Int) {
+        if (width > 0 && height > 0) {
+            captureWidth = width
+            captureHeight = height
+        }
+    }
+
+    fun captureSize(): Pair<Int, Int> = captureWidth to captureHeight
+
     private val dialerStarted = AtomicBoolean(false)
     private val executor = Executors.newSingleThreadExecutor { r ->
         Thread(r, "AgentRelayBridge-reg").apply { isDaemon = true }

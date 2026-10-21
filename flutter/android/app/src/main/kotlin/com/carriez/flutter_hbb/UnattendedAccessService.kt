@@ -356,6 +356,7 @@ class UnattendedAccessService : Service() {
                     val out = ByteArrayOutputStream()
                     frame.compress(Bitmap.CompressFormat.JPEG, 70, out)
                     latestFrame = out.toByteArray()
+                    AgentRelayBridge.noteCaptureSize(frame.width, frame.height)
                     AgentRelayBridge.feed(out.toByteArray())
                     lastFrameAt = now
 

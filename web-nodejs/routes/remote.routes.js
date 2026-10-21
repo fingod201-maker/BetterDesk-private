@@ -203,16 +203,42 @@ router.get('/remote/:deviceId', rdClientPageLimiter, requireRemoteAccess, async 
         }
     } catch { /* non-fatal: degrade to standard viewer */ }
 
+    // Panel relay transport: an agent that dials out to /ws/remote-agent
+    // (Android/edge clients) has no CDAP session — it streams JPEG frames
+    // through the relay instead.
+    let relayAgentConnected = false;
+    try {
+        const relay = getRemoteRelay();
+        const state = relay && typeof relay.getSessionState === 'function'
+            ? relay.getSessionState(deviceId)
+            : null;
+        relayAgentConnected = !!(state && state.agentConnected);
+    } catch { /* non-fatal */ }
+
     const forced = String(req.query.transport || '').toLowerCase();
     let transport;
-    if (forced === 'mesh' || forced === 'cdap' || forced === 'rd') {
+    if (forced === 'mesh' || forced === 'cdap' || forced === 'rd' || forced === 'relay') {
         transport = forced;
     } else if (isMeshAgent && meshConnected) {
         transport = 'mesh';
+    } else if (isOsAgent && relayAgentConnected && !isCdapConnected) {
+        transport = 'relay';
     } else if (isOsAgent || isCdapConnected) {
         transport = 'cdap';
     } else {
         transport = 'rd';
+    }
+
+    // Relay transport renders the dedicated JPEG viewer (binary frames over
+    // /ws/remote-viewer/<id>).
+    if (transport === 'relay') {
+        return res.render('remote-viewer', {
+            title: `${req.t('remote.title')} - ${deviceId}`,
+            activePage: 'remote',
+            deviceId: deviceId,
+            device: device || { id: deviceId, hostname: (goPeer && goPeer.hostname) || '', platform: '', note: '' },
+            layout: 'viewer',
+        });
     }
 
     const capabilities = {
