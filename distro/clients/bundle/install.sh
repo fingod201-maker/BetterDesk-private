@@ -56,11 +56,24 @@ if [ -d "$CLIENT" ]; then
   # Unsigned bundles carry the quarantine flag after download — clearing it
   # lets Gatekeeper launch the app without an interactive override.
   xattr -dr com.apple.quarantine "$TARGET" 2>/dev/null || true
-  EXECUTABLE="$TARGET/Contents/MacOS/$(basename "$CLIENT" .app)"
+  MACOS_DIR="$TARGET/Contents/MacOS"
+  # The .app is named after productName, but the executable inside keeps the
+  # Cargo binary name — locate it instead of assuming.
+  EXECUTABLE=""
+  for candidate in "$MACOS_DIR/betterdesk-agent-client" "$MACOS_DIR/$(basename "$CLIENT" .app)"; do
+    if [ -x "$candidate" ]; then EXECUTABLE="$candidate"; break; fi
+  done
+  if [ -z "$EXECUTABLE" ]; then
+    EXECUTABLE="$(find "$MACOS_DIR" -maxdepth 1 -type f -perm -u+x ! -name 'betterdesk-agent' | head -n 1 || true)"
+  fi
+  if [ -z "$EXECUTABLE" ]; then
+    echo "Could not find the client executable inside $TARGET" >&2
+    exit 1
+  fi
   SIDECAR_SRC="$BUNDLE_DIR/betterdesk-agent"
   if [ -f "$SIDECAR_SRC" ]; then
-    cp -f "$SIDECAR_SRC" "$TARGET/Contents/MacOS/betterdesk-agent"
-    chmod +x "$TARGET/Contents/MacOS/betterdesk-agent"
+    cp -f "$SIDECAR_SRC" "$MACOS_DIR/betterdesk-agent"
+    chmod +x "$MACOS_DIR/betterdesk-agent"
   fi
 else
   TARGET="$INSTALL_DIR/$(basename "$CLIENT")"

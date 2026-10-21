@@ -92,7 +92,7 @@ jobs:
           chmod +x scripts/package/package-client-zip.sh
           SIDECAR_BIN="$GITHUB_WORKSPACE/${{ env.AGENT_DIR }}/src-tauri/binaries/betterdesk-agent-x86_64-pc-windows-msvc.exe" \
           scripts/package/package-client-zip.sh windows x64 \
-            "$GITHUB_WORKSPACE/${{ env.AGENT_DIR }}/src-tauri/target/x86_64-pc-windows-msvc/release/zoom-private.agent.exe" \
+            "$GITHUB_WORKSPACE/${{ env.AGENT_DIR }}/src-tauri/target/x86_64-pc-windows-msvc/release/betterdesk-agent-client.exe" \
             "$GITHUB_WORKSPACE/dist/bundles"
 
       - name: Upload Windows bundle
@@ -164,7 +164,7 @@ jobs:
           chmod +x scripts/package/package-client-zip.sh
           SIDECAR_BIN="$GITHUB_WORKSPACE/${{ env.AGENT_DIR }}/src-tauri/binaries/betterdesk-agent-x86_64-unknown-linux-gnu" \
           scripts/package/package-client-zip.sh linux x64 \
-            "$GITHUB_WORKSPACE/${{ env.AGENT_DIR }}/src-tauri/target/x86_64-unknown-linux-gnu/release/zoom-private.agent" \
+            "$GITHUB_WORKSPACE/${{ env.AGENT_DIR }}/src-tauri/target/x86_64-unknown-linux-gnu/release/betterdesk-agent-client" \
             "$GITHUB_WORKSPACE/dist/bundles"
 
       - name: Upload Linux bundle

@@ -27,8 +27,9 @@ case "$OS" in
 esac
 
 case "$ARCH" in
-  x64|amd64)   ARCH_TAG=x64 ;;
+  x64|amd64)     ARCH_TAG=x64 ;;
   arm64|aarch64) ARCH_TAG=arm64 ;;
+  universal)     ARCH_TAG=universal ;;
   *) echo "Unsupported arch: $ARCH" >&2; exit 1 ;;
 esac
 
@@ -36,8 +37,18 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 BUNDLE_TPL="$REPO_ROOT/distro/clients/bundle"
 
-[ -f "$BINARY" ] || { echo "Binary not found: $BINARY" >&2; exit 1; }
 [ -d "$BUNDLE_TPL" ] || { echo "Bundle template not found: $BUNDLE_TPL" >&2; exit 1; }
+
+# The Tauri build emits the Cargo binary name (betterdesk-agent-client), while
+# the bundle/app is named after productName (zoom-private.agent). Accept either
+# by probing the sibling names next to the requested path.
+if [ ! -e "$BINARY" ]; then
+  DIR="$(dirname "$BINARY")"
+  for alt in betterdesk-agent-client betterdesk-agent-client.exe zoom-private.agent zoom-private.agent.exe; do
+    if [ -e "$DIR/$alt" ]; then BINARY="$DIR/$alt"; break; fi
+  done
+fi
+[ -e "$BINARY" ] || { echo "Binary not found: $BINARY" >&2; exit 1; }
 
 STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT
