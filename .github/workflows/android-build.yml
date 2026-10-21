@@ -135,6 +135,7 @@ jobs:
           <?xml version="1.0" encoding="utf-8"?>
           <resources>
             <string name="betterdesk_server_host" translatable="false">${{ env.OPERATOR_HOST }}</string>
+            <string name="betterdesk_server_port" translatable="false">${{ env.OPERATOR_PORT }}</string>
             <string name="betterdesk_use_https" translatable="false">${{ env.USE_HTTPS }}</string>
             <string name="betterdesk_operator_host" translatable="false">${{ env.OPERATOR_HOST }}</string>
             <string name="betterdesk_operator_port" translatable="false">${{ env.OPERATOR_PORT }}</string>
