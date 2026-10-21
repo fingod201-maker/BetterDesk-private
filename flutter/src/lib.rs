@@ -399,6 +399,7 @@ fn hex_decode(hex: &str) -> Option<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::agent_relay_tests_pointer_utils as _;
 
     #[test]
     fn base_url_omits_default_https_port() {
@@ -413,4 +414,338 @@ mod tests {
         betterdesk_set_permanent_password(std::ptr::null_mut());
         assert_eq!(betterdesk_verify_password("operator123".as_ptr() as *const c_char), 0);
     }
+}
+
+// ── server-reachability agent dial-out (device → panel relay) ────────────
+// Enabled on Android targets; gate keeps host builds (no NDK C toolchain)
+// compiling without the TLS stack.
+
+#[cfg(target_os = "android")]
+mod agent_relay {
+    use crate::*;
+    use tokio::sync::mpsc;
+    use tokio_tungstenite::tungstenite::Message;
+    use futures_util::{SinkExt, StreamExt};
+
+type AgentWs = tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
+
+struct AgentConfig {
+    device_id: String,
+    base_url: String,
+    token: String,
+}
+
+static AGENT_CONFIG: OnceLock<RwLock<Option<AgentConfig>>> = OnceLock::new();
+static AGENT_STREAMING: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
+static AGENT_WANTS_DIAL: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
+static AGENT_TX: OnceLock<StdMutex<Option<mpsc::UnboundedSender<Message>>>> = OnceLock::new();
+static AGENT_EVENTS: OnceLock<StdMutex<std::collections::VecDeque<String>>> = OnceLock::new();
+
+fn agent_event_queue() -> &'static StdMutex<std::collections::VecDeque<String>> {
+    AGENT_EVENTS.get_or_init(|| StdMutex::new(std::collections::VecDeque::new()))
+}
+
+fn push_agent_event(json: String) {
+    let mut q = agent_event_queue().lock().unwrap();
+    if q.len() < 512 {
+        q.push_back(json);
+    }
+}
+
+fn agent_ws_url() -> Option<String> {
+    let cfg = AGENT_CONFIG.get_or_init(|| RwLock::new(None)).read().unwrap();
+    let cfg = cfg.as_ref()?;
+    let ws_base = if cfg.base_url.starts_with("https://") {
+        format!("wss://{}", &cfg.base_url["https://".len()..])
+    } else if cfg.base_url.starts_with("http://") {
+        format!("ws://{}", &cfg.base_url["http://".len()..])
+    } else {
+        format!("wss://{}", cfg.base_url.trim_start_matches('/'))
+    };
+    let base = ws_base.trim_end_matches('/');
+    Some(format!(
+        "{}/ws/remote-agent/{}?token={}",
+        base, cfg.device_id, cfg.token
+    ))
+}
+
+#[no_mangle]
+pub extern "C" fn betterdesk_set_agent_config(
+    device_id: *const c_char,
+    base_url: *const c_char,
+    token: *const c_char,
+) {
+    let grab = |p: *const c_char| -> String {
+        unsafe {
+            if p.is_null() { String::new() } else {
+                std::ffi::CStr::from_ptr(p).to_string_lossy().into_owned()
+            }
+        }
+    };
+    let cfg = AgentConfig {
+        device_id: grab(device_id),
+        base_url: grab(base_url),
+        token: grab(token),
+    };
+    *AGENT_CONFIG.get_or_init(|| RwLock::new(None)).write().unwrap() = Some(cfg);
+}
+
+#[no_mangle]
+pub extern "C" fn betterdesk_agent_connect() {
+    if AGENT_WANTS_DIAL.swap(1, std::sync::atomic::Ordering::SeqCst) == 1 {
+        return; // dialer task already looping
+    }
+    let _ = AGENT_TX.get_or_init(|| StdMutex::new(None));
+    std::thread::spawn(|| {
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .worker_threads(2)
+            .build()
+            .unwrap();
+        rt.block_on(agent_dial_loop());
+    });
+}
+
+#[no_mangle]
+pub extern "C" fn betterdesk_agent_disconnect() {
+    AGENT_WANTS_DIAL.store(0, std::sync::atomic::Ordering::SeqCst);
+    if let Some(sfx) = AGENT_TX.get().and_then(|m| m.lock().unwrap().take()) {
+        let _ = sfx.send(Message::Close(None));
+    }
+    AGENT_STREAMING.store(0, std::sync::atomic::Ordering::SeqCst);
+}
+
+#[no_mangle]
+pub extern "C" fn betterdesk_is_streaming() -> u8 {
+    AGENT_STREAMING.load(std::sync::atomic::Ordering::SeqCst)
+}
+
+/// Feed one JPEG frame (bytes from the MediaProjection capture pump).
+#[no_mangle]
+pub extern "C" fn betterdesk_feed_frame(data: *const u8, len: usize) -> u8 {
+    if AGENT_STREAMING.load(std::sync::atomic::Ordering::SeqCst) == 0 {
+        return 0;
+    }
+    if data.is_null() || len == 0 || len > 2 * 1024 * 1024 {
+        return 0;
+    }
+    let bytes = unsafe { std::slice::from_raw_parts(data, len) };
+    let guard = AGENT_TX.get();
+    if let Some(sfx) = guard.and_then(|m| m.lock().unwrap().clone()) {
+        let _ = sfx.send(Message::binary(bytes.to_vec()));
+        1
+    } else {
+        0
+    }
+}
+
+/// Pop one pending input event as JSON text. Returns length, or -1 when empty,
+/// or -2 when the buffer was too small.
+#[no_mangle]
+pub extern "C" fn betterdesk_pop_event(buf: *mut u8, cap: usize) -> i32 {
+    let ev = {
+        let mut q = agent_event_queue().lock().unwrap();
+        q.pop_front()
+    };
+    let ev = match ev {
+        Some(e) => e,
+        None => return -1,
+    };
+    let bytes = ev.as_bytes();
+    if buf.is_null() || cap < bytes.len() + 1 {
+        // push it back so it is not lost
+        agent_event_queue().lock().unwrap().push_front(ev);
+        return -2;
+    }
+    unsafe { std::ptr::copy_nonoverlapping(bytes.as_ptr(), buf, bytes.len()) };
+    unsafe { *buf.add(bytes.len()) = 0 };
+    bytes.len() as i32
+}
+
+async fn agent_dial_loop() {
+    let mut backoff_secs: u64 = 3;
+    loop {
+        if AGENT_WANTS_DIAL.load(std::sync::atomic::Ordering::SeqCst) == 0 {
+            return;
+        }
+        let url = match agent_ws_url() {
+            Some(u) => u,
+            None => return, // no config: stop until re-configured
+        };
+        match tokio_tungstenite::connect_async(&url).await {
+            Ok((ws, _resp)) => {
+                eprintln!("[betterdesk-android] agent relay connected: {}", url);
+                backoff_secs = 3;
+                agent_session(ws).await;
+            }
+            Err(e) => {
+                eprintln!("[betterdesk-android] agent relay connect failed: {}", e);
+            }
+        }
+        AGENT_STREAMING.store(0, std::sync::atomic::Ordering::SeqCst);
+        tokio::time::sleep(std::time::Duration::from_secs(backoff_secs)).await;
+        backoff_secs = (backoff_secs * 2).min(60);
+    }
+}
+
+async fn agent_session(ws: AgentWs) {
+    let (mut sink, mut stream) = ws.split();
+    let (tx, mut rx) = mpsc::unbounded_channel::<Message>();
+    *AGENT_TX.get_or_init(|| StdMutex::new(None)).lock().unwrap() = Some(tx);
+
+    let _ = sink.send(Message::text(
+        serde_json::json!({ "type": "agent-ready", "device_id": agent_device_id() }).to_string(),
+    )).await;
+
+    let writer = async move {
+        while let Some(msg) = rx.recv().await {
+            if sink.send(msg).await.is_err() {
+                break;
+            }
+        }
+    };
+
+    let reader = async {
+        while let Some(msg) = stream.next().await {
+            match msg {
+                Ok(Message::Text(txt)) => handle_agent_text(&txt),
+                Ok(Message::Ping(p)) => {
+                    if let Some(sfx) = AGENT_TX.get().and_then(|m| m.lock().unwrap().clone()) {
+                        let _ = sfx.send(Message::Pong(p));
+                    }
+                }
+                Ok(Message::Close(_)) | Err(_) => break,
+                _ => {}
+            }
+        }
+    };
+
+    tokio::join!(writer, reader);
+    *AGENT_TX.get_or_init(|| StdMutex::new(None)).lock().unwrap() = None;
+}
+
+fn agent_device_id() -> String {
+    AGENT_CONFIG
+        .get()
+        .map(|l| l.read().unwrap().as_ref().map(|c| c.device_id.clone()))
+        .flatten()
+        .unwrap_or_default()
+}
+
+fn handle_agent_text(txt: &str) {
+    let v: serde_json::Value = match serde_json::from_str(txt) {
+        Ok(v) => v,
+        Err(_) => return,
+    };
+    match v.get("type").and_then(|t| t.as_str()).unwrap_or("") {
+        "start" => {
+            AGENT_STREAMING.store(1, std::sync::atomic::Ordering::SeqCst);
+            eprintln!("[betterdesk-android] agent stream START");
+        }
+        "stop" => {
+            AGENT_STREAMING.store(0, std::sync::atomic::Ordering::SeqCst);
+            eprintln!("[betterdesk-android] agent stream STOP");
+        }
+        t if !t.is_empty() => {
+            push_agent_event(v.to_string());
+        }
+        _ => {}
+    }
+}
+
+    // ── JNI exports (called from Kotlin AgentRelayBridge) ─────────────────
+
+    use jni::objects::{JByteArray, JClass, JString};
+    use jni::sys::{jboolean, jint};
+    use jni::JNIEnv;
+
+    fn cstring_from_java(env: &mut JNIEnv<'_>, s: &JString) -> std::ffi::CString {
+        std::ffi::CString::new(
+            env.get_string(s)
+                .map(|x| x.to_string_lossy().into_owned())
+                .unwrap_or_default(),
+        )
+        .unwrap_or_default()
+    }
+
+    #[no_mangle]
+    pub unsafe extern "system" fn Java_com_carriez_flutter_hbb_AgentRelayBridge_nativeSetAgentConfig(
+        mut env: JNIEnv,
+        _cls: JClass,
+        jid: JString,
+        jbase: JString,
+        jtoken: JString,
+    ) {
+        let id = cstring_from_java(&mut env, &jid);
+        let base = cstring_from_java(&mut env, &jbase);
+        let token = cstring_from_java(&mut env, &jtoken);
+        betterdesk_set_agent_config(id.as_ptr(), base.as_ptr(), token.as_ptr());
+    }
+
+    #[no_mangle]
+    pub unsafe extern "system" fn Java_com_carriez_flutter_hbb_AgentRelayBridge_nativeConnect(
+        _env: JNIEnv,
+        _cls: JClass,
+    ) {
+        betterdesk_agent_connect();
+    }
+
+    #[no_mangle]
+    pub unsafe extern "system" fn Java_com_carriez_flutter_hbb_AgentRelayBridge_nativeDisconnect(
+        _env: JNIEnv,
+        _cls: JClass,
+    ) {
+        betterdesk_agent_disconnect();
+    }
+
+    #[no_mangle]
+    pub unsafe extern "system" fn Java_com_carriez_flutter_hbb_AgentRelayBridge_nativeIsStreaming(
+        _env: JNIEnv,
+        _cls: JClass,
+    ) -> jboolean {
+        betterdesk_is_streaming() as jboolean
+    }
+
+    #[no_mangle]
+    pub unsafe extern "system" fn Java_com_carriez_flutter_hbb_AgentRelayBridge_nativeFeedFrame(
+        mut env: JNIEnv,
+        _cls: JClass,
+        frame: JByteArray,
+    ) -> jboolean {
+        let len = env.get_array_length(&frame).unwrap_or(0) as usize;
+        if len == 0 {
+            return 0;
+        }
+        let mut buf = vec![0i8; len];
+        let ok = env.get_byte_array_region(&frame, 0, &mut buf).is_ok();
+        if !ok {
+            return 0;
+        }
+        let bytes = std::mem::transmute::<&[i8], &[u8]>(&buf[..]);
+        betterdesk_feed_frame(bytes.as_ptr(), len) as jboolean
+    }
+
+    #[no_mangle]
+    pub unsafe extern "system" fn Java_com_carriez_flutter_hbb_AgentRelayBridge_nativePopEvent<'local>(
+        mut env: JNIEnv<'local>,
+        _cls: JClass,
+    ) -> JString<'local> {
+        let mut buf = vec![0u8; 8192];
+        loop {
+            let len = betterdesk_pop_event(buf.as_mut_ptr(), buf.len());
+            if len == -1 {
+                return env.new_string("").unwrap();
+            }
+            if len == -2 {
+                buf.resize(buf.len() * 2, 0);
+                continue;
+            }
+            let text = String::from_utf8_lossy(&buf[..len as usize]).into_owned();
+            return env.new_string(text).unwrap();
+        }
+    }
+
+    /// JNI `jint` unused marker helper (kept for future use) - silences lints.
+    #[allow(dead_code)]
+    fn _len_marker(_: jint) {}
 }

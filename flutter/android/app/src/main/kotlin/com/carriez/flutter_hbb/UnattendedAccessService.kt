@@ -144,6 +144,7 @@ class UnattendedAccessService : Service() {
         }
 
         IncomingConnectionManager.start(this)
+        AgentRelayBridge.start(this)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -188,6 +189,7 @@ class UnattendedAccessService : Service() {
         releaseProjection(stop = true)
         cancelRegrantNotification()
         IncomingConnectionManager.stop()
+        AgentRelayBridge.stop()
         UnattendedAccessManager.dispose()
         flutterEngine?.destroy()
         flutterEngine = null
@@ -310,6 +312,13 @@ class UnattendedAccessService : Service() {
                     // still-buffered frames so we never fall behind.
                     return@setOnImageAvailableListener
                 }
+                if (!AgentRelayBridge.streaming()) {
+                    // No operator session live over the relay: do not burn CPU
+                    // or battery on JPEG encodes. Keep the projection warm so a
+                    // session can start instantly on demand.
+                    lastFrameAt = now
+                    return@setOnImageAvailableListener
+                }
                 val image = r.acquireLatestImage() ?: return@setOnImageAvailableListener
                 try {
                     val plane = image.planes[0]
@@ -347,6 +356,7 @@ class UnattendedAccessService : Service() {
                     val out = ByteArrayOutputStream()
                     frame.compress(Bitmap.CompressFormat.JPEG, 70, out)
                     latestFrame = out.toByteArray()
+                    AgentRelayBridge.feed(out.toByteArray())
                     lastFrameAt = now
 
                     if (frame !== cropped) frame.recycle()
