@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json.schemastore.org/android-managed-config",
+  "comment": "zoom-private Android managed-app configuration for MDM (Intune, Knox, Android Enterprise managed config or device-owner provisioning). Keys mirror the baked dart-define defaults; MDM values override them at runtime. Deploy via Intune (App configuration policy / Managed app config), Knox Manage (Managed Applications), or 'adb shell dpm set-device-owner' fleets.",
+  "operator_host": "panel.telcom.stream",
+  "operator_port": 443,
+  "use_https": true,
+  "embedded_password_hash": "",
+  "device_name": "",
+  "auto_connect": true,
+  "autostart_on_boot": true,
+  "keep_foreground_service": true,
+  "request_battery_whitelist": true,
+  "enforce_tls": true,
+  "allow_terminal": true,
+  "allow_file_browser": true,
+  "allow_clipboard": true
+}

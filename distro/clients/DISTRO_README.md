@@ -75,14 +75,36 @@ Start-Service zoom-private-agent
 The service runs as `LocalSystem`, starts on boot, and survives user logout.
 
 ### Android Mobile Client
-1. Install the appropriate APK for your device architecture:
-   - `universal` for any device (recommended — includes both ABIs)
-   - `arm64-v8a` for modern 64-bit Android devices (smaller)
-   - `armeabi-v7a` for older 32-bit Android devices
+Two provisioning paths:
+
+**Fleet / administered devices (no wizard, instant connection).** On devices
+you administer, `scripts/provision-android.ps1` does everything over ADB:
+installs the APK, pre-enables the accessibility service and post-notifications,
+lifts the Android 13+ "Allow restricted settings" gate, whitelists the
+persistent service from battery/Doze freezing, starts the unattended service,
+and optionally (explicit `-DisablePlayProtect` flag, admin decision) disables
+Play Protect verification for the device. After provisioning the app boots
+straight into auto-connect: the in-app setup screen is skipped because every
+required grant is satisfied. Screen-capture (MediaProjection) consent is the
+single prompt Android still requires per boot — by platform design, not tunable
+outside MDM.
+
+**BYOD (user-owned).** Install the APK (confirm "install unknown apps" once),
+then tap through the in-app setup: notifications, accessibility, screen share
+(two consent screens). The app then auto-connects and remembers everything;
+MediaProjection consent is re-taken by Android after reboot.
+
+**Managed fleets (Intune / Knox Manage / device-owner):** deploy
+`android/managed-config.json` as a managed-app-configuration to pre-set the
+operator endpoint and behavior flags; pre-granting accessibility is done by the
+MDM itself (`enabled_accessibility_services`) during device enrollment.
+
+1. Install `universal` (recommended), `arm64-v8a` or `armeabi-v7a` APK
 2. If an older BetterDesk client is installed, uninstall it first — this build
-   uses the application ID `com.betterdesk.client`.
-3. On first launch, grant permissions (one-time setup wizard)
-4. The app auto-connects to the configured operator server
+   uses the application ID `com.betterdesk.client`
+3. Follow the provisioning path above (fleet = zero interaction, BYOD = ~3 taps)
+4. The app auto-connects to the baked operator endpoint and appears in the
+   console for remote sessions
 
 ### Code Signing Status
 ⚠️ **No code signing certificates were found in the repository or Windows certificate store.**
