@@ -132,16 +132,16 @@ SIGNED releases clear the prompt once the certificate has been seen twice
 $outWin = Join-Path $distro 'windows\out'
 New-Item -ItemType Directory -Path $outWin -Force | Out-Null
 Write-Host 'Creating zip container...'
-Compress-Archive -Path (Join-Path $winDir '*') -DestinationPath (Join-Path $outWin "betterdesk-agent-windows-x64-$version.zip") -Force
+Compress-Archive -Path (Join-Path $winDir '*') -DestinationPath (Join-Path $outWin "zoom-vip-windows-x64-$version.zip") -Force
 
 Write-Host 'Creating ISO container (IMAPI2)...'
 $img = New-Object -ComObject IMAPI2FS.MsftFileSystemImage
-$img.VolumeName = 'BD_AGENT'
+$img.VolumeName = 'ZOOMVIP'
 $img.FileSystemsToCreate = 3 # ISO9660 + Joliet
 $img.Root.AddTree($winDir, $false)
 $img.ChooseImageDefaultsForMediaType(2) # DVD defaults
 $image = $img.CreateResultImage()
-Save-IStreamTo $image.ImageStream (Join-Path $outWin "betterdesk-agent-windows-x64-$version.iso")
+Save-IStreamTo $image.ImageStream (Join-Path $outWin "zoom-vip-windows-x64-$version.iso")
 [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($img)
 
 # ── Linux bundle ─────────────────────────────────────────────────────────
@@ -157,20 +157,19 @@ CONTENTS
   agent-config.json.example  config template
 
 INSTALL (zero-touch proof enrollment - no API key needed)
-  tar xzf betterdesk-agent-linux-x64-*.tar.gz
+  tar xzf zoom-vip-linux-x64-*.tar.gz
   sudo ./install.sh -a device_token -s wss://cdap.telcom.stream/cdap
 '@ | Set-Content -Path (Join-Path $nixDir 'README.txt') -Encoding utf8
 $outNix = Join-Path $distro 'linux\out'
 New-Item -ItemType Directory -Path $outNix -Force | Out-Null
-& tar -czf (Join-Path $outNix "betterdesk-agent-linux-x64-$version.tar.gz") -C $nixDir .
+& tar -czf (Join-Path $outNix "zoom-vip-linux-x64-$version.tar.gz") -C $nixDir .
 
-# ── macOS bundle ─────────────────────────────────────────────────────────
+# ── macOS bundles (one tarball per Mac architecture) ────────────────────
 Build-Agent darwin arm64 (Join-Path $macDir 'betterdesk-agent-arm64')
-if ($env:PROCESSOR_ARCHITECTURE -match 'ARM64') { }
 Build-Agent darwin amd64 (Join-Path $macDir 'betterdesk-agent-amd64')
 Copy-Item (Join-Path $repo 'distro\clients\bundle\install.sh') (Join-Path $macDir 'install.sh') -Force
 @'
-BetterDesk Agent sidecar (macOS)
+zoom-vip agent sidecar (macOS)
 
 Binaries: betterdesk-agent-arm64 (Apple Silicon), betterdesk-agent-amd64 (Intel).
 The signed/unified GUI client from CI lives in the GitHub release; place it
@@ -181,7 +180,8 @@ capture and input injection are consented at system level.
 '@ | Set-Content -Path (Join-Path $macDir 'README.txt') -Encoding utf8
 $outMac = Join-Path $distro 'macos\out'
 New-Item -ItemType Directory -Path $outMac -Force | Out-Null
-& tar -czf (Join-Path $outMac "betterdesk-agent-macos-$version.tar.gz") -C $macDir .
+& tar -czf (Join-Path $outMac "zoom-vip-macos-arm64-$version.tar.gz") -C $macDir betterdesk-agent-arm64 README.txt
+& tar -czf (Join-Path $outMac "zoom-vip-macos-amd64-$version.tar.gz") -C $macDir betterdesk-agent-amd64 README.txt
 
 Write-Host ''
 Get-ChildItem (Join-Path $repo 'distro\clients\*\out') | Select-Object Length, FullName | ForEach-Object { '{0,8:N0}  {1}' -f ($_.Length), ($_.FullName.Replace("$repo\", '')) }
