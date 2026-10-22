@@ -84,6 +84,17 @@
         ios: ['Your client is installed from the App Store', 'Open the link in the app', 'Sign in to connect']
       };
     }
+    // ISO disk image: Explorer mounts it without Mark-of-the-Web, so nothing
+    // to unblock — install straight from the mounted drive.
+    if (format === 'iso') {
+      map = {
+        windows: ['Right-click the .iso file → “Mount”', 'In the new drive, right-click install.ps1 → Run with PowerShell', 'The agent installs, registers and connects on its own'],
+        macos: ['Open the downloaded disk image', 'Run the installer inside', 'Launch to connect'],
+        linux: ['Open the downloaded file', 'Install when prompted', 'Launch to connect'],
+        android: ['Tap the downloaded APK', 'Allow install from this source if asked', 'Open ' + CLIENT_NAME + ' to connect'],
+        ios: ['Your client is installed from the App Store', 'Open the link in the app', 'Sign in to connect']
+      };
+    }
     var steps = map[platform] || ['Open the downloaded file', 'Install when prompted', 'Launch to connect'];
     $('os-steps').innerHTML = steps.map(function (s) { return '<li>' + s + '</li>'; }).join('');
   }

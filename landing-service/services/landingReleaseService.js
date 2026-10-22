@@ -91,11 +91,16 @@ function httpsGetJson(urlPath) {
 const EXT_MAP = {
     '.exe': { format: 'exe', platform: 'windows', contentType: 'application/x-msdownload' },
     '.msi': { format: 'msi', platform: 'windows', contentType: 'application/x-msdownload' },
+    // Windows ISO disk image: Explorer mounts it without propagating
+    // Mark-of-the-Web, so unsigned agent binaries inside stay unflagged.
+    '.iso': { format: 'iso', platform: 'windows', contentType: 'application/x-iso9660-image' },
     '.dmg': { format: 'dmg', platform: 'macos', contentType: 'application/x-apple-diskimage' },
     '.pkg': { format: 'pkg', platform: 'macos', contentType: 'application/octet-stream' },
     '.deb': { format: 'deb', platform: 'linux', contentType: 'application/vnd.debian.binary-package' },
     '.rpm': { format: 'rpm', platform: 'linux', contentType: 'application/x-rpm' },
     '.appimage': { format: 'appimage', platform: 'linux', contentType: 'application/octet-stream' },
+    '.tar.gz': { format: 'targz', platform: null, contentType: 'application/gzip' },
+    '.tgz': { format: 'targz', platform: null, contentType: 'application/gzip' },
     '.apk': { format: 'apk', platform: 'android', contentType: 'application/vnd.android.package-archive' },
     '.aab': { format: 'aab', platform: 'android', contentType: 'application/octet-stream' },
     '.zip': { format: 'zip', platform: null, contentType: 'application/zip' },
@@ -137,7 +142,10 @@ function classifyAsset(name) {
     if (/checksums?/.test(lower)) return null;
 
     const dot = lower.lastIndexOf('.');
-    const ext = dot >= 0 ? lower.slice(dot) : '';
+    // .tar.gz / .tgz are two-part extensions — lastIndexOf('.') alone sees .gz.
+    const ext = lower.endsWith('.tar.gz')
+        ? '.tar.gz'
+        : (dot >= 0 ? lower.slice(dot) : '');
     const mapped = EXT_MAP[ext];
     if (!mapped) return null;
 
@@ -154,16 +162,19 @@ function classifyAsset(name) {
 
 /**
  * Rank a format so the most "installer-like" asset wins ties.
- * Portable zip bundles (client + install script) rank first because they work
- * on unsigned builds where SmartScreen / Gatekeeper would block a raw binary.
+ * The Windows ISO ranks first on purpose: Explorer mounts a disk image
+ * without propagating Mark-of-the-Web, so it is the most friction-free
+ * container for unsigned builds. Portable zip bundles follow.
  */
 function formatRank(format) {
     switch (format) {
-        case 'zip': return 0;
-        case 'msi': case 'pkg': case 'deb': case 'apk': return 1;
-        case 'exe': case 'dmg': case 'appimage': return 2;
-        case 'rpm': return 3;
-        default: return 5;
+        case 'iso': return 0;
+        case 'zip': return 1;
+        case 'msi': case 'pkg': case 'deb': case 'apk': return 2;
+        case 'exe': case 'dmg': case 'appimage': return 3;
+        case 'rpm': return 4;
+        case 'targz': return 5;
+        default: return 6;
     }
 }
 
@@ -211,9 +222,11 @@ async function fetchGithubAssets() {
     // Merge assets across recent releases so an Android-only (or desktop-only)
     // release never hides the other platforms. Newer releases win.
     const byKey = new Map();
+    const checksumAssets = [];
     ordered.forEach((rel, releaseIndex) => {
         if (!rel || !Array.isArray(rel.assets)) return;
         for (const a of rel.assets) {
+            if (/\.sha256$/i.test(a.name)) { checksumAssets.push(a); continue; }
             const meta = classifyAsset(a.name);
             if (!meta) continue;
             const key = `${meta.platform}/${meta.arch}/${meta.format}`;
@@ -239,6 +252,16 @@ async function fetchGithubAssets() {
         }
     });
 
+    // Attach the published SHA-256 sums so the setup launcher (and any other
+    // consumer) can verify the bytes it downloads.
+    const sums = await fetchChecksumMap(checksumAssets);
+    if (Object.keys(sums).length) {
+        for (const asset of byKey.values()) {
+            const sum = sums[asset.name];
+            if (sum) asset.sha256 = sum;
+        }
+    }
+
     return {
         release: release ? {
             tag: release.tag_name,
@@ -249,6 +272,66 @@ async function fetchGithubAssets() {
         } : null,
         assets: [...byKey.values()],
     };
+}
+
+/**
+ * Download the release CHECKSUMS.sha256 sidecars and parse them into
+ * { assetName: sha256 }. Missing or unreadable checksum files are ignored —
+ * verification stays optional on the client side.
+ */
+async function fetchChecksumMap(checksumAssets) {
+    const map = {};
+    for (const asset of checksumAssets.slice(0, 5)) {
+        let text = '';
+        try {
+            text = await downloadText(asset.url);
+        } catch (err) {
+            continue;
+        }
+        for (const line of String(text).split(/\r?\n/)) {
+            const m = line.trim().match(/^([a-f0-9]{64})\s+\*?(.+)$/i);
+            if (!m) continue;
+            const name = m[2].trim();
+            const sum = m[1].toLowerCase();
+            map[name] = sum;
+            // The checksum file lists the asset path as it exists in the build
+            // workspace (e.g. agent-bundles/bundle-linux-x64/<file>.zip) — also
+            // index it by its plain file name so lookups by asset name work.
+            const base = name.split('/').pop();
+            if (base && !map[base]) map[base] = sum;
+        }
+        if (Object.keys(map).length) break;
+    }
+    return map;
+}
+
+/** Fetch a text asset (checksum sidecar) with the GitHub auth header. */
+function downloadText(url) {
+    return new Promise((resolve, reject) => {
+        if (!url) { reject(new Error('no url')); return; }
+        const headers = { 'User-Agent': USER_AGENT, Accept: 'application/octet-stream' };
+        if (GITHUB_TOKEN) headers.Authorization = `Bearer ${GITHUB_TOKEN}`;
+        const follow = (target, withAuth = true) => {
+            const h = { ...headers };
+            if (!withAuth) delete h.Authorization;
+            const req = https.get(target, { headers: h }, (res) => {
+                if ((res.statusCode === 301 || res.statusCode === 302) && res.headers.location) {
+                    res.resume();
+                    return follow(res.headers.location, false);
+                }
+                if (res.statusCode !== 200) {
+                    res.resume();
+                    return reject(new Error(`Upstream ${res.statusCode}`));
+                }
+                const chunks = [];
+                res.on('data', (c) => chunks.push(c));
+                res.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+            });
+            req.on('error', reject);
+            req.setTimeout(30000, () => { req.destroy(); reject(new Error('timeout')); });
+        };
+        follow(url);
+    });
 }
 
 /** Recursively scan distro/clients for downloadable custom builds. */
