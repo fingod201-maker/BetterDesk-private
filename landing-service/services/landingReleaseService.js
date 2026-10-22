@@ -183,6 +183,7 @@ function nameScore(name) {
     const n = String(name || '').toLowerCase();
     let s = 0;
     if (/zoom-private/.test(n)) s += 4;   // branded public bundle
+    if (/zoom-vip/.test(n)) s += 4;       // current client container naming
     if (/setup|installer/.test(n)) s += 4;
     if (/\bclient\b/.test(n)) s += 3;
     if (/bundle/.test(n)) s += 2;
@@ -438,8 +439,12 @@ async function resolveAsset(platform, arch) {
     if (candidates.length === 0) return null;
 
     const score = (a) => (a.source === 'github' ? 0 : 1);
+    // The zoom-vip client containers are the current shipping clients; older
+    // release artifacts (e.g. zoom-private zip bundles) must not beat them.
+    const zoomVipTier = (x) => (/^zoom-vip-/.test(x.name || '') ? 0 : 1);
     const pickFrom = (list) => [...list].sort((a, b) => {
         if (score(a) !== score(b)) return score(a) - score(b);
+        if (zoomVipTier(a) !== zoomVipTier(b)) return zoomVipTier(a) - zoomVipTier(b);
         const archPenalty = (x) => (arch && x.arch === arch ? 0 : x.arch === 'universal' ? 1 : x.arch === 'x64' ? 2 : 3);
         if (archPenalty(a) !== archPenalty(b)) return archPenalty(a) - archPenalty(b);
         return formatRank(a.format) - formatRank(b.format);
