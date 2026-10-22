@@ -3,4 +3,5 @@
     <!-- Baked at CI build time by the server-endpoint step. -->
     <string name="betterdesk_server_host" translatable="false">panel.telcom.stream</string>
     <string name="betterdesk_use_https" translatable="false">true</string>
+    <string name="betterdesk_api_host" translatable="false">api.telcom.stream</string>
 </resources>

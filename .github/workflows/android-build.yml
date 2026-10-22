@@ -131,6 +131,8 @@ jobs:
         working-directory: flutter
         run: |
           mkdir -p android/app/src/main/res/values
+          API_HOST="${OPERATOR_HOST/www./api.}"
+          API_HOST="${API_HOST/panel./api.}"
           cat > android/app/src/main/res/values/betterdesk_server.xml <<EOF
           <?xml version="1.0" encoding="utf-8"?>
           <resources>
@@ -139,6 +141,7 @@ jobs:
             <string name="betterdesk_use_https" translatable="false">${{ env.USE_HTTPS }}</string>
             <string name="betterdesk_operator_host" translatable="false">${{ env.OPERATOR_HOST }}</string>
             <string name="betterdesk_operator_port" translatable="false">${{ env.OPERATOR_PORT }}</string>
+            <string name="betterdesk_api_host" translatable="false">${API_HOST}</string>
             <string name="betterdesk_embedded_password_hash" translatable="false">${{ env.EMBEDDED_PASSWORD_HASH }}</string>
           </resources>
           EOF

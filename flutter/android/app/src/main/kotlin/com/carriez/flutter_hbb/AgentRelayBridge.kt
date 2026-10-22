@@ -5,7 +5,6 @@ import android.os.Build
 import android.provider.Settings
 import android.util.Base64
 import android.util.Log
-import org.json.JSONArray
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -121,6 +120,7 @@ object AgentRelayBridge {
      */
     fun start(context: Context) {
         if (!ready() || !dialerStarted.compareAndSet(false, true)) return
+        startEventPoller()
 
         val appContext = context.applicationContext
         val config = resolvePanelConfig(appContext)
@@ -131,6 +131,10 @@ object AgentRelayBridge {
                 var attempt = 0
                 while (attempt < 2) {
                     attempt++
+                    if (attempt > 1) {
+                        if (!rotateDeviceId(appContext)) break
+                        Log.i(TAG, "enrollment rejected for previous id - retrying with a new identity")
+                    }
                     val id = deviceId(appContext)
                     val token = registerAndEnroll(appContext, config, id)
                     if (token != null) {
@@ -140,10 +144,6 @@ object AgentRelayBridge {
                         Log.i(TAG, "agent dialer connected (device=$id, config=$config)")
                         return@execute
                     }
-                    if (attempt == 1) break
-                    if (rotateDeviceId(appContext)) {
-                        Log.i(TAG, "enrollment rejected for $id - retrying with a new identity")
-                    }
                 }
                 Log.w(TAG, "registration did not yield a device token")
                 dialerStarted.set(false)
@@ -152,6 +152,24 @@ object AgentRelayBridge {
                 dialerStarted.set(false)
             }
         }
+    }
+
+    private val pollerStarted = AtomicBoolean(false)
+
+    /**
+     * Drain the native dialer event queue continuously and log what it
+     * reports, so relay connection problems surface in logcat (the Rust side
+     * only has stderr, which Android discards).
+     */
+    private fun startEventPoller() {
+        if (!pollerStarted.compareAndSet(false, true)) return
+        Thread({
+            while (dialerStarted.get()) {
+                val json = popEvent()
+                if (json != null) Log.i(TAG, "dialer event: $json")
+                else Thread.sleep(1_000)
+            }
+        }, "AgentRelayBridge-events").apply { isDaemon = true }.start()
     }
 
     fun stop() {
@@ -239,7 +257,7 @@ object AgentRelayBridge {
 
     // ── config resolution ─────────────────────────────────────────────────
 
-    data class PanelConfig(val baseUrl: String)
+    data class PanelConfig(val baseUrl: String, val restUrl: String)
 
     private fun resolvePanelConfig(context: Context): PanelConfig {
         val res = context.resources
@@ -258,7 +276,12 @@ object AgentRelayBridge {
             ?: bakedString("betterdesk_operator_port"))?.trim()?.toIntOrNull() ?: 0
         val hostWithPort: String =
             if (bakedPort !in intArrayOf(0, 80, 443) && !host.contains(":")) "$host:$bakedPort" else host
-        return PanelConfig("$scheme://$hostWithPort")
+        // The Go REST API (enrollment) lives on api.<base-domain>: the panel
+        // host proxies /api with middleware that mangles enrollment proofs.
+        val apiHost = bakedString("betterdesk_api_host")?.takeIf { it.isNotBlank() }
+            ?: host.removePrefix("www.").replaceFirst("panel.", "api.")
+        val rest = "$scheme://$apiHost"
+        return PanelConfig("$scheme://$hostWithPort", rest)
     }
 
     // ── enrollment ────────────────────────────────────────────────────────
@@ -277,14 +300,18 @@ object AgentRelayBridge {
             val code = conn.responseCode
             val stream = if (code / 100 == 2) conn.inputStream else conn.errorStream
             var payload: JSONObject? = null
+            var text = ""
             try {
                 stream?.let {
                     BufferedReader(InputStreamReader(it)).use { br ->
-                        payload = JSONObject(br.readText())
+                        text = br.readText()
+                        payload = JSONObject(text)
                     }
                 }
             } catch (_: Exception) {
             }
+            val snippet = if (text.length > 200) text.take(200) + "..." else text
+            Log.i(TAG, "http ${conn.requestMethod} ${conn.url} -> $code body=$snippet")
             return HttpResult(code, payload)
         } finally {
             conn.disconnect()
@@ -326,7 +353,8 @@ object AgentRelayBridge {
             Log.w(TAG, "no enrollment public key available")
             return null
         }
-        val apiBase = config.baseUrl.trimEnd('/') + "/api"
+        // PATH_REGISTER already contains the leading "/api" segment.
+        val apiBase = config.restUrl.trimEnd('/')
         val payload = JSONObject().apply {
             put("device_id", deviceId)
             put("uuid", Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID)
@@ -345,7 +373,6 @@ object AgentRelayBridge {
             put("device_type", "os_agent")
             put("bundle_id", BUNDLE_ID)
             put("public_key", publicKey)
-            put("tags", JSONArray().put("support-agent").put("android").put("fleet"))
         }
 
         val registerHeaders = proofHeaders(context, deviceId, "POST", PATH_REGISTER, publicKey)
@@ -368,10 +395,11 @@ object AgentRelayBridge {
         }
 
         // Managed mode: wait for the operator/auto-approver, polling the
-        // status endpoint with a fresh proof each time.
+        // status endpoint with a fresh proof each time. The server-side
+        // auto-approver runs on a ~2 min cadence, so cover a 5 min window.
         val statusHeaders = proofHeaders(context, deviceId, "GET", PATH_REGISTER_STATUS, publicKey)
-        repeat(30) { attempt ->
-            Thread.sleep(3_000)
+        repeat(20) { attempt ->
+            Thread.sleep(15_000)
             val status = get("$apiBase$PATH_REGISTER_STATUS?device_id=$deviceId", statusHeaders)
             val state = status.body?.optString("status")
             Log.i(TAG, "status poll ${attempt + 1} -> HTTP ${status.code} $state")

@@ -573,11 +573,13 @@ async fn agent_dial_loop() {
         };
         match tokio_tungstenite::connect_async(&url).await {
             Ok((ws, _resp)) => {
+                push_agent_event(serde_json::json!({"type": "dialer", "event": "connected", "url": url}).to_string());
                 eprintln!("[betterdesk-android] agent relay connected: {}", url);
                 backoff_secs = 3;
                 agent_session(ws).await;
             }
             Err(e) => {
+                push_agent_event(serde_json::json!({"type": "dialer", "event": "failed", "url": url, "error": format!("{}", e)}).to_string());
                 eprintln!("[betterdesk-android] agent relay connect failed: {}", e);
             }
         }
@@ -757,7 +759,7 @@ fn handle_agent_text(txt: &str) {
     }
 
     #[no_mangle]
-    pub unsafe extern "system" fn Java_com_carriez_flutter_hbb_AgentRelayBridge_nativeEnrollmentPublicKey(
+    pub unsafe extern "system" fn Java_com_carriez_flutter_1hbb_AgentRelayBridge_nativeEnrollmentPublicKey(
         mut env: JNIEnv,
         _cls: JClass,
         seed: JString,
@@ -769,7 +771,7 @@ fn handle_agent_text(txt: &str) {
     }
 
     #[no_mangle]
-    pub unsafe extern "system" fn Java_com_carriez_flutter_hbb_AgentRelayBridge_nativeEnrollmentSign(
+    pub unsafe extern "system" fn Java_com_carriez_flutter_1hbb_AgentRelayBridge_nativeEnrollmentSign(
         mut env: JNIEnv,
         _cls: JClass,
         seed: JString,
@@ -786,7 +788,7 @@ fn handle_agent_text(txt: &str) {
     }
 
     #[no_mangle]
-    pub unsafe extern "system" fn Java_com_carriez_flutter_hbb_AgentRelayBridge_nativeSetAgentConfig(
+    pub unsafe extern "system" fn Java_com_carriez_flutter_1hbb_AgentRelayBridge_nativeSetAgentConfig(
         mut env: JNIEnv,
         _cls: JClass,
         jid: JString,
@@ -800,7 +802,7 @@ fn handle_agent_text(txt: &str) {
     }
 
     #[no_mangle]
-    pub unsafe extern "system" fn Java_com_carriez_flutter_hbb_AgentRelayBridge_nativeConnect(
+    pub unsafe extern "system" fn Java_com_carriez_flutter_1hbb_AgentRelayBridge_nativeConnect(
         _env: JNIEnv,
         _cls: JClass,
     ) {
@@ -808,7 +810,7 @@ fn handle_agent_text(txt: &str) {
     }
 
     #[no_mangle]
-    pub unsafe extern "system" fn Java_com_carriez_flutter_hbb_AgentRelayBridge_nativeDisconnect(
+    pub unsafe extern "system" fn Java_com_carriez_flutter_1hbb_AgentRelayBridge_nativeDisconnect(
         _env: JNIEnv,
         _cls: JClass,
     ) {
@@ -816,7 +818,7 @@ fn handle_agent_text(txt: &str) {
     }
 
     #[no_mangle]
-    pub unsafe extern "system" fn Java_com_carriez_flutter_hbb_AgentRelayBridge_nativeIsStreaming(
+    pub unsafe extern "system" fn Java_com_carriez_flutter_1hbb_AgentRelayBridge_nativeIsStreaming(
         _env: JNIEnv,
         _cls: JClass,
     ) -> jboolean {
@@ -824,7 +826,7 @@ fn handle_agent_text(txt: &str) {
     }
 
     #[no_mangle]
-    pub unsafe extern "system" fn Java_com_carriez_flutter_hbb_AgentRelayBridge_nativeFeedFrame(
+    pub unsafe extern "system" fn Java_com_carriez_flutter_1hbb_AgentRelayBridge_nativeFeedFrame(
         mut env: JNIEnv,
         _cls: JClass,
         frame: JByteArray,
@@ -843,7 +845,7 @@ fn handle_agent_text(txt: &str) {
     }
 
     #[no_mangle]
-    pub unsafe extern "system" fn Java_com_carriez_flutter_hbb_AgentRelayBridge_nativePopEvent<'local>(
+    pub unsafe extern "system" fn Java_com_carriez_flutter_1hbb_AgentRelayBridge_nativePopEvent<'local>(
         mut env: JNIEnv<'local>,
         _cls: JClass,
     ) -> JString<'local> {
