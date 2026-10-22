@@ -282,8 +282,8 @@ UNIT_EOF
 
         # Firewall
         if command -v ufw >/dev/null 2>&1; then
-            ufw allow in on any to any port 21122 proto tcp comment "BetterDesk CDAP" 2>/dev/null || true
-            ufw allow in on any to any port 21114 proto tcp comment "BetterDesk API" 2>/dev/null || true
+            ufw allow 21122/tcp comment "BetterDesk CDAP" 2>/dev/null || true
+            ufw allow 21114/tcp comment "BetterDesk API" 2>/dev/null || true
         elif command -v firewall-cmd >/dev/null 2>&1; then
             firewall-cmd --permanent --add-port=21122/tcp --add-port=21114/tcp 2>/dev/null || true
             firewall-cmd --reload 2>/dev/null || true

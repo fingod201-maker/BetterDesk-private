@@ -2,7 +2,8 @@
 # BetterDesk Agent — Linux installer (systemd)
 # Usage: sudo ./install.sh [OPTIONS]
 #   -s URL        Gateway WebSocket URL
-#   -k KEY        API key
+#   -a METHOD     auth method (api_key | device_token; default api_key)
+#   -k KEY        API key (api_key auth only)
 #   -n NAME       Device name
 #   -d DIR        Install directory (default: /opt/betterdesk-agent)
 #   -u            Uninstall
@@ -13,23 +14,26 @@ SERVICE_NAME="betterdesk-agent"
 USER_NAME="betterdesk-agent"
 CONFIG_FILE=""
 SERVER_URL=""
+AUTH_METHOD="api_key"
 API_KEY=""
 DEVICE_NAME=""
 UNINSTALL=false
 
 usage() {
-    echo "Usage: sudo $0 [-s URL] [-k KEY] [-n NAME] [-d DIR] [-u]"
+    echo "Usage: sudo $0 [-s URL] [-a api_key|device_token] [-k KEY] [-n NAME] [-d DIR] [-u]"
     echo "  -s URL   Gateway WebSocket URL (ws://host:21122/cdap)"
-    echo "  -k KEY   API key for authentication"
+    echo "  -a METH  Auth method: api_key (default) or device_token (zero-touch proof enrollment)"
+    echo "  -k KEY   API key for authentication (api_key auth only)"
     echo "  -n NAME  Device name (default: hostname)"
     echo "  -d DIR   Install directory (default: /opt/betterdesk-agent)"
     echo "  -u       Uninstall"
     exit 1
 }
 
-while getopts "s:k:n:d:uh" opt; do
+while getopts "s:a:k:n:d:uh" opt; do
     case $opt in
         s) SERVER_URL="$OPTARG" ;;
+        a) AUTH_METHOD="$OPTARG" ;;
         k) API_KEY="$OPTARG" ;;
         n) DEVICE_NAME="$OPTARG" ;;
         d) INSTALL_DIR="$OPTARG" ;;
@@ -96,7 +100,7 @@ if [ ! -f "$CONFIG_FILE" ]; then
     if [ -z "$SERVER_URL" ]; then
         read -rp "Gateway WebSocket URL (ws://host:21122/cdap): " SERVER_URL
     fi
-    if [ -z "$API_KEY" ]; then
+    if [ "$AUTH_METHOD" = "api_key" ] && [ -z "$API_KEY" ]; then
         read -rp "API Key: " API_KEY
     fi
     if [ -z "$DEVICE_NAME" ]; then
@@ -106,8 +110,7 @@ if [ ! -f "$CONFIG_FILE" ]; then
     cat > "$CONFIG_FILE" <<JSONEOF
 {
   "server": "${SERVER_URL}",
-  "auth_method": "api_key",
-  "api_key": "${API_KEY}",
+  "auth_method": "${AUTH_METHOD}",
   "device_name": "${DEVICE_NAME}",
   "device_type": "os_agent",
   "terminal": true,
@@ -151,7 +154,9 @@ SyslogIdentifier=${SERVICE_NAME}
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=${INSTALL_DIR}/data
+# The agent stores config.json (device token after zero-touch enrollment) and
+# log data inside INSTALL_DIR; only that path is writable.
+ReadWritePaths=${INSTALL_DIR}
 PrivateTmp=true
 
 [Install]

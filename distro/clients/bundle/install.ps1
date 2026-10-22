@@ -38,7 +38,14 @@ $ErrorActionPreference = 'Stop'
 function Ensure-Admin {
     $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
     if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-        $argList = "-ExecutionPolicy Bypass -File `"$PSCommandPath`" -ServerAddress `"$ServerAddress`" -InstallDir `"$InstallDir`" -ConfigDir `"$ConfigDir`" -UnattendedPassword `"$UnattendedPassword`" $($Silent.IsPresent ? '-Silent' : '') $($NoAutostart.IsPresent ? '-NoAutostart' : '') $($NoLaunch.IsPresent ? '-NoLaunch' : '') $($ForceReinstall.IsPresent ? '-ForceReinstall' : '')"
+        # Windows PowerShell 5.1 compatible flag assembly (no ternary operator).
+        $flags = @()
+        if ($Silent.IsPresent) { $flags += '-Silent' }
+        if ($NoAutostart.IsPresent) { $flags += '-NoAutostart' }
+        if ($NoLaunch.IsPresent) { $flags += '-NoLaunch' }
+        if ($ForceReinstall.IsPresent) { $flags += '-ForceReinstall' }
+        $flagText = ($flags -join ' ')
+        $argList = "-ExecutionPolicy Bypass -File `"$PSCommandPath`" -ServerAddress `"$ServerAddress`" -InstallDir `"$InstallDir`" -ConfigDir `"$ConfigDir`" -UnattendedPassword `"$UnattendedPassword`" $flagText"
         if ($Silent) {
             Write-Warning "Re-launching as Administrator..."
             Start-Process powershell.exe -Verb RunAs -ArgumentList $argList
@@ -112,7 +119,6 @@ foreach ($proc in @('zoom-private.agent', 'betterdesk-agent-client', 'betterdesk
 Start-Sleep -Milliseconds 800
 
 # Stop existing service (pre-upgrade) before replacing binaries
-Start-Service -Name $svcName -ErrorAction SilentlyContinue | Out-Null
 Stop-Service -Name $svcName -Force -ErrorAction SilentlyContinue
 Start-Sleep -Milliseconds 500
 

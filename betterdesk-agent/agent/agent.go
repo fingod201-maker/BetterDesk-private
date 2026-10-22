@@ -245,53 +245,75 @@ func (a *Agent) authenticate() error {
 		return err
 	}
 
-	payload := map[string]string{
-		"method":         a.cfg.AuthMethod,
-		"device_id":      a.cfg.DeviceID,
-		"client_version": a.version,
-	}
-	switch a.cfg.AuthMethod {
-	case "api_key":
-		payload["key"] = a.cfg.APIKey
-	case "device_token":
-		payload["token"] = a.cfg.DeviceToken
-	case "user_password":
-		payload["username"] = a.cfg.Username
-		payload["password"] = a.cfg.Password
-	}
-
-	if err := a.sendMessage("auth", payload); err != nil {
-		return err
-	}
-
-	msg, err := a.readMessage()
-	if err != nil {
-		return err
-	}
-	if msg.Type != "auth_result" {
-		return fmt.Errorf("expected auth_result, got %s", msg.Type)
+	buildPayload := func() map[string]string {
+		payload := map[string]string{
+			"method":         a.cfg.AuthMethod,
+			"device_id":      a.cfg.DeviceID,
+			"client_version": a.version,
+		}
+		switch a.cfg.AuthMethod {
+		case "api_key":
+			payload["key"] = a.cfg.APIKey
+		case "device_token":
+			payload["token"] = a.cfg.DeviceToken
+		case "user_password":
+			payload["username"] = a.cfg.Username
+			payload["password"] = a.cfg.Password
+		}
+		return payload
 	}
 
-	var result struct {
-		Success     bool   `json:"success"`
-		Token       string `json:"token"`
-		Role        string `json:"role"`
-		DeviceID    string `json:"device_id"`
-		SessionTok  string `json:"session_token"`
-		Requires2FA bool   `json:"requires_2fa"`
-		Error       string `json:"error"`
-	}
-	if err := json.Unmarshal(msg.Payload, &result); err != nil {
-		return fmt.Errorf("parse auth_result: %w", err)
-	}
-	if !result.Success {
+	// A stored device_token can outlive the enrollment it belongs to (device
+	// deleted on the panel, id rotated for another machine). One re-enroll
+	// attempt with a fresh identity recovers automatically.
+	for pass := 0; pass < 2; pass++ {
+		if err := a.sendMessage("auth", buildPayload()); err != nil {
+			return err
+		}
+
+		msg, err := a.readMessage()
+		if err != nil {
+			return err
+		}
+		if msg.Type != "auth_result" {
+			return fmt.Errorf("expected auth_result, got %s", msg.Type)
+		}
+
+		var result struct {
+			Success     bool   `json:"success"`
+			Token       string `json:"token"`
+			Role        string `json:"role"`
+			DeviceID    string `json:"device_id"`
+			SessionTok  string `json:"session_token"`
+			Requires2FA bool   `json:"requires_2fa"`
+			Error       string `json:"error"`
+		}
+		if err := json.Unmarshal(msg.Payload, &result); err != nil {
+			return fmt.Errorf("parse auth_result: %w", err)
+		}
+		if result.Success {
+			a.token = result.Token
+			a.deviceID = result.DeviceID
+			a.role = result.Role
+			a.sessionID = result.SessionTok
+			return nil
+		}
+
+		if pass == 0 && a.cfg.AuthMethod == "device_token" && a.cfg.DeviceToken != "" {
+			log.Printf("[agent] device_token rejected (%s) - re-enrolling with a fresh identity", result.Error)
+			a.cfg.DeviceToken = ""
+			a.cfg.DeviceID = ""
+			if err := a.saveConfig(); err != nil {
+				log.Printf("[agent] Warning: failed to clear stale credentials: %v", err)
+			}
+			if err := a.ensureEnrolled(); err != nil {
+				return fmt.Errorf("re-enrollment after token rejection: %w", err)
+			}
+			continue
+		}
 		return fmt.Errorf("auth rejected: %s", result.Error)
 	}
-	a.token = result.Token
-	a.deviceID = result.DeviceID
-	a.role = result.Role
-	a.sessionID = result.SessionTok
-	return nil
+	return fmt.Errorf("auth rejected after re-enrollment")
 }
 
 // ensureEnrolled performs proof-signed enrollment via REST API if the agent

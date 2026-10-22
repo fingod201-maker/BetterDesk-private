@@ -6,6 +6,8 @@ param(
     [string]$Server,
     [string]$Key,
     [string]$Name,
+    [ValidateSet("api_key", "device_token", "user_password")]
+    [string]$AuthMethod = "api_key",
     [string]$InstallDir = "$env:ProgramFiles\BetterDesk\Agent",
     [switch]$Uninstall
 )
@@ -73,7 +75,7 @@ if (-not (Test-Path $ConfigFile)) {
     if (-not $Server) {
         $Server = Read-Host "Gateway WebSocket URL (ws://host:21122/cdap)"
     }
-    if (-not $Key) {
+    if ($AuthMethod -eq "api_key" -and -not $Key) {
         $Key = Read-Host "API Key"
     }
     if (-not $Name) {
@@ -81,8 +83,7 @@ if (-not (Test-Path $ConfigFile)) {
     }
     $config = @{
         server       = $Server
-        auth_method  = "api_key"
-        api_key      = $Key
+        auth_method  = $AuthMethod
         device_name  = $Name
         device_type  = "os_agent"
         terminal     = $true
@@ -95,6 +96,9 @@ if (-not (Test-Path $ConfigFile)) {
         max_reconnect = 300
         log_level    = "info"
         data_dir     = "$InstallDir\data"
+    }
+    if ($AuthMethod -eq "api_key") {
+        $config.api_key = $Key
     }
     $config | ConvertTo-Json -Depth 5 | Set-Content -Path $ConfigFile -Encoding UTF8
     Write-Host "Config created: $ConfigFile"

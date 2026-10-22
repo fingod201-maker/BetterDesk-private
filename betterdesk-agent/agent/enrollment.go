@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/base32"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -39,6 +40,7 @@ type EnrollmentResponse struct {
 	DeviceID     string `json:"device_id"`
 	DeviceToken  string `json:"device_token"`
 	Message      string `json:"message"`
+	Error        string `json:"error"`
 	PollInterval int    `json:"poll_interval"` // seconds
 }
 
@@ -123,8 +125,23 @@ func enrollmentProofHeaders(method, path, deviceID, pubKeyB64 string, priv ed255
 	}, nil
 }
 
+// generateDeviceID returns a fresh random identity in the same shape as the
+// panel-issued BD- ids (BD- + 13 uppercase base32 chars = 8 random bytes).
+func generateDeviceID() string {
+	raw := make([]byte, 8)
+	if _, err := io.ReadFull(rand.Reader, raw); err != nil {
+		// Extremely unlikely; fall back to timestamp-derived uniqueness.
+		var seed [8]byte
+		binary.BigEndian.PutUint64(seed[:], uint64(time.Now().UnixNano()))
+		return "BD-" + base32EncodeUpper(seed[:])
+	}
+	return "BD-" + base32EncodeUpper(raw)
+}
+
 // enrollWithProof performs proof-signed enrollment via REST API.
-// Returns device_token on success (status "approved").
+// Returns device_token on success (status "approved"). If the server reports
+// that the device id already belongs to another machine, a random identity is
+// generated (and persistently stored) before the single retry.
 func (a *Agent) enrollWithProof() (string, string, error) {
 	priv, err := a.loadOrCreateEnrollmentKey()
 	if err != nil {
@@ -133,35 +150,24 @@ func (a *Agent) enrollWithProof() (string, string, error) {
 	pub := priv.Public().(ed25519.PublicKey)
 	pubB64 := base64.StdEncoding.EncodeToString(pub)
 
-	// Build device identity
 	hostname, _ := os.Hostname()
 	deviceUID := hostname // fallback
-	// Deterministic device ID
-	h := sha256.Sum256([]byte(deviceUID + "|" + hostname + "|" + a.version))
-	deviceID := "BD-" + base32EncodeUpper(h[:8])
+	if uid, err := machineUID(); err == nil && uid != "" {
+		deviceUID = uid
+	} else {
+		log.Printf("[enroll] machine uid unavailable (%v), falling back to hostname", err)
+	}
 
-	// Use configured device_id if set, otherwise use generated
-	if a.cfg.DeviceID != "" {
-		deviceID = a.cfg.DeviceID
+	// Deterministic device id: unique per machine because of the machine uid.
+	// One retry, with a fresh random identity, survives hostname collisions
+	// and pre-registered ids (e.g. golden-image clones).
+	deviceID := a.cfg.DeviceID
+	if deviceID == "" {
+		h := sha256.Sum256([]byte(deviceUID + "|" + hostname + "|" + a.version))
+		deviceID = "BD-" + base32EncodeUpper(h[:8])
 	}
 
 	bundleID := "com.betterdesk.agent"
-
-	req := EnrollmentRequest{
-		DeviceID:   deviceID,
-		UUID:       deviceUID,
-		BundleID:   bundleID,
-		PublicKey:  pubB64,
-		DeviceType: "os_agent",
-		Hostname:   hostname,
-		Version:    a.version,
-		Platform:   runtime.GOOS + " " + runtime.GOARCH,
-	}
-
-	body, err := json.Marshal(req)
-	if err != nil {
-		return "", "", err
-	}
 
 	// Enrollment REST API base URL: https://api.telcom.stream (no path)
 	// The CDAP URL is wss://cdap.telcom.stream/cdap -> REST API is https://api.telcom.stream
@@ -188,87 +194,132 @@ func (a *Agent) enrollWithProof() (string, string, error) {
 	// Ensure no trailing slash
 	serverAddr = strings.TrimRight(serverAddr, "/")
 
-	fullURL := serverAddr + "/api/devices/register"
-	log.Printf("[enroll] POST %s", fullURL)
-	headers, err := enrollmentProofHeaders("POST", "/api/devices/register", deviceID, pubB64, priv)
-	if err != nil {
-		return "", "", err
-	}
-
 	client := &http.Client{Timeout: 15 * time.Second}
-	httpReq, err := http.NewRequest("POST", fullURL, bytes.NewReader(body))
-	if err != nil {
-		return "", "", err
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-	for k, v := range headers {
-		httpReq.Header.Set(k, v)
-	}
 
-	resp, err := client.Do(httpReq)
-	if err != nil {
-		return "", "", err
-	}
-	defer resp.Body.Close()
-
-	respBody, _ := io.ReadAll(resp.Body)
-
-	var enroll EnrollmentResponse
-	if err := json.Unmarshal(respBody, &enroll); err != nil {
-		return "", "", fmt.Errorf("invalid enrollment response: %w (body: %s)", err, string(respBody))
-	}
-
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
-		return "", "", fmt.Errorf("enrollment failed (%d): %s", resp.StatusCode, string(respBody))
-	}
-
-	if enroll.Status == "approved" {
-		return enroll.DeviceToken, enroll.DeviceID, nil
-	}
-
-	// Managed mode: poll status with proof
-	pollURL := serverAddr + "/api/devices/register/status?device_id=" + deviceID
-	interval := enroll.PollInterval
-	if interval <= 0 {
-		interval = 5
-	}
-
-	for {
-		select {
-		case <-a.ctx.Done():
-			return "", "", a.ctx.Err()
-		case <-time.After(time.Duration(interval) * time.Second):
+	for attempt := 1; attempt <= 2; attempt++ {
+		req := EnrollmentRequest{
+			DeviceID:   deviceID,
+			UUID:       deviceUID,
+			BundleID:   bundleID,
+			PublicKey:  pubB64,
+			DeviceType: "os_agent",
+			Hostname:   hostname,
+			Version:    a.version,
+			Platform:   runtime.GOOS + " " + runtime.GOARCH,
 		}
 
-		statusHeaders, err := enrollmentProofHeaders("GET", "/api/devices/register/status?device_id="+deviceID, deviceID, pubB64, priv)
+		body, err := json.Marshal(req)
 		if err != nil {
 			return "", "", err
 		}
 
-		statusReq, _ := http.NewRequest("GET", pollURL, nil)
-		for k, v := range statusHeaders {
-			statusReq.Header.Set(k, v)
-		}
-
-		statusResp, err := client.Do(statusReq)
+		fullURL := serverAddr + "/api/devices/register"
+		log.Printf("[enroll] POST %s", fullURL)
+		headers, err := enrollmentProofHeaders("POST", "/api/devices/register", deviceID, pubB64, priv)
 		if err != nil {
-			log.Printf("[enroll] status poll failed: %v", err)
-			continue
-		}
-		statusBody, _ := io.ReadAll(statusResp.Body)
-		statusResp.Body.Close()
-
-		var status StatusResponse
-		if err := json.Unmarshal(statusBody, &status); err != nil {
-			continue
+			return "", "", err
 		}
 
-		if status.Status == "approved" {
-			return status.DeviceToken, status.DeviceID, nil
+		httpReq, err := http.NewRequest("POST", fullURL, bytes.NewReader(body))
+		if err != nil {
+			return "", "", err
 		}
-		if status.Status == "rejected" {
-			return "", "", fmt.Errorf("enrollment rejected: %s", status.Message)
+		httpReq.Header.Set("Content-Type", "application/json")
+		for k, v := range headers {
+			httpReq.Header.Set(k, v)
 		}
-		// pending -> continue polling
+
+		resp, err := client.Do(httpReq)
+		if err != nil {
+			return "", "", err
+		}
+		respBody, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+
+		var enroll EnrollmentResponse
+		if err := json.Unmarshal(respBody, &enroll); err != nil {
+			return "", "", fmt.Errorf("invalid enrollment response: %w (body: %s)", err, string(respBody))
+		}
+
+		if resp.StatusCode == http.StatusConflict || (enroll.Error != "" && strings.Contains(strings.ToLower(enroll.Error), "identity_conflict")) || strings.Contains(strings.ToLower(string(respBody)), "identity_conflict") {
+			if attempt < 2 {
+				deviceID = generateDeviceID()
+				a.cfg.DeviceID = deviceID
+				log.Printf("[enroll] device id already registered to another machine - rotating to %s", deviceID)
+				if err := a.saveConfig(); err != nil {
+					log.Printf("[enroll] Warning: failed to save rotated device id: %v", err)
+				}
+				continue
+			}
+			return "", "", fmt.Errorf("enrollment failed (%d): %s", resp.StatusCode, string(respBody))
+		}
+
+		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
+			return "", "", fmt.Errorf("enrollment failed (%d): %s", resp.StatusCode, string(respBody))
+		}
+
+		if enroll.Status == "approved" {
+			// Persist the final id (poll responses may approve under another id).
+			if enroll.DeviceID != "" && enroll.DeviceID != a.cfg.DeviceID {
+				a.cfg.DeviceID = enroll.DeviceID
+				if err := a.saveConfig(); err != nil {
+					log.Printf("[enroll] Warning: failed to save device id: %v", err)
+				}
+			}
+			return enroll.DeviceToken, enroll.DeviceID, nil
+		}
+
+		// Managed mode: poll status with proof
+		pollURL := serverAddr + "/api/devices/register/status?device_id=" + deviceID
+		interval := enroll.PollInterval
+		if interval <= 0 {
+			interval = 5
+		}
+
+		for {
+			select {
+			case <-a.ctx.Done():
+				return "", "", a.ctx.Err()
+			case <-time.After(time.Duration(interval) * time.Second):
+			}
+
+			statusHeaders, err := enrollmentProofHeaders("GET", "/api/devices/register/status?device_id="+deviceID, deviceID, pubB64, priv)
+			if err != nil {
+				return "", "", err
+			}
+
+			statusReq, _ := http.NewRequest("GET", pollURL, nil)
+			for k, v := range statusHeaders {
+				statusReq.Header.Set(k, v)
+			}
+
+			statusResp, err := client.Do(statusReq)
+			if err != nil {
+				log.Printf("[enroll] status poll failed: %v", err)
+				continue
+			}
+			statusBody, _ := io.ReadAll(statusResp.Body)
+			statusResp.Body.Close()
+
+			var status StatusResponse
+			if err := json.Unmarshal(statusBody, &status); err != nil {
+				continue
+			}
+
+			if status.Status == "approved" {
+				if status.DeviceID != "" && status.DeviceID != a.cfg.DeviceID {
+					a.cfg.DeviceID = status.DeviceID
+					if err := a.saveConfig(); err != nil {
+						log.Printf("[enroll] Warning: failed to save device id: %v", err)
+					}
+				}
+				return status.DeviceToken, status.DeviceID, nil
+			}
+			if status.Status == "rejected" {
+				return "", "", fmt.Errorf("enrollment rejected: %s", status.Message)
+			}
+			// pending -> continue polling
+		}
 	}
+	return "", "", fmt.Errorf("enrollment exhausted retries")
 }
