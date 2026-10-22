@@ -177,6 +177,28 @@ router.get('/download/android', async (req, res) => {
 });
 
 /**
+ * GET /download/windows — stable shareable URL that streams the recommended
+ * Windows container (ISO disk image, or MSI as fallback). Mirrors
+ * /download/android for QR codes and chat links.
+ */
+router.get('/download/windows', async (req, res) => {
+    try {
+        const asset = await landing.resolveAsset('windows', 'x64');
+        if (!asset) {
+            return res.status(404).json({ success: false, error: 'No Windows build available yet.' });
+        }
+        await landing.streamAsset(asset, res);
+    } catch (err) {
+        console.error('[landing] windows download error:', err);
+        if (!res.headersSent) {
+            res.status(502).json({ success: false, error: 'Download failed. Please try again.' });
+        } else {
+            res.destroy();
+        }
+    }
+});
+
+/**
  * GET /landing/download?platform=&arch=&format=
  * Streams the resolved release asset with download headers. Only assets that
  * exist in the cached GitHub release index are ever proxied.

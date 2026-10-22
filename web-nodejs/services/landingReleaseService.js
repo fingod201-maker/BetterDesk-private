@@ -91,11 +91,16 @@ function httpsGetJson(urlPath) {
 const EXT_MAP = {
     '.exe': { format: 'exe', platform: 'windows', contentType: 'application/x-msdownload' },
     '.msi': { format: 'msi', platform: 'windows', contentType: 'application/x-msdownload' },
+    // Windows ISO disk image: Explorer mounts it without propagating
+    // Mark-of-the-Web, so unsigned agent binaries inside stay unflagged.
+    '.iso': { format: 'iso', platform: 'windows', contentType: 'application/x-iso9660-image' },
     '.dmg': { format: 'dmg', platform: 'macos', contentType: 'application/x-apple-diskimage' },
     '.pkg': { format: 'pkg', platform: 'macos', contentType: 'application/octet-stream' },
     '.deb': { format: 'deb', platform: 'linux', contentType: 'application/vnd.debian.binary-package' },
     '.rpm': { format: 'rpm', platform: 'linux', contentType: 'application/x-rpm' },
     '.appimage': { format: 'appimage', platform: 'linux', contentType: 'application/octet-stream' },
+    '.tar.gz': { format: 'targz', platform: null, contentType: 'application/gzip' },
+    '.tgz': { format: 'targz', platform: null, contentType: 'application/gzip' },
     '.apk': { format: 'apk', platform: 'android', contentType: 'application/vnd.android.package-archive' },
     '.aab': { format: 'aab', platform: 'android', contentType: 'application/octet-stream' },
     '.zip': { format: 'zip', platform: null, contentType: 'application/zip' },
@@ -137,7 +142,10 @@ function classifyAsset(name) {
     if (/checksums?/.test(lower)) return null;
 
     const dot = lower.lastIndexOf('.');
-    const ext = dot >= 0 ? lower.slice(dot) : '';
+    // .tar.gz / .tgz are two-part extensions — lastIndexOf('.') alone sees .gz.
+    const ext = lower.endsWith('.tar.gz')
+        ? '.tar.gz'
+        : (dot >= 0 ? lower.slice(dot) : '');
     const mapped = EXT_MAP[ext];
     if (!mapped) return null;
 
@@ -154,16 +162,19 @@ function classifyAsset(name) {
 
 /**
  * Rank a format so the most "installer-like" asset wins ties.
- * Portable zip bundles (client + install script) rank first because they work
- * on unsigned builds where SmartScreen / Gatekeeper would block a raw binary.
+ * The Windows ISO ranks first on purpose: Explorer mounts a disk image
+ * without propagating Mark-of-the-Web, so it is the most friction-free
+ * container for unsigned builds. Portable zip bundles follow.
  */
 function formatRank(format) {
     switch (format) {
-        case 'zip': return 0;
-        case 'msi': case 'pkg': case 'deb': case 'apk': return 1;
-        case 'exe': case 'dmg': case 'appimage': return 2;
-        case 'rpm': return 3;
-        default: return 5;
+        case 'iso': return 0;
+        case 'zip': return 1;
+        case 'msi': case 'pkg': case 'deb': case 'apk': return 2;
+        case 'exe': case 'dmg': case 'appimage': return 3;
+        case 'rpm': return 4;
+        case 'targz': return 5;
+        default: return 6;
     }
 }
 
