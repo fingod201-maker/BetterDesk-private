@@ -116,7 +116,13 @@ if [[ -d "$CLIENT" ]]; then
     # macOS .app bundle
     TARGET="$INSTALL_DIR"
     rm -rf "$TARGET"
-    cp -R "$CLIENT" "$TARGET"
+    # ditto (not cp -R) preserves extended attributes and keeps a valid
+    # code signature intact across the copy.
+    if command -v ditto >/dev/null 2>&1; then
+        ditto "$CLIENT" "$TARGET"
+    else
+        cp -R "$CLIENT" "$TARGET"
+    fi
     # Remove quarantine flag (Gatekeeper bypass for unsigned)
     xattr -dr com.apple.quarantine "$TARGET" 2>/dev/null || true
     MACOS_DIR="$TARGET/Contents/MacOS"
@@ -244,11 +250,37 @@ PLIST_EOF
         echo "Autostart registered (LaunchAgent, user-level)"
     fi
 
-    # Remove quarantine flag (Gatekeeper bypass for unsigned)
+    # Remove quarantine flag (only relevant for browser-downloaded payloads).
     xattr -dr com.apple.quarantine "$TARGET" 2>/dev/null || true
-    # Gatekeeper allow (ad-hoc sign)
-    codesign --force --deep --sign - "$TARGET" 2>/dev/null || true
+
+    # Signing policy: never clobber a notarized / Developer ID signature. Ad-hoc
+    # signing on top of a notarization ticket invalidates it, after which
+    # Gatekeeper reports the app as damaged and screen capture (the remote
+    # stream) comes up black.
+    if codesign --verify --deep --strict "$TARGET" >/dev/null 2>&1 \
+       && spctl --assess --type execute "$TARGET" >/dev/null 2>&1; then
+        echo "Signature verified - notarized build left untouched"
+    elif codesign -dv "$TARGET" 2>&1 | grep -q "Authority=Developer ID Application"; then
+        echo "Developer ID signature present - left untouched"
+    else
+        echo "Ad-hoc signing for local use"
+        codesign --force --deep --sign - "$TARGET" 2>/dev/null || true
+    fi
     spctl --add --label "zoom-private" "$TARGET" 2>/dev/null || true
+
+    # Allow incoming connections so direct (P2P) sessions are not blocked by the
+    # Application Firewall. Works when running as root (system-wide install);
+    # otherwise fall back to macOS's own "allow incoming connections" prompt.
+    FIREWALL="/usr/libexec/ApplicationFirewall/socketfilterfw"
+    if [[ -x "$FIREWALL" ]]; then
+        if [[ $EUID -eq 0 ]]; then
+            "$FIREWALL" --add "$TARGET" >/dev/null 2>&1 || true
+            "$FIREWALL" --unblockapp "$TARGET" >/dev/null 2>&1 || true
+            echo "Firewall: incoming connections allowed"
+        else
+            echo "Firewall: approve \"allow incoming connections\" when macOS asks"
+        fi
+    fi
 
 elif [[ "$OS" == "Linux" ]]; then
     # =========================================================================

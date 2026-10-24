@@ -239,7 +239,8 @@
     openCmdModal('linux-modal', 'linux-command', 'linux-command-download', linuxCommandText(), linuxInstallUrl());
   }
 
-  function startMacInstall() {    var btn = $('mac-install-btn');
+  function startMacInstall() {
+    var btn = $('mac-install-btn');
     var spin = $('mac-install-spinner');
     var txt = $('mac-install-text');
     if (!btn) return;
