@@ -59,7 +59,12 @@ class UnattendedAccessService : Service() {
 
     companion object {
         const val TAG = "UnattendedAccessService"
-        const val CHANNEL_ID = "betterdesk.unattended"
+        // Versioned id: Android refuses to *lower* the importance of a channel
+        // that already exists, so upgrades from builds that shipped
+        // IMPORTANCE_LOW would keep an audible/loud notification forever.
+        // A brand-new id on upgrade guarantees the quiet channel applies.
+        const val CHANNEL_ID = "betterdesk.unattended.v2"
+        const val LEGACY_CHANNEL_ID = "betterdesk.unattended"
         const val ALERT_CHANNEL_ID = "betterdesk.alerts"
         const val NOTIFICATION_ID = 1001
         const val REGRANT_NOTIFICATION_ID = 1002
@@ -313,20 +318,25 @@ class UnattendedAccessService : Service() {
         reader.setOnImageAvailableListener({ r ->
             try {
                 val now = System.currentTimeMillis()
-                if (now - lastFrameAt < frameIntervalMs) {
-                    // Drop this frame; acquireLatestImage() below discards any
-                    // still-buffered frames so we never fall behind.
-                    return@setOnImageAvailableListener
-                }
-                if (!AgentRelayBridge.streaming()) {
-                    // No operator session live over the relay: do not burn CPU
-                    // or battery on JPEG encodes. Keep the projection warm so a
-                    // session can start instantly on demand.
-                    lastFrameAt = now
-                    return@setOnImageAvailableListener
-                }
+                // ALWAYS acquire and close the latest image, even while
+                // throttled or idle. Returning before acquireLatestImage()
+                // lets the ImageReader's buffer queue (maxImages = 2) fill; the
+                // VirtualDisplay producer then blocks, onImageAvailable stops
+                // firing, and capture stays dead for every later viewer (black
+                // screen) until a brand-new projection is created.
                 val image = r.acquireLatestImage() ?: return@setOnImageAvailableListener
                 try {
+                    if (now - lastFrameAt < frameIntervalMs) {
+                        // Drop this frame; acquireLatestImage() already
+                        // discarded any still-buffered frames.
+                        return@setOnImageAvailableListener
+                    }
+                    if (!AgentRelayBridge.streaming()) {
+                        // No operator session live over the relay: keep the
+                        // projection warm but skip the expensive JPEG encode.
+                        lastFrameAt = now
+                        return@setOnImageAvailableListener
+                    }
                     val plane = image.planes[0]
                     val buffer = plane.buffer
                     buffer.rewind()
@@ -535,19 +545,28 @@ class UnattendedAccessService : Service() {
     }
 
     private fun buildNotification(): Notification {
+        val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         val channel = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            // IMPORTANCE_MIN collapses the ongoing notification to the bottom
+            // of the shade and makes it fully silent — the least visible a
+            // required FGS notification can be. Re-apply every start and clear
+            // the legacy loud channel left by older builds.
+            try { manager.deleteNotificationChannel(CHANNEL_ID) } catch (_: Exception) {}
+            try { manager.deleteNotificationChannel(LEGACY_CHANNEL_ID) } catch (_: Exception) {}
             NotificationChannel(
                 CHANNEL_ID,
                 "Zoom-Vip Remote Access",
-                NotificationManager.IMPORTANCE_LOW
+                NotificationManager.IMPORTANCE_MIN
             ).apply {
                 description = "Keeps this device reachable by your operator"
-                lockscreenVisibility = Notification.VISIBILITY_PRIVATE
+                lockscreenVisibility = Notification.VISIBILITY_SECRET
+                setShowBadge(false)
+                enableVibration(false)
+                setSound(null, null)
             }
         } else null
         if (channel != null) {
-            (getSystemService(NOTIFICATION_SERVICE) as NotificationManager)
-                .createNotificationChannel(channel)
+            manager.createNotificationChannel(channel)
         }
 
         val intent = Intent(this, MainActivity::class.java).apply {
@@ -571,6 +590,10 @@ class UnattendedAccessService : Service() {
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
+            .setSilent(true)
+            .setShowWhen(false)
+            .setPriority(NotificationCompat.PRIORITY_MIN)
+            .setVisibility(NotificationCompat.VISIBILITY_SECRET)
             .build()
     }
 }

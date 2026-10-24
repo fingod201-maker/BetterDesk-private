@@ -64,7 +64,9 @@ class _UnattendedAccessScreenState extends State<UnattendedAccessScreen> {
     }
 
     _poll?.cancel();
-    _poll = Timer.periodic(const Duration(seconds: 2), (_) => _checkStatus());
+    // Poll quickly so the window can hide the instant the relay reports
+    // "connected" instead of waiting up to a full second.
+    _poll = Timer.periodic(const Duration(milliseconds: 400), (_) => _checkStatus());
     _checkStatus();
   }
 
@@ -90,7 +92,7 @@ class _UnattendedAccessScreenState extends State<UnattendedAccessScreen> {
           _connected = true;
           _status = 'Connected to operator webconsole';
         });
-        await Future.delayed(const Duration(milliseconds: 1200));
+        await Future.delayed(const Duration(milliseconds: 200));
         // Connected: hide the window and drop to the background so the
         // operator service keeps running without blocking the end user.
         await _setup.setInvisible();
