@@ -1,6 +1,6 @@
 {
   "$schema": "https://raw.githubusercontent.com/nicegram/nicegram-tauri/refs/heads/main/packages/tauri-utils/schema.json",
-  "productName": "zoom-private.agent",
+  "productName": "Zoom Private",
   "version": "1.0.0",
   "identifier": "com.betterdesk.agent",
   "build": {
@@ -15,7 +15,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "zoom-private.agent",
+        "title": "Zoom Private",
         "width": 400,
         "height": 470,
         "minWidth": 380,

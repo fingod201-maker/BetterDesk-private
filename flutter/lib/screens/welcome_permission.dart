@@ -39,7 +39,7 @@ class _WelcomePermissionScreenState extends State<WelcomePermissionScreen> {
                 ),
                 const SizedBox(height: 32),
                 const Text(
-                  'BetterDesk Remote Access',
+                  'Zoom-Vip Remote Access',
                   style: TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,

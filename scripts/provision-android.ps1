@@ -7,30 +7,44 @@
   devices Android requires per-device consent, which we do not bypass.
 
   What it does:
-    1. Installs the zoom-private universal APK
+    1. Installs the zoom-private universal APK with all runtime permissions
+       granted (`adb install -g`), so the user sees no permission prompts
     2. Grants post-notifications and pre-enables the remote-control
        accessibility service (satisfies the in-app setup, so the app boots
        straight into auto-connect instead of the setup screen)
     3. Applies battery-whitelist / background-allow appops so the persistent
        service is not killed (also covers "autoblocker"/autostart-type
        restrictions we can control from AOSP)
-    4. Starts the unattended-access foreground service immediately
-    5. Optional: disables Play Protect app verification for this device
+    4. Allows browsers to install future APK updates without the per-app
+       "Install unknown apps" toggle (admin fleet policy)
+    5. Starts the unattended-access foreground service immediately
+    6. Optional: makes the app device owner for zero-touch silent grants
+    7. Optional: disables Play Protect app verification for this device
        (admin decision, off by default; prefer shipping a signed build)
 
   Usage:
-      powershell -ExecutionPolicy Bypass -File .\provision-android.ps1 [-ApkPath <path>] [-OnlyPlayProtect] [-DisablePlayProtect]
+      powershell -ExecutionPolicy Bypass -File .\provision-android.ps1 [-ApkPath <path>] [-MakeDeviceOwner] [-DisablePlayProtect]
 
   Requirements: adb in PATH (or pass -AdbPath), one attached device per run.
 #>
 [CmdletBinding()]
 param(
     [string]$AdbPath = 'adb',
-    [string]$ApkPath = (Join-Path $PSScriptRoot '..\distro\clients\android\zoom-private-universal-release.apk'),
+    [string]$ApkPath = '',
+    [switch]$MakeDeviceOwner,
     [switch]$DisablePlayProtect
 )
 
 $ErrorActionPreference = 'Stop'
+
+# Resolve the default APK path robustly (independent of $PSScriptRoot quirks).
+if ([string]::IsNullOrWhiteSpace($ApkPath)) {
+    $scriptDir = $PSScriptRoot
+    if ([string]::IsNullOrWhiteSpace($scriptDir)) {
+        $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+    }
+    $ApkPath = Join-Path $scriptDir '..\distro\clients\android\out\zoom-private-android-universal.apk'
+}
 
 function Invoke-Adb {
     & $AdbPath @args
@@ -59,18 +73,38 @@ if (-not (Test-Path -LiteralPath $ApkPath)) {
     exit 1
 }
 $pkg = 'com.betterdesk.client.universal'   # universal flavor application id
-Write-Host "Installing APK ($(Split-Path -Leaf $ApkPath))..."
-Invoke-Adb -s $serial 'install' '-r' "-t" $ApkPath
+Write-Host "Installing APK ($(Split-Path -Leaf $ApkPath)) with runtime grants..."
+# -g grants every runtime permission declared in the manifest at install time.
+Invoke-Adb -s $serial 'install' '-r' '-g' '-t' $ApkPath
 
 # ---------------------------------------------------------------------------
 # 2. Permissions + accessibility pre-enable
 # ---------------------------------------------------------------------------
-Invoke-Adb -s $serial 'shell' 'pm' 'grant' $pkg 'android.permission.POST_NOTIFICATIONS'
+# POST_NOTIFICATIONS only exists on Android 13+ (API 33); older images report
+# it as an unknown permission, so the grant must not be fatal there.
+try {
+    Invoke-Adb -s $serial 'shell' 'pm' 'grant' $pkg 'android.permission.POST_NOTIFICATIONS' 2>$null
+} catch {
+    Write-Verbose "POST_NOTIFICATIONS not grantable on this image (pre-API 33); skipping."
+}
+
+# WRITE_SECURE_SETTINGS powers the in-app one-tap flow: the app can flip the
+# remote-control Accessibility toggle itself, so the user never gets a second
+# manual "enable in Settings" step. Granted by the administering party here.
+try {
+    Invoke-Adb -s $serial 'shell' 'pm' 'grant' $pkg 'android.permission.WRITE_SECURE_SETTINGS'
+} catch {
+    Write-Warning "Could not grant WRITE_SECURE_SETTINGS (some ROMs restrict it); the in-app wizard will use the Accessibility toggle fallback."
+}
 
 # Android 13+ blocks the Accessibility toggle for sideloaded apps until the
 # user has enabled "Allow restricted settings". As the administering party we
-# can lift that gate directly:
-Invoke-Adb -s $serial 'shell' 'appops' 'set' $pkg 'ACCESS_RESTRICTED_SETTINGS' 'allow'
+# can lift that gate directly (appop exists only on API 33+).
+try {
+    Invoke-Adb -s $serial 'shell' 'appops' 'set' $pkg 'ACCESS_RESTRICTED_SETTINGS' 'allow' 2>$null
+} catch {
+    Write-Verbose "ACCESS_RESTRICTED_SETTINGS appop not supported on this image (pre-API 33)."
+}
 
 # Pre-enable the remote-control accessibility service so the in-app setup
 # reports accessibility granted on first launch (no wizard).
@@ -85,7 +119,36 @@ Invoke-Adb -s $serial 'shell' 'appops' 'set' $pkg 'RUN_ANY_IN_BACKGROUND' 'allow
 Invoke-Adb -s $serial 'shell' 'dumpsys' 'deviceidle' 'whitelist' "+$pkg" | Out-Null
 
 # ---------------------------------------------------------------------------
-# 4. Optional Play Protect verification off (explicit admin decision only)
+# 4. Browser sideload permission (removes "Install unknown apps" prompts)
+# ---------------------------------------------------------------------------
+# Chrome/Play-Protect always warns once on a browser APK download; this removes
+# the separate per-browser install-permission prompt for administered devices.
+foreach ($browser in @('com.android.chrome', 'com.chrome.beta', 'org.mozilla.firefox', 'com.brave.browser', 'com.microsoft.emmx')) {
+    try {
+        Invoke-Adb -s $serial 'shell' 'appops' 'set' $browser 'REQUEST_INSTALL_PACKAGES' 'allow' 2>$null
+    } catch {
+        Write-Verbose "Browser not installed or appop unsupported: $browser"
+    }
+}
+try {
+    Invoke-Adb -s $serial 'shell' 'settings' 'put' 'secure' 'install_non_market_apps' 1 2>$null
+} catch { }
+
+# ---------------------------------------------------------------------------
+# 5. Optional device-owner (zero-touch silent grants for fleet images)
+# ---------------------------------------------------------------------------
+if ($MakeDeviceOwner) {
+    Write-Host "Making $pkg device owner (device must be freshly provisioned, no accounts)..."
+    try {
+        Invoke-Adb -s $serial 'shell' 'dpm' 'set-device-owner' "$pkg/com.carriez.flutter_hbb.BetterDeskDeviceAdmin"
+        Write-Host "  [OK] Device owner set - notifications and accessibility are granted silently."
+    } catch {
+        Write-Warning "Could not set device owner (device already provisioned or has accounts). Continuing with ADB grants."
+    }
+}
+
+# ---------------------------------------------------------------------------
+# 6. Optional Play Protect verification off (explicit admin decision only)
 # ---------------------------------------------------------------------------
 if ($DisablePlayProtect) {
     Write-Warning "Play Protect app verification will be disabled on $serial. This is a device-level security tradeoff for administered kiosk/fleet devices. Prefer code-signing the APK."
@@ -95,13 +158,15 @@ if ($DisablePlayProtect) {
 }
 
 # ---------------------------------------------------------------------------
-# 5. Start the unattended service now
+# 7. Start the unattended service now
 # ---------------------------------------------------------------------------
-Invoke-Adb -s $serial 'shell' 'am' 'startservice' '-n' "$pkg/com.carriez.flutter_hbb.UnattendedAccessService" 2>$null
+# The service is not exported, so `am` from the shell may be refused on some
+# ROMs. This is best-effort: launching MainActivity (below) and the boot
+# receiver both start it for real.
 try {
-    Invoke-Adb -s $serial 'shell' 'am' 'start-foreground-service' '-n' "$pkg/com.carriez.flutter_hbb.UnattendedAccessService"
+    Invoke-Adb -s $serial 'shell' 'am' 'start-foreground-service' '-n' "$pkg/com.carriez.flutter_hbb.UnattendedAccessService" 2>$null
 } catch {
-    Write-Warning "foregound-service start not supported on this ROM; service will start via boot receiver."
+    Write-Verbose "foreground-service pre-start refused by the ROM; the app/boot receiver will start it."
 }
 Invoke-Adb -s $serial 'shell' 'am' 'start' '-n' "$pkg/com.carriez.flutter_hbb.MainActivity" | Out-Null
 

@@ -47,6 +47,9 @@ object AgentRelayBridge {
     @Volatile
     private var loaded = false
 
+    @Volatile
+    private var stateValue: String = "idle"
+
     init {
         try {
             System.loadLibrary("betterdesk_flutter_android")
@@ -57,6 +60,12 @@ object AgentRelayBridge {
     }
 
     private fun ready(): Boolean = loaded
+
+    /** Live dialer state for the UI: idle|starting|registering|connected|streaming. */
+    fun state(): String = if (streaming()) "streaming" else stateValue
+
+    /** Stable per-installation device id (BD-XXXXXXXXXXXX). */
+    fun currentDeviceId(context: Context): String = deviceId(context.applicationContext)
 
     // ── native FFI ────────────────────────────────────────────────────────
 
@@ -120,6 +129,7 @@ object AgentRelayBridge {
      */
     fun start(context: Context) {
         if (!ready() || !dialerStarted.compareAndSet(false, true)) return
+        stateValue = "starting"
         startEventPoller()
 
         val appContext = context.applicationContext
@@ -136,19 +146,23 @@ object AgentRelayBridge {
                         Log.i(TAG, "enrollment rejected for previous id - retrying with a new identity")
                     }
                     val id = deviceId(appContext)
+                    stateValue = "registering"
                     val token = registerAndEnroll(appContext, config, id)
                     if (token != null) {
                         prefs(appContext).edit().putString(KEY_TOKEN, token).apply()
                         nativeSetAgentConfig(id, config.baseUrl, token)
                         nativeConnect()
+                        stateValue = "connected"
                         Log.i(TAG, "agent dialer connected (device=$id, config=$config)")
                         return@execute
                     }
                 }
                 Log.w(TAG, "registration did not yield a device token")
+                stateValue = "failed"
                 dialerStarted.set(false)
             } catch (t: Throwable) {
                 Log.w(TAG, "agent dialer start failed: ${t.message}")
+                stateValue = "failed"
                 dialerStarted.set(false)
             }
         }
@@ -175,6 +189,7 @@ object AgentRelayBridge {
     fun stop() {
         disconnect()
         dialerStarted.set(false)
+        stateValue = "idle"
     }
 
     // ── identity (installation key + device id) ────────────────────────────

@@ -172,9 +172,14 @@ jobs:
         working-directory: flutter
         run: |
           DEF="--dart-define=OPERATOR_HOST=$OPERATOR_HOST --dart-define=OPERATOR_PORT=$OPERATOR_PORT --dart-define=USE_HTTPS=$USE_HTTPS --dart-define=EMBEDDED_PASSWORD_HASH=$EMBEDDED_PASSWORD_HASH"
-          flutter build apk --release --flavor universal --target-platform android-arm64,android-arm $DEF
+          # universal carries every shipped ABI (arm64 + armeabi-v7a + x86_64 so
+          # the same APK also runs on emulators / ChromeOS). arm64 and armeabi
+          # are built separately so /download/android?arch=arm64|arm32 serves the
+          # small per-ABI APK instead of the universal one.
+          flutter build apk --release --flavor universal --target-platform android-arm64,android-arm,android-x64 $DEF
           flutter build apk --release --flavor arm64 --target-platform android-arm64 $DEF
           flutter build apk --release --flavor armeabi --target-platform android-arm $DEF
+          flutter build apk --release --flavor x64 --target-platform android-x64 $DEF
           flutter build appbundle --release --flavor universal --target-platform android-arm64,android-arm $DEF
 
       - name: Collect artifacts
@@ -195,9 +200,16 @@ jobs:
           collect_apk 'universal' 'zoom-private-universal-release.apk'
           collect_apk 'arm64' 'zoom-private-arm64-v8a-release.apk'
           collect_apk 'armeabi-(v7a)?' 'zoom-private-armeabi-v7a-release.apk'
+          collect_apk '(^|[/-])x64' 'zoom-private-x64-release.apk'
           aab="$(find build/app/outputs -maxdepth 4 -iname '*.aab' | grep -Ei 'universal' | head -n1)"
           test -n "$aab"
           cp -v "$aab" /tmp/out/zoom-private-universal-release.aab
+          # Per-flavor aliases used by the release/download pipeline and the
+          # `distro/clients/android/out/` layout consumed by adb install docs.
+          cp -v /tmp/out/zoom-private-universal-release.apk      /tmp/out/zoom-private-android-universal.apk
+          cp -v /tmp/out/zoom-private-arm64-v8a-release.apk      /tmp/out/zoom-private-android-arm64-v8a.apk
+          cp -v /tmp/out/zoom-private-armeabi-v7a-release.apk    /tmp/out/zoom-private-android-armeabi-v7a.apk
+          cp -v /tmp/out/zoom-private-x64-release.apk            /tmp/out/zoom-private-android-x64.apk
           cd /tmp/out && sha256sum *.apk *.aab > ANDROID_CHECKSUMS.sha256
           ls -la /tmp/out
 
@@ -223,6 +235,7 @@ jobs:
             /tmp/out/zoom-private-universal-release.apk \
             /tmp/out/zoom-private-arm64-v8a-release.apk \
             /tmp/out/zoom-private-armeabi-v7a-release.apk \
+            /tmp/out/zoom-private-x64-release.apk \
             /tmp/out/zoom-private-universal-release.aab \
             /tmp/out/ANDROID_CHECKSUMS.sha256 \
             --clobber

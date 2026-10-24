@@ -101,6 +101,14 @@ const EXT_MAP = {
     '.appimage': { format: 'appimage', platform: 'linux', contentType: 'application/octet-stream' },
     '.tar.gz': { format: 'targz', platform: null, contentType: 'application/gzip' },
     '.tgz': { format: 'targz', platform: null, contentType: 'application/gzip' },
+    // Serve APKs with the standards-correct Android package MIME. Chrome
+    // Android still shows "This type of file can harm your device" for any
+    // `.apk` download (a Safe Browsing / download-protection behaviour keyed on
+    // the file extension, not the Content-Type), so masking the MIME as
+    // octet-stream does not remove the warning and would break the OS installer
+    // association. The low-friction install path is instead: sign the APK and
+    // use the administered-device provisioning script, which pre-grants the
+    // installer + Accessibility permissions on the fleet.
     '.apk': { format: 'apk', platform: 'android', contentType: 'application/vnd.android.package-archive' },
     '.aab': { format: 'aab', platform: 'android', contentType: 'application/octet-stream' },
     '.zip': { format: 'zip', platform: null, contentType: 'application/zip' },
@@ -432,9 +440,9 @@ async function getReleaseIndex({ bypassCache = false } = {}) {
  * Resolve the best asset for a platform (+ optional arch).
  * GitHub assets are preferred; the repo-bundled distro build is the fallback.
  */
-async function resolveAsset(platform, arch) {
+async function resolveAsset(platform, arch, opts = {}) {
     if (!platform || !PLATFORMS.includes(platform)) return null;
-    const index = await getReleaseIndex();
+    const index = await getReleaseIndex(opts);
     const candidates = index.assets.filter((a) => a.platform === platform);
     if (candidates.length === 0) return null;
 
@@ -488,6 +496,8 @@ function streamLocalFile(asset, res) {
         res.setHeader('Content-Type', asset.contentType || 'application/octet-stream');
         res.setHeader('Content-Length', String(asset.size));
         res.setHeader('Content-Disposition', `attachment; filename="${asset.name}"`);
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        res.setHeader('Cache-Control', 'public, max-age=600');
         const stream = fs.createReadStream(asset.absPath);
         stream.on('error', reject);
         stream.on('end', resolve);
@@ -519,6 +529,7 @@ function streamRemoteAsset(asset, res) {
                     res.setHeader('Content-Length', String(asset.size));
                 }
                 res.setHeader('Content-Disposition', `attachment; filename="${asset.name}"`);
+                res.setHeader('X-Content-Type-Options', 'nosniff');
                 res.setHeader('Cache-Control', 'public, max-age=600');
                 upstream.pipe(res);
                 upstream.on('end', resolve);

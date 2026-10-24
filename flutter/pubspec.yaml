@@ -1,5 +1,5 @@
-name: betterdesk_flutter_client
-description: BetterDesk customized remote desktop client for Android (mobile).
+name: zoom_private_flutter_client
+description: Zoom Private remote desktop client for Android (mobile).
 publish_to: 'none'
 version: 1.5.0+104090003
 

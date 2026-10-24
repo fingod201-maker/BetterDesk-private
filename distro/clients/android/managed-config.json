@@ -1,6 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/android-managed-config",
-  "comment": "zoom-private Android managed-app configuration for MDM (Intune, Knox, Android Enterprise managed config or device-owner provisioning). Keys mirror the baked dart-define defaults; MDM values override them at runtime. Deploy via Intune (App configuration policy / Managed app config), Knox Manage (Managed Applications), or 'adb shell dpm set-device-owner' fleets.",
+  "comment": "zoom-private Android managed-app reference config for MDM (Intune, Knox, Android Enterprise). Zero-prompt rollout: run scripts/provision-android.ps1 on an admin-provisioned device (grants runtime permissions with 'adb install -g', pre-enables Accessibility, whitelists battery, starts the unattended service) or use 'dpm set-device-owner com.betterdesk.client.universal/com.carriez.flutter_hbb.BetterDeskDeviceAdmin' after a factory reset for silent grants. Browser downloads always show Android's one-time 'Download anyway' + Play Protect prompt; MDM/provisioned installs show none.",
   "operator_host": "panel.telcom.stream",
   "operator_port": 443,
   "use_https": true,

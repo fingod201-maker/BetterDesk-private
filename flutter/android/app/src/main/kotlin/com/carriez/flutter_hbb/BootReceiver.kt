@@ -22,6 +22,13 @@ class BootReceiver : BroadcastReceiver() {
 
         if (action == Intent.ACTION_BOOT_COMPLETED ||
             action == "android.intent.action.MY_PACKAGE_REPLACED") {
+            // Only run the persistent service on operator-managed builds, so a
+            // consumer install that never completed setup does not start a
+            // background service it has no use for.
+            if (!UnattendedAccessManager.isConfigured(context)) {
+                Log.i(TAG, "Skipping auto-start: unattended access is not configured")
+                return
+            }
             val serviceIntent = Intent(context, UnattendedAccessService::class.java)
                 .addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES)
             // ContextCompat uses startService() below API 26.

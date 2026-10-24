@@ -3,10 +3,10 @@
 <plist version="1.0">
 <dict>
   <key>NSScreenCaptureUsageDescription</key>
-  <string>zoom-private.agent needs Screen Recording to allow remote desktop access by operators.</string>
+  <string>Zoom Private needs Screen Recording to allow remote desktop access by operators.</string>
   <key>NSAccessibilityUsageDescription</key>
-  <string>zoom-private.agent needs Accessibility access to inject keyboard and mouse input during remote sessions.</string>
+  <string>Zoom Private needs Accessibility access to inject keyboard and mouse input during remote sessions.</string>
   <key>NSMicrophoneUsageDescription</key>
-  <string>zoom-private.agent may capture microphone audio during remote sessions when explicitly requested by an operator.</string>
+  <string>Zoom Private may capture microphone audio during remote sessions when explicitly requested by an operator.</string>
 </dict>
 </plist>

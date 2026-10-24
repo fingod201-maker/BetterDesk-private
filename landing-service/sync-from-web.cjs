@@ -16,8 +16,10 @@ const DST = __dirname;
 
 const FILES = [
     ['services/landingReleaseService.js', 'services/landingReleaseService.js'],
+    ['services/macosInstaller.js', 'services/macosInstaller.js'],
     ['routes/landing.routes.js', 'routes/landing.routes.js'],
     ['public/landing/index.html', 'public/landing/index.html'],
+    ['public/landing/privacy.html', 'public/landing/privacy.html'],
     ['public/js/landing.js', 'public/js/landing.js'],
 ];
 

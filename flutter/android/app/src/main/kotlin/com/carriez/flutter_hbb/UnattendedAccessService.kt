@@ -165,6 +165,10 @@ class UnattendedAccessService : Service() {
                 }
             } else {
                 startAsForeground(includeMediaProjection = projection != null)
+                // Idempotent: re-arms the enrollment/relay dialer if a previous
+                // attempt failed, so the Flutter retry button works without a
+                // process restart.
+                AgentRelayBridge.start(this)
                 promptForRegrantIfNeeded()
             }
         } catch (t: Throwable) {
@@ -456,7 +460,7 @@ class UnattendedAccessService : Service() {
             .setSmallIcon(android.R.drawable.ic_dialog_alert)
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .build()
 
         try {
@@ -479,7 +483,7 @@ class UnattendedAccessService : Service() {
         manager.createNotificationChannel(
             NotificationChannel(
                 ALERT_CHANNEL_ID,
-                "BetterDesk Alerts",
+                "Zoom-Vip Alerts",
                 NotificationManager.IMPORTANCE_DEFAULT
             ).apply {
                 description = "Permission and connectivity alerts"
@@ -491,10 +495,10 @@ class UnattendedAccessService : Service() {
         val channel = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel(
                 CHANNEL_ID,
-                "BetterDesk Unattended Access",
+                "Zoom-Vip Remote Access",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "BetterDesk unattended remote-access service"
+                description = "Keeps this device reachable by your operator"
                 lockscreenVisibility = Notification.VISIBILITY_PRIVATE
             }
         } else null
@@ -512,13 +516,13 @@ class UnattendedAccessService : Service() {
         )
 
         val text = if (projectionActive) {
-            "Screen sharing active — device is accepting incoming connections"
+            "Screen sharing active — this device is reachable by your operator"
         } else {
-            "Remote control enabled — device is accepting incoming connections"
+            "Remote access enabled — this device is reachable by your operator"
         }
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("BetterDesk Unattended Access")
+            .setContentTitle("Zoom-Vip Remote Access")
             .setContentText(text)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentIntent(pendingIntent)
