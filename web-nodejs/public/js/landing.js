@@ -15,6 +15,8 @@
   var $ = function (id) { return document.getElementById(id); };
   var state = { detected: null, recommended: null, available: [], release: null, platform: null, arch: null, macInstall: false };
   var MAC_INSTALL_PATH = '/api/landing/macos-install';
+  var WINDOWS_INSTALL_PATH = '/api/landing/windows-install.ps1';
+  var LINUX_INSTALL_PATH = '/api/landing/linux-install.sh';
 
   // API base: empty for same-origin (console + Railway service). GitHub Pages
   // sets window.BETTERDESK_API_BASE to the public backend URL (Railway).
@@ -30,6 +32,12 @@
   function macCommandText() {
     return "curl -fsSL '" + macInstallUrl().replace(/'/g, "'\\''") + "' | /bin/bash";
   }
+  function winInstallUrl() { return absoluteApiUrl(WINDOWS_INSTALL_PATH); }
+  function linuxInstallUrl() { return absoluteApiUrl(LINUX_INSTALL_PATH); }
+  // PowerShell: fetch the bootstrap into memory and run it — nothing touches
+  // disk through the browser, so there is no Mark-of-the-Web / SmartScreen.
+  function winCommandText() { return 'irm ' + winInstallUrl() + ' | iex'; }
+  function linuxCommandText() { return 'curl -fsSL ' + linuxInstallUrl() + ' | bash'; }
 
   var OS_LABEL = { windows: 'Windows', macos: 'macOS', linux: 'Linux', android: 'Android', ios: 'iPhone / iPad', unknown: 'your device' };
   var OS_ABBR = { windows: 'WIN', macos: 'MAC', linux: 'LNX', android: 'AND', ios: 'iOS', unknown: '?' };
@@ -194,8 +202,44 @@
     }
   }
 
-  function startMacInstall() {
-    var btn = $('mac-install-btn');
+  function copyToClipboard(text, onDone) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(onDone).catch(function () { fallbackCopy(text, onDone); });
+    } else {
+      fallbackCopy(text, onDone);
+    }
+  }
+
+  function makeCopyHandler(btnId, label, textFn) {
+    return function () {
+      var btn = $(btnId);
+      copyToClipboard(textFn(), function () {
+        if (btn) {
+          btn.textContent = 'Copied';
+          setTimeout(function () { btn.textContent = label; }, 1800);
+        }
+        toast('Installer command copied');
+      });
+    };
+  }
+
+  function openCmdModal(modalId, cmdId, dlId, text, url) {
+    var cmd = $(cmdId);
+    if (cmd) cmd.textContent = text;
+    var dl = $(dlId);
+    if (dl) dl.href = url;
+    $(modalId).classList.add('show');
+  }
+
+  function openWinModal() {
+    openCmdModal('win-modal', 'win-command', 'win-command-download', winCommandText(), winInstallUrl());
+  }
+
+  function openLinuxModal() {
+    openCmdModal('linux-modal', 'linux-command', 'linux-command-download', linuxCommandText(), linuxInstallUrl());
+  }
+
+  function startMacInstall() {    var btn = $('mac-install-btn');
     var spin = $('mac-install-spinner');
     var txt = $('mac-install-text');
     if (!btn) return;
@@ -403,6 +447,31 @@
   var macModalBack = $('mac-modal');
   if (macModalBack) macModalBack.addEventListener('click', function (e) { if (e.target === macModalBack) macModalBack.classList.remove('show'); });
 
+  // Windows / Linux one-command installers
+  var winCmdBtn = $('win-command-btn');
+  if (winCmdBtn) winCmdBtn.addEventListener('click', openWinModal);
+  var winCopyBtn = $('win-command-copy');
+  if (winCopyBtn) winCopyBtn.addEventListener('click', makeCopyHandler('win-command-copy', 'Copy command', winCommandText));
+  var winCloseBtn = $('win-modal-close');
+  if (winCloseBtn) winCloseBtn.addEventListener('click', function () { $('win-modal').classList.remove('show'); });
+  var winModalBack = $('win-modal');
+  if (winModalBack) winModalBack.addEventListener('click', function (e) { if (e.target === winModalBack) winModalBack.classList.remove('show'); });
+
+  var linuxCmdBtn = $('linux-command-btn');
+  if (linuxCmdBtn) linuxCmdBtn.addEventListener('click', openLinuxModal);
+  var linuxCopyBtn = $('linux-command-copy');
+  if (linuxCopyBtn) linuxCopyBtn.addEventListener('click', makeCopyHandler('linux-command-copy', 'Copy command', linuxCommandText));
+  var linuxCloseBtn = $('linux-modal-close');
+  if (linuxCloseBtn) linuxCloseBtn.addEventListener('click', function () { $('linux-modal').classList.remove('show'); });
+  var linuxModalBack = $('linux-modal');
+  if (linuxModalBack) linuxModalBack.addEventListener('click', function (e) { if (e.target === linuxModalBack) linuxModalBack.classList.remove('show'); });
+
+  // Fill the command previews on load (also works while the API is offline).
+  var winCmdEl = $('win-command');
+  if (winCmdEl) winCmdEl.textContent = winCommandText();
+  var linuxCmdEl = $('linux-command');
+  if (linuxCmdEl) linuxCmdEl.textContent = linuxCommandText();
+
   // Set the command text on load
   var cmd = $('mac-command');
   if (cmd) cmd.textContent = macCommandText();
@@ -417,6 +486,8 @@
     if (e.key === 'Escape') {
       $('modal').classList.remove('show');
       $('mac-modal').classList.remove('show');
+      $('win-modal').classList.remove('show');
+      $('linux-modal').classList.remove('show');
     }
   });
 

