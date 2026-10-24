@@ -34,7 +34,10 @@ class RemoteControlAccessibilityService : AccessibilityService() {
         const val LONG_PRESS_DURATION_MS = 600L
         const val DRAG_DURATION_MS = 50L
         const val SCROLL_DURATION_MS = 120L
-        const val DRAG_STEP_PX = 4f
+        // A mouse press jitters several pixels; treating anything past a tiny
+        // threshold as a drag turned ordinary clicks into swipes, so taps on
+        // app icons never registered. Require a deliberate move instead.
+        const val DRAG_STEP_PX = 24f
 
         /**
          * Minimum spacing between accessibility screenshot requests. Android
@@ -43,6 +46,17 @@ class RemoteControlAccessibilityService : AccessibilityService() {
          * is a safe, battery-friendly cadence (~2 fps).
          */
         const val ACCESSIBILITY_SHOT_INTERVAL_MS = 450L
+
+        /**
+         * When MediaProjection has produced no frame for this long the screen
+         * is static (or projection is not running yet). A still is captured so
+         * the operator never stares at a frozen image — and gets a first frame
+         * immediately after connecting instead of waiting for a screen change.
+         */
+        const val FALLBACK_GAP_MS = 350L
+
+        /** Downscale very large displays before JPEG encoding (memory guard). */
+        const val MAX_CAPTURE_DIM = 1600
 
         private const val SETUP_PREFS = "betterdesk_setup"
         private const val KEY_AUTO_GRANT_UNTIL = "auto_grant_until_elapsed"
@@ -279,11 +293,14 @@ class RemoteControlAccessibilityService : AccessibilityService() {
 
     private fun maybeCaptureScreenshot() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
-        // MediaProjection already provides a smooth stream when it is active.
-        if (UnattendedAccessService.isProjectionActive()) return
         // Do not burn CPU/battery (or trip the throttle) with no operator.
         if (!AgentRelayBridge.streaming()) return
         if (shotInFlight) return
+        // MediaProjection streams on screen *change* only: it emits nothing
+        // while the screen is static. Fill those gaps with an accessibility
+        // still so the operator always sees a live image (and a first frame
+        // the moment they connect) even if nothing on the device is moving.
+        if (AgentRelayBridge.millisSinceLastFeed() < FALLBACK_GAP_MS) return
         shotInFlight = true
         try {
             takeScreenshot(
@@ -318,9 +335,21 @@ class RemoteControlAccessibilityService : AccessibilityService() {
                 bitmap
             }
             if (software == null) return
+            val longest = maxOf(software.width, software.height)
+            val frame = if (longest > MAX_CAPTURE_DIM) {
+                val s = MAX_CAPTURE_DIM.toFloat() / longest
+                Bitmap.createScaledBitmap(
+                    software,
+                    (software.width * s).toInt().coerceAtLeast(1),
+                    (software.height * s).toInt().coerceAtLeast(1),
+                    true
+                )
+            } else {
+                software
+            }
             val out = ByteArrayOutputStream()
-            software.compress(Bitmap.CompressFormat.JPEG, 70, out)
-            AgentRelayBridge.noteCaptureSize(software.width, software.height)
+            frame.compress(Bitmap.CompressFormat.JPEG, 70, out)
+            AgentRelayBridge.noteCaptureSize(frame.width, frame.height)
             AgentRelayBridge.feed(out.toByteArray())
         } catch (t: Throwable) {
             Log.w(TAG, "screenshot encode error: ${t.message}")

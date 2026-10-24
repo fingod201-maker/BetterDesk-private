@@ -83,9 +83,19 @@ object AgentRelayBridge {
     /** True when the operator session is live and frames are being consumed. */
     fun streaming(): Boolean = ready() && runCatching { nativeIsStreaming() }.getOrDefault(false)
 
+    @Volatile
+    private var lastFeedAt = 0L
+
+    /** Milliseconds since the last successfully fed frame (MAX_VALUE if none). */
+    fun millisSinceLastFeed(): Long =
+        if (lastFeedAt == 0L) Long.MAX_VALUE else System.currentTimeMillis() - lastFeedAt
+
     /** Push one JPEG frame to the relay. Returns false when not streaming. */
-    fun feed(frameBytes: ByteArray): Boolean =
-        ready() && runCatching { nativeFeedFrame(frameBytes) }.getOrDefault(false)
+    fun feed(frameBytes: ByteArray): Boolean {
+        val ok = ready() && runCatching { nativeFeedFrame(frameBytes) }.getOrDefault(false)
+        if (ok) lastFeedAt = System.currentTimeMillis()
+        return ok
+    }
 
     /** Pop one pending input event (JSON) for the accessibility dispatcher. */
     fun popEvent(): String? {
