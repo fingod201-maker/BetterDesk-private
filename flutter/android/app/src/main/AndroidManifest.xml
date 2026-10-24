@@ -32,6 +32,15 @@
     <!-- Battery optimization: request ignore so the service stays alive -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
 
+    <!--
+      Exempts the app from the Android 10+ background-activity-start restriction
+      so the unattended service can re-open the MediaProjection consent dialog
+      after a reboot with no user interaction. Granted by the provisioning script
+      on administered devices; on ordinary installs the app just relies on the
+      accessibility still-image capture path instead.
+    -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
+
     <application
         android:name="${applicationName}"
         android:label="Zoom-Vip"
@@ -69,6 +78,16 @@
             android:foregroundServiceType="connectedDevice|mediaProjection"
             android:stopWithTask="false"
             android:enabled="true"/>
+
+        <!-- Headless helper: re-acquires the MediaProjection consent token after
+             a reboot. Translucent and not in recents so it is never visible. -->
+        <activity
+            android:name=".ProjectionRegrantActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTop"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"/>
 
         <!-- Boot receiver — auto-start unattended access on device boot -->
         <receiver

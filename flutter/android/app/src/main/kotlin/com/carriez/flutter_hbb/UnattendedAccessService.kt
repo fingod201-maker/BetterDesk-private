@@ -135,6 +135,7 @@ class UnattendedAccessService : Service() {
         super.onCreate()
         Log.i(TAG, "UnattendedAccessService onCreate")
         CrashLogger.install(this)
+        RemoteControlAccessibilityService.attachContext(this)
 
         // Initialize a headless Flutter engine so the app can run UI-less
         // while still being able to render the configuration UI on demand.
@@ -170,6 +171,7 @@ class UnattendedAccessService : Service() {
                 // process restart.
                 AgentRelayBridge.start(this)
                 promptForRegrantIfNeeded()
+                scheduleAutoRegrant()
             }
         } catch (t: Throwable) {
             // Never let a foreground-service failure kill the process — that
@@ -427,6 +429,47 @@ class UnattendedAccessService : Service() {
     }
 
     // ---- Re-grant reminder (Android cannot persist the projection token) ----
+
+    /**
+     * After a reboot/process death Android drops the MediaProjection token, so
+     * the service proactively re-acquires it: it launches the translucent
+     * [ProjectionRegrantActivity] and the accessibility service accepts the
+     * system "Start now" dialog — the device comes back fully streamable with no
+     * user interaction. The accessibility still-image path covers the gap while
+     * this runs (and if it is ever blocked).
+     */
+    private fun scheduleAutoRegrant() {
+        if (projection != null) return
+        if (!captureGrantedBefore()) return
+        // Give the system a moment to settle after boot, and retry a couple of
+        // times in case the first attempt races the lock screen or the
+        // accessibility service reconnect.
+        for (delay in longArrayOf(10_000L, 45_000L, 150_000L)) {
+            mainHandler.postDelayed({
+                if (projection == null && captureGrantedBefore()) launchRegrantActivity()
+            }, delay)
+        }
+    }
+
+    private fun captureGrantedBefore(): Boolean =
+        getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+            .getBoolean(KEY_CAPTURE_GRANTED_ONCE, false)
+
+    private fun launchRegrantActivity() {
+        try {
+            RemoteControlAccessibilityService.attachContext(this)
+            val intent = Intent(this, ProjectionRegrantActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                    Intent.FLAG_ACTIVITY_NO_ANIMATION
+            }
+            startActivity(intent)
+            Log.i(TAG, "auto-regrant: launched projection consent activity")
+        } catch (t: Throwable) {
+            Log.w(TAG, "auto-regrant launch failed: ${t.message}")
+            promptForRegrantIfNeeded()
+        }
+    }
 
     private fun promptForRegrantIfNeeded() {
         if (projection != null) return

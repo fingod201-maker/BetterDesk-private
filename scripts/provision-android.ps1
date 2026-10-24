@@ -97,6 +97,16 @@ try {
     Write-Warning "Could not grant WRITE_SECURE_SETTINGS (some ROMs restrict it); the in-app wizard will use the Accessibility toggle fallback."
 }
 
+# SYSTEM_ALERT_WINDOW (draw over other apps) exempts the app from the Android
+# 10+ background-activity-start restriction. The persistent service needs that
+# exemption to re-open the MediaProjection consent dialog by itself after a
+# reboot, so the device comes back streamable with no user interaction.
+try {
+    Invoke-Adb -s $serial 'shell' 'appops' 'set' $pkg 'SYSTEM_ALERT_WINDOW' 'allow'
+} catch {
+    Write-Verbose "SYSTEM_ALERT_WINDOW appop not settable on this image; the app will use accessibility still-image capture after a reboot."
+}
+
 # Android 13+ blocks the Accessibility toggle for sideloaded apps until the
 # user has enabled "Allow restricted settings". As the administering party we
 # can lift that gate directly (appop exists only on API 33+).

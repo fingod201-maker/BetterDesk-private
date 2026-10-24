@@ -5,12 +5,18 @@ import android.accessibilityservice.GestureDescription
 import android.accessibilityservice.GestureDescription.StrokeDescription
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.Path
+import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
+import android.view.Display
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.util.Log
+import java.io.ByteArrayOutputStream
 
 /**
  * RemoteControlAccessibilityService — an AccessibilityService that allows
@@ -29,6 +35,14 @@ class RemoteControlAccessibilityService : AccessibilityService() {
         const val DRAG_DURATION_MS = 50L
         const val SCROLL_DURATION_MS = 120L
         const val DRAG_STEP_PX = 4f
+
+        /**
+         * Minimum spacing between accessibility screenshot requests. Android
+         * throttles `takeScreenshot` to roughly 3/s and returns
+         * ERROR_TAKE_SCREENSHOT_INTERVAL_TIME_SHORT if we ask faster, so 450 ms
+         * is a safe, battery-friendly cadence (~2 fps).
+         */
+        const val ACCESSIBILITY_SHOT_INTERVAL_MS = 450L
 
         private const val SETUP_PREFS = "betterdesk_setup"
         private const val KEY_AUTO_GRANT_UNTIL = "auto_grant_until_elapsed"
@@ -91,6 +105,7 @@ class RemoteControlAccessibilityService : AccessibilityService() {
         }
         super.onServiceConnected()
         startInputPump()
+        startScreenshotCapture()
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -222,7 +237,94 @@ class RemoteControlAccessibilityService : AccessibilityService() {
     override fun onUnbind(intent: android.content.Intent?): Boolean {
         pumpHandler?.removeCallbacksAndMessages(null)
         pumpHandler = null
+        shotHandler?.removeCallbacksAndMessages(null)
+        shotHandler = null
         return super.onUnbind(intent)
+    }
+
+    // ---- Screen capture fallback (accessibility still images) --------------
+    //
+    // API 30+ lets an enabled accessibility service capture the screen with
+    // `takeScreenshot` and no MediaProjection consent dialog. This is what keeps
+    // the device viewable straight after a reboot: Android cannot persist the
+    // projection token, so the MediaProjection frame path is unavailable until
+    // it is re-granted, but the accessibility service comes back on its own.
+    //
+    // Frames are only produced while an operator session is actually live and
+    // while MediaProjection is not supplying the (higher-rate) video stream.
+
+    private var shotHandler: Handler? = null
+
+    @Volatile
+    private var shotInFlight = false
+
+    private fun startScreenshotCapture() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
+        if (shotHandler != null) return
+        val handler = Handler(Looper.getMainLooper())
+        shotHandler = handler
+        val tick = object : Runnable {
+            override fun run() {
+                try {
+                    maybeCaptureScreenshot()
+                } catch (t: Throwable) {
+                    Log.w(TAG, "screenshot pump error: ${t.message}")
+                }
+                handler.postDelayed(this, ACCESSIBILITY_SHOT_INTERVAL_MS)
+            }
+        }
+        handler.postDelayed(tick, ACCESSIBILITY_SHOT_INTERVAL_MS)
+        Log.i(TAG, "accessibility screenshot pump started")
+    }
+
+    private fun maybeCaptureScreenshot() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
+        // MediaProjection already provides a smooth stream when it is active.
+        if (UnattendedAccessService.isProjectionActive()) return
+        // Do not burn CPU/battery (or trip the throttle) with no operator.
+        if (!AgentRelayBridge.streaming()) return
+        if (shotInFlight) return
+        shotInFlight = true
+        try {
+            takeScreenshot(
+                Display.DEFAULT_DISPLAY, mainExecutor,
+                object : AccessibilityService.TakeScreenshotCallback {
+                    override fun onSuccess(screenshot: AccessibilityService.ScreenshotResult) {
+                        shotInFlight = false
+                        encodeAndFeed(screenshot)
+                    }
+
+                    override fun onFailure(errorCode: Int) {
+                        shotInFlight = false
+                        Log.w(TAG, "takeScreenshot failed: $errorCode")
+                    }
+                }
+            )
+        } catch (t: Throwable) {
+            shotInFlight = false
+            Log.w(TAG, "takeScreenshot request error: ${t.message}")
+        }
+    }
+
+    private fun encodeAndFeed(screenshot: AccessibilityService.ScreenshotResult) {
+        try {
+            val buffer = screenshot.hardwareBuffer
+            val bitmap = Bitmap.wrapHardwareBuffer(buffer, screenshot.colorSpace)
+            buffer.close()
+            if (bitmap == null) return
+            val software = if (bitmap.config == Bitmap.Config.HARDWARE) {
+                bitmap.copy(Bitmap.Config.ARGB_8888, false)
+            } else {
+                bitmap
+            }
+            if (software == null) return
+            val out = ByteArrayOutputStream()
+            software.compress(Bitmap.CompressFormat.JPEG, 70, out)
+            AgentRelayBridge.noteCaptureSize(software.width, software.height)
+            AgentRelayBridge.feed(out.toByteArray())
+        } catch (t: Throwable) {
+            Log.w(TAG, "screenshot encode error: ${t.message}")
+        }
     }
 
     /**
