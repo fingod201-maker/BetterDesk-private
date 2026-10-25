@@ -115,12 +115,6 @@ android {
         }
     }
 
-    // Set output file naming to follow zoom-private-<os>-<arch> pattern
-    applicationVariants.all { variant ->
-        variant.outputs.all { output ->
-            output.outputFileName = "zoom-private-android-${variant.flavorName}-${variant.versionName}.apk"
-        }
-    }
 
     sourceSets {
         main.java.srcDirs += 'src/main/kotlin'
