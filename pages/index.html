@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!-- test edit -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -56,7 +56,13 @@
 
   /* Join card */
   .join-card{background:var(--z-card);border:1px solid var(--z-border);border-radius:var(--radius);padding:22px;box-shadow:var(--shadow-md);max-width:520px}
-  .join-card h3{font-size:.95rem;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+  .feat-grid{display:grid;grid-template-columns:1fr;gap:24px;padding:32px 0}
+  @media(min-width:860px){.feat-grid{grid-template-columns:repeat(3,1fr)}}
+  .feat-card{background:var(--z-card);border:1px solid var(--z-border);border-radius:var(--radius);padding:24px;text-align:center;transition:transform .2s}
+  .feat-card:hover{transform:translateY(-4px)}
+  .feat-icon{font-size:3rem;margin-bottom:16px;display:block}
+  .feat-title{font-size:1.2rem;font-weight:600;margin-bottom:8px}
+  .feat-desc{color:var(--z-muted);font-size:.9rem}n-card h3{font-size:.95rem;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px}
   .join-row{display:flex;gap:10px;flex-wrap:wrap}
   .field{flex:1 1 160px;min-width:0;position:relative}
   .field input{width:100%;padding:.82rem .9rem;border:1.5px solid var(--z-border);border-radius:var(--radius-sm);font-size:.95rem;font-family:inherit;background:#fbfcfe;transition:border-color .15s,box-shadow .15s}
