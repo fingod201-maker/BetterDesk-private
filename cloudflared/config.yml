@@ -45,5 +45,9 @@ ingress:
   - hostname: cdap.telcom.stream
     service: http://127.0.0.1:21122
 
+  # Dedicated public hostname for the new one-tap landing / admin wave.
+  - hostname: zoom.telcom.stream
+    service: http://127.0.0.1:5000
+
   # Catch-all (required last rule)
   - service: http_status:404
