@@ -108,10 +108,22 @@ pub fn sync_os_autostart(enabled: bool) {
                 info!("[autostart] macOS LaunchAgent installed");
             }
         } else {
-            let _ = std::fs::remove_file(&plist_path);
-            info!("[autostart] macOS LaunchAgent removed");
+            use std::process::Command as StdCommand;
+            let status = StdCommand::new("launchctl")
+                .args(["unload", "-w", &plist_path.to_string_lossy()])
+                .status();
+            match status {
+                Ok(s) if s.success() => {
+                    let _ = std::fs::remove_file(&plist_path);
+                    info!("[autostart] macOS LaunchAgent unloaded and removed");
+                }
+                Ok(s) => warn!("[autostart] macOS launchctl unload failed with exit code {:?}, removing plist anyway", s.code()),
+                Err(e) => {
+                    let _ = std::fs::remove_file(&plist_path);
+                    warn!("[autostart] Cannot run launchctl unload: {}", e);
+                }
+            }
         }
-    }
 
     #[cfg(target_os = "linux")]
     {
