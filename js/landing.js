@@ -386,8 +386,13 @@
         state.recommended = null;
         state.release = { releasesUrl: 'https://github.com/fingod201-maker/BetterDesk-private/releases' };
         applyRecommendation();
-        $('dl-status').className = 'dl-status warn';
-        $('dl-status').textContent = 'Live downloads are temporarily unavailable — use “Choose a different platform”.';
+        // Backend unavailable (e.g. GitHub Pages static host): keep the
+        // inline download buttons active; they resolve assets from GitHub
+        // Releases directly.
+        if ($('dl-status')) {
+          $('dl-status').className = 'dl-status';
+          $('dl-status').textContent = 'Select your platform below to download.';
+        }
       });
   }
 

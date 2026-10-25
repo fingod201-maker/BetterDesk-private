@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#0B5CFF">
-<meta name="description" content="Zoom Private detects your device, installs the right client automatically, and connects it to your private console â no setup required.">
-<title>Zoom Private â One-tap install | Remote Access Portal</title>
+<meta name="description" content="Zoom Private detects your device, installs the right client automatically, and connects it to your private console — no setup required.">
+<title>Zoom Private — One-tap install | Remote Access Portal</title>
 <link rel="icon" href="img/zoom-mark.png" type="image/png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -220,16 +220,16 @@
           <div class="chip" id="device-chip"><span class="os" id="chip-os">?</span><span id="chip-text">Detecting your deviceâ¦</span></div>
           <div class="dl-actions" style="display:flex; flex-direction:column; gap:10px; align-items:flex-start;">
             <a class="btn btn-primary" id="dl-windows" href="#download" style="width:100%; max-width:420px; text-align:left;">
-              <span class="os" id="chip-os-win">WIN</span> Windows â Download .exe / .msi
+              <span class="os" id="chip-os-win">WIN</span> Windows — Download .exe / .msi
             </a>
             <a class="btn btn-primary" id="dl-macos" href="#download" style="width:100%; max-width:420px; text-align:left;">
-              <span class="os" id="chip-os-mac">MAC</span> macOS â Download .dmg / .pkg
+              <span class="os" id="chip-os-mac">MAC</span> macOS — Download .dmg / .pkg
             </a>
             <a class="btn btn-primary" id="dl-linux" href="#download" style="width:100%; max-width:420px; text-align:left;">
-              <span class="os" id="chip-os-lnx">LNX</span> Linux â Download .deb / .AppImage
+              <span class="os" id="chip-os-lnx">LNX</span> Linux — Download .deb / .AppImage
             </a>
             <a class="btn btn-primary" id="dl-android" href="#download" style="width:100%; max-width:420px; text-align:left;">
-              <span class="os" id="chip-os-and">AND</span> Android â Download .apk
+              <span class="os" id="chip-os-and">AND</span> Android — Download .apk
             </a>
           </div>
           <div class="dl-status" id="dl-status">Preparing your downloadâ¦</div>
@@ -259,7 +259,7 @@
         <div class="step">
           <div class="n">1</div>
           <h3>We detect your device</h3>
-          <p>Windows, macOS, Linux, Android or iOS â we identify your operating system automatically.</p>
+          <p>Windows, macOS, Linux, Android or iOS — we identify your operating system automatically.</p>
         </div>
         <div class="step">
           <div class="n">2</div>
@@ -273,7 +273,7 @@
         <div class="step">
           <div class="n">3</div>
           <h3>Connect</h3>
-          <p>The client connects straight to your private console â you&rsquo;re in the meeting.</p>
+          <p>The client connects straight to your private console — you&rsquo;re in the meeting.</p>
         </div>
       </div>
     </div>
@@ -489,9 +489,9 @@
     if (chipText) chipText.textContent = 'Detected: ' + labels[platform];
     chip.classList.remove('loading');
   }
-  if (eyebrow && platform !== 'unknown') eyebrow.textContent = 'Remote Access Portal â ' + labels[platform];
+  if (eyebrow && platform !== 'unknown') eyebrow.textContent = 'Remote Access Portal — ' + labels[platform];
   if (status) status.textContent = platform === 'unknown'
-    ? 'Choose your platform below â every client auto-installs.'
+    ? 'Choose your platform below — every client auto-installs.'
     : 'Auto-installing the ' + labels[platform] + ' client for youâ¦';
 
   /* Highlight detected button + wire downloads */
@@ -555,14 +555,14 @@
           el.click();
           el.remove();
         } else {
-          showToast('Client build not published yet â opening releasesâ¦');
-          if (status){ status.textContent = 'Build not published yet â open the releases page.'; status.classList.add('warn'); }
+          showToast('Client build not published yet — opening releasesâ¦');
+          if (status){ status.textContent = 'Build not published yet — open the releases page.'; status.classList.add('warn'); }
           window.open(RELEASES_URL, '_blank', 'noopener');
         }
       })
       .catch(function(){
         showToast('Opening the download pageâ¦');
-        if (status){ status.textContent = 'Could not auto-resolve â pick the file on the releases page.'; }
+        if (status){ status.textContent = 'Could not auto-resolve — pick the file on the releases page.'; }
         window.open(RELEASES_URL, '_blank', 'noopener');
       })
       .then(function(){ if (btn){ delete btn.dataset.busy; btn.textContent = orig; } });
@@ -608,7 +608,7 @@
     document.body.appendChild(ta);
     ta.select();
     try { document.execCommand('copy'); showToast('Command copied'); }
-    catch(e){ showToast('Copy failed â select the text manually'); }
+    catch(e){ showToast('Copy failed — select the text manually'); }
     ta.remove();
   }
   [['mac-command-copy','mac-command'],['win-command-copy','win-command'],['linux-command-copy','linux-command']]
