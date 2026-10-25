@@ -118,9 +118,7 @@ android {
     // Set output file naming to follow zoom-private-<os>-<arch> pattern
     applicationVariants.all { variant ->
         variant.outputs.all { output ->
-            def originalName = output.outputFile.name
-            def extension = originalName.substring(originalName.lastIndexOf('.') + 1)
-            output.outputFileName = "zoom-private-android-${variant.flavorName}-${variant.versionName}.${extension}"
+            output.outputFileName = "zoom-private-android-${variant.flavorName}-${variant.versionName}.apk"
         }
     }
 
