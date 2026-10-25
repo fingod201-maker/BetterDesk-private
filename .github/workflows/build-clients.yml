@@ -309,6 +309,26 @@ jobs:
         working-directory: ${{ env.FLUTTER_DIR }}
         run: flutter pub get
 
+      - name: Configure release signing
+        working-directory: ${{ env.FLUTTER_DIR }}/android
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+        run: |
+          if [ -n "${KEYSTORE_B64}" ] && [ -n "${KEY_ALIAS}" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > app/upload-keystore.jks
+            printf 'storeFile=upload-keystore.jks
+keyAlias=%s
+keyPassword=%s
+storePassword=%s
+'               "${KEY_ALIAS}" "${KEY_PASSWORD}" "${STORE_PASSWORD}" > key.properties
+            echo "Release signing configured."
+          else
+            echo "No keystore secret - DEBUG-signed (sideload only)."
+          fi
+
       - name: Build Android APKs (per ABI flavor)
         working-directory: ${{ env.FLUTTER_DIR }}
         run: |
