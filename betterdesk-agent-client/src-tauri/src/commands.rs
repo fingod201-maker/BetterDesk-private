@@ -1,12 +1,14 @@
 use crate::cdap_client::CdapClient;
 use crate::config::{AccessMode, AgentConfig};
 use crate::registration;
+use crate::registration::base32_encode_upper;
 use crate::sidecar::{SidecarConfig, SidecarStatus};
 use crate::sysinfo_collect::SystemSnapshot;
-use log::info;
+use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use tauri::{Emitter, Manager, State};
+use machine_uid;
 
 /// Shared application state managed by Tauri.
 pub struct AgentState {
@@ -930,7 +932,7 @@ pub fn get_agent_settings(state: State<'_, AgentState>) -> Result<AgentSettings,
 pub fn save_agent_settings(
     settings: AgentSettings,
     state: State<'_, AgentState>,
-    app: tauri::AppHandle,
+    _app: tauri::AppHandle,
 ) -> Result<(), String> {
     let is_admin = crate::privileges::is_os_admin();
     {
@@ -977,7 +979,7 @@ pub fn save_agent_settings(
 
     // Sync OS-level autostart registration (Linux .desktop, Windows HKCU Run,
     // macOS LaunchAgent) with the persisted preference.
-    crate::autostart::sync_os_autostart(&app, autostart_desired);
+    crate::autostart::sync_os_autostart(autostart_desired);
 
     info!("Settings saved (autostart={})", autostart_desired);
     Ok(())
@@ -1480,3 +1482,202 @@ pub fn disable_settings_lock(
     config.save().map_err(|e| e.to_string())?;
     Ok(())
 }
+
+// ---------------------------------------------------------------------------
+// Remote access permissions (single-step setup)
+// ---------------------------------------------------------------------------
+
+/// Result of requesting the interactive OS consents (macOS TCC on macOS,
+/// always-granted elsewhere).
+#[derive(Debug, Serialize)]
+pub struct OsPermissionGrant {
+    pub screen_capture: bool,
+    pub accessibility: bool,
+}
+
+/// Result of `apply_remote_permissions`.
+#[derive(Debug, Serialize)]
+pub struct ApplyRemotePermissionsResult {
+    pub ok: bool,
+    pub message: String,
+    pub grant: OsPermissionGrant,
+}
+
+/// Trigger the interactive OS consent prompts needed to stream and control
+/// this machine. On Windows/Linux these permissions are implicit; on macOS
+/// this raises the Screen Recording and Accessibility prompts.
+#[tauri::command]
+pub async fn request_os_permissions() -> Result<OsPermissionGrant, String> {
+    let screen_capture = crate::permissions::request_screen_capture();
+    let accessibility = crate::permissions::request_accessibility();
+    info!(
+        "[permissions] screen_capture={} accessibility={}",
+        screen_capture, accessibility
+    );
+    Ok(OsPermissionGrant {
+        screen_capture,
+        accessibility,
+    })
+}
+
+/// Configure the OS firewall to allow Zoom VIP remote desktop ports.
+///
+/// This raises exactly one native elevation prompt per invocation (UAC on
+/// Windows, administrator prompt on macOS, pkexec/sudo on Linux).
+#[tauri::command]
+pub async fn configure_firewall(address: Option<String>) -> Result<(), String> {
+    let _ = address;
+    crate::permissions::ensure_firewall()
+}
+
+/// Enable/disable OS-level autostart for the Zoom VIP agent.
+#[tauri::command]
+pub fn set_os_autostart(
+    enabled: bool,
+    state: State<'_, AgentState>,
+) -> Result<(), String> {
+    crate::autostart::sync_os_autostart(enabled);
+    {
+        let mut config = state.config.lock().map_err(|e| e.to_string())?;
+        config.autostart = enabled;
+        config.save().map_err(|e| format!("Failed to save config: {}", e))?;
+    }
+    let report = crate::permissions::report(enabled);
+    if report.autostart != enabled {
+        return Err("Could not update the operating-system autostart entry".to_string());
+    }
+    info!("[autostart] requested enabled={}", enabled);
+    Ok(())
+}
+
+/// Probe the current permission state (used by the single-step setup screen).
+#[tauri::command]
+pub fn check_remote_permissions(
+    state: State<'_, AgentState>,
+) -> Result<crate::permissions::RemotePermissionReport, String> {
+    let autostart = state
+        .config
+        .lock()
+        .map_err(|e| e.to_string())?
+        .autostart;
+    Ok(crate::permissions::report(autostart))
+}
+
+/// Apply all remote access permissions in a single atomic step:
+/// 1. Set unattended access mode (if requested)
+/// 2. Enable screen capture
+/// 3. Generate/persist the unattended password (only when missing)
+/// 4. Save the agent configuration
+/// 5. Request the interactive OS consents
+/// 6. Restart the CDAP sidecar
+#[tauri::command]
+pub async fn apply_remote_permissions(
+    address: String,
+    allow_screen_capture: bool,
+    allow_unattended: bool,
+    state: State<'_, AgentState>,
+    app: tauri::AppHandle,
+) -> Result<ApplyRemotePermissionsResult, String> {
+    let mut grant = OsPermissionGrant {
+        screen_capture: true,
+        accessibility: true,
+    };
+    let mut config = state.config.lock().map_err(|e| e.to_string())?;
+
+    // 0. Remember the server this device was enrolled with.
+    let target = address.trim();
+    if !target.is_empty() {
+        config.server_address = target.to_string();
+    }
+
+    // 1. Access mode
+    if allow_unattended {
+        if config.access_mode != AccessMode::Unattended {
+            config.access_mode = AccessMode::Unattended;
+            config.sync_access_mode();
+        }
+    } else {
+        config.access_mode = AccessMode::Supervised;
+        config.sync_access_mode();
+    }
+
+    // 2. Screen capture
+    config.allow_screen_capture = allow_screen_capture;
+
+    // 3. Unattended password: keep an existing one so retries do not rotate
+    //    the credential the console already knows.
+    if allow_unattended && config.unattended_password.is_empty() {
+        config.unattended_password = generate_unattended_password();
+        info!("[remote-permissions] Unattended password generated");
+    } else if !allow_unattended {
+        config.unattended_password = String::new();
+    }
+
+    // 4. Ensure device_id exists
+    if config.device_id.is_empty() {
+        use sha2::{Digest, Sha256};
+        let sysinfo = crate::sysinfo_collect::SystemSnapshot::collect();
+        let device_uid = machine_uid::get().unwrap_or_else(|_| uuid::Uuid::new_v4().to_string());
+        let mut hasher = Sha256::new();
+        hasher.update(device_uid.as_bytes());
+        hasher.update(b"|");
+        hasher.update(sysinfo.hostname.as_bytes());
+        hasher.update(b"|");
+        hasher.update(env!("CARGO_PKG_VERSION").as_bytes());
+        let result = hasher.finalize();
+        config.device_id = format!("BD-{}", base32_encode_upper(&result[..8], 13));
+    }
+
+    config.save().map_err(|e| format!("Failed to save config: {}", e))?;
+
+    // 5. Persist token to keyring if available
+    if !config.auth_token.is_empty() {
+        if let Err(e) = config.store_token_secure() {
+            warn!("[remote-permissions] Keyring store failed: {}", e);
+        }
+    }
+
+    drop(config); // release lock before prompting / sidecar restart
+
+    if allow_screen_capture {
+        let screen = crate::permissions::request_screen_capture();
+        let accessibility = crate::permissions::request_accessibility();
+        grant.screen_capture = screen;
+        grant.accessibility = accessibility;
+        info!(
+            "[remote-permissions] OS consent screen_capture={} accessibility={}",
+            screen, accessibility
+        );
+    }
+
+    // 6. Restart sidecar with the new config
+    let sidecar_cfg = {
+        let config = state.config.lock().map_err(|e| e.to_string())?;
+        config.to_sidecar_config()
+    };
+    state.sidecar.stop();
+    if let Err(e) = state.sidecar.start(&sidecar_cfg, app.clone()) {
+        return Err(format!("Failed to start CDAP sidecar: {}", e));
+    }
+
+    info!(
+        "[remote-permissions] Applied - unattended={}, screen_capture={}",
+        allow_unattended, allow_screen_capture
+    );
+
+    Ok(ApplyRemotePermissionsResult {
+        ok: true,
+        message: "Remote access permissions applied successfully".to_string(),
+        grant,
+    })
+}
+
+/// Generate a random unattended access password.
+fn generate_unattended_password() -> String {
+    use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
+    use rand::RngCore;
+    let mut bytes = [0u8; 12];
+    rand::thread_rng().fill_bytes(&mut bytes);
+    URL_SAFE_NO_PAD.encode(&bytes).chars().take(12).collect()
+}
+

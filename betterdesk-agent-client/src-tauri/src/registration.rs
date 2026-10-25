@@ -908,7 +908,7 @@ pub async fn sync_config(config: &AgentConfig) -> Result<()> {
     }
 }
 
-fn base32_encode_upper(bytes: &[u8], output_len: usize) -> String {
+pub(crate) fn base32_encode_upper(bytes: &[u8], output_len: usize) -> String {
     const ALPHABET: &[u8; 32] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 
     let mut encoded = String::with_capacity(output_len);

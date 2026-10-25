@@ -16,7 +16,7 @@ const RUN_VALUE: &str = "BetterDeskAgent";
 /// Ensure the OS autostart registration matches `enabled`.
 ///
 /// Safe to call multiple times. Logs a warning on failure but never panics.
-pub fn sync_os_autostart(_app: &tauri::AppHandle, enabled: bool) {
+pub fn sync_os_autostart(enabled: bool) {
     #[cfg(windows)]
     {
         let exe_path = match std::env::current_exe() {

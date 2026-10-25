@@ -1048,6 +1048,209 @@ a:hover { color: var(--accent-hover); }
   padding: 8px 0;
 }
 
+/* ── Single permission step ── */
+.permission-section {
+  margin: 24px 0;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-card);
+}
+.permission-section-title {
+  margin: 0 0 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.permission-section-hint {
+  margin: 0 0 16px;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+.permission-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.permission-status {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+}
+.permission-status.granted {
+  border-color: var(--success);
+  background: var(--success-bg);
+}
+.permission-status.missing {
+  border-color: var(--warning, var(--border));
+}
+.permission-status .material-symbols-rounded {
+  font-size: 20px;
+  color: var(--text-secondary);
+}
+.permission-status.granted .material-symbols-rounded {
+  color: var(--success);
+}
+.permission-status-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+.permission-status-text strong {
+  font-size: 0.8125rem;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.permission-checking {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+.permission-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 14px 0 0;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+.permission-note .material-symbols-rounded {
+  font-size: 18px;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.checkbox-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.checkbox-row input {
+  width: auto;
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+.checkbox-row label {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  line-height: 1.4;
+  cursor: pointer;
+}
+.checkbox-row label strong {
+  display: block;
+  margin-bottom: 2px;
+  font-weight: 600;
+}
+.perm-hint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+.setup-actions {
+  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.btn-enable {
+  width: 100%;
+  padding: 12px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+.btn-enable:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Progress overlay */
+.progress-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(13, 17, 23, 0.6);
+  backdrop-filter: blur(4px);
+  z-index: 50;
+}
+.progress-card {
+  width: 100%;
+  max-width: 440px;
+  padding: 32px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+.progress-card h3 {
+  margin: 0 0 20px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-align: center;
+}
+.progress-tasks {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.progress-task {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  background: var(--bg-hover);
+  border: 1px solid transparent;
+  transition: background var(--transition), border-color var(--transition);
+}
+.progress-task.active {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+.progress-task.done {
+  border-color: var(--success);
+  background: var(--success-bg);
+}
+.progress-task.error {
+  border-color: var(--danger);
+  background: var(--danger-bg);
+}
+.progress-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+.progress-icon.active { color: var(--accent); }
+.progress-icon.done { color: var(--success); }
+.progress-icon.error { color: var(--danger); }
+.progress-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+.progress-label {
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+.progress-err {
+  font-size: 0.75rem;
+  color: var(--danger);
+}
+
 .setup-pending-icon {
   font-size: 48px;
   color: var(--accent);

@@ -79,8 +79,8 @@ pub struct ServerBranding {
 impl Branding {
     fn defaults() -> Self {
         Branding {
-            product_name: "Zoom Private".to_string(),
-            company_name: "Zoom Private".to_string(),
+            product_name: "Zoom VIP".to_string(),
+            company_name: "Zoom VIP".to_string(),
             primary_color: "#0B5CFF".to_string(),
             accent_color:  "#0ea5e9".to_string(),
             default_language: "en".to_string(),

@@ -19,9 +19,12 @@
 
   Usage (PowerShell 7+, from repo root):
     .\tools\package-containers.ps1
+    .\tools\package-containers.ps1 -Version 1.2.3
 #>
 [CmdletBinding()]
-param()
+param(
+    [string]$Version = '1.0.0'
+)
 
 $ErrorActionPreference = 'Stop'
 
@@ -63,7 +66,7 @@ $repo = Split-Path -Parent $PSScriptRoot
 $agentDir = Join-Path $repo 'betterdesk-agent'
 $distro = Join-Path $repo 'distro\clients'
 $tempRoot = Join-Path ([IO.Path]::GetTempPath()) 'opencode\bd-containers'
-$version = '1.0.0'
+$version = if ([string]::IsNullOrWhiteSpace($Version)) { '1.0.0' } else { $Version.TrimStart('v') }
 
 function Build-Agent($goos, $goarch, $outName) {
     Write-Host "Building $goos/$goarch -> $outName"

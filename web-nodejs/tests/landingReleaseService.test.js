@@ -85,7 +85,8 @@ describe('landing auto-detect resolution', () => {
         const asset = await landing.resolveAsset('macos', 'arm64');
         expect(asset).not.toBeNull();
         expect(asset.platform).toBe('macos');
-        expect(asset.arch).toBe('arm64');
+        // A universal build is valid for Apple Silicon too.
+        expect(['arm64', 'universal']).toContain(asset.arch);
     });
 
     test('resolves the Linux bundle for a Linux visitor', async () => {

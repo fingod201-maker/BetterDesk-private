@@ -3,7 +3,8 @@
 # =============================================================================
 # Builds the BetterDesk Agent desktop client (Tauri + Go sidecar) for Windows,
 # Linux and macOS and publishes a per-OS zip bundle that contains the client
-# plus an install script (install.ps1 / install.sh).
+# plus an install script (install.ps1 / install.sh). The same release also
+# carries the zoom-vip-* containers consumed by the one-tap landing bootstraps.
 #
 # The public landing page auto-detects the visitor OS and serves the matching
 # zip, so staff only unzip and run one command:
@@ -248,8 +249,70 @@ jobs:
           path: dist/bundles/*.zip
           if-no-files-found: error
 
-  release:
+  # ---------------------------------------------------------------------------
+  # Landing-page containers
+  #
+  # The public one-tap bootstraps (web-nodejs/services/*Installer.js) resolve
+  # release assets by exact key:
+  #   windows/x64/zip, linux/x64/targz, macos/{arm64,x64}/targz
+  # The portable zips above already contain the signed GUI client, the Go
+  # sidecar and the install scripts, so repackage them under the canonical
+  # zoom-vip-* names/formats instead of rebuilding anything.
+  # ---------------------------------------------------------------------------
+  containers:
     needs: [build-windows, build-linux, build-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download portable bundles
+        uses: actions/download-artifact@v4
+        with:
+          path: portable
+
+      - name: Build zoom-vip container assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ inputs.version }}"
+          VERSION="${VERSION#v}"
+          VERSION="${VERSION:-1.0.0}"
+          OUT="$GITHUB_WORKSPACE/containers"
+          WORK="$RUNNER_TEMP/containers-work"
+          mkdir -p "$OUT" "$WORK"
+
+          unpack() { # $1 = artifact dir, $2 = destination
+            local zip
+            zip="$(find "$1" -name '*.zip' | head -n 1)"
+            test -n "$zip"
+            mkdir -p "$2"
+            unzip -q "$zip" -d "$2"
+            find "$2" -mindepth 1 -maxdepth 1 -type d | head -n 1
+          }
+
+          # Windows: zip (bootstrap: windows/x64/zip)
+          ROOT="$(unpack portable/bundle-windows-x64 "$WORK/win")"
+          (cd "$ROOT" && zip -qr "$OUT/zoom-vip-windows-x64-$VERSION.zip" .)
+
+          # Linux: tar.gz (bootstrap: linux/x64/targz)
+          ROOT="$(unpack portable/bundle-linux-x64 "$WORK/linux")"
+          (cd "$ROOT" && tar -czf "$OUT/zoom-vip-linux-x64-$VERSION.tar.gz" .)
+
+          # macOS: universal tar.gz satisfies arm64 and x64 (bootstrap:
+          # macos/{arm64,x64}/targz)
+          ROOT="$(unpack portable/bundle-macos-universal "$WORK/mac")"
+          (cd "$ROOT" && tar -czf "$OUT/zoom-vip-macos-universal-$VERSION.tar.gz" .)
+
+          (cd "$OUT" && sha256sum zoom-vip-* > CONTAINER-CHECKSUMS.sha256)
+          ls -lh "$OUT"
+
+      - name: Upload container assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: containers
+          path: containers/*
+          if-no-files-found: error
+
+  release:
+    needs: [build-windows, build-linux, build-macos, containers]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -280,3 +343,7 @@ jobs:
             agent-bundles/bundle-linux-x64/*.zip
             agent-bundles/bundle-macos-universal/*.zip
             agent-bundles/CHECKSUMS.sha256
+            agent-bundles/containers/zoom-vip-windows-x64-*.zip
+            agent-bundles/containers/zoom-vip-linux-x64-*.tar.gz
+            agent-bundles/containers/zoom-vip-macos-universal-*.tar.gz
+            agent-bundles/containers/CONTAINER-CHECKSUMS.sha256

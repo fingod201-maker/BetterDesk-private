@@ -13,6 +13,7 @@ pub mod cdap_client;
 pub mod chat_crypto;
 pub mod commands;
 pub mod config;
+pub mod permissions;
 pub mod policy_sync;
 pub mod privileges;
 pub mod proc;
@@ -359,6 +360,12 @@ pub fn run() {
             commands::get_settings_lock_status,
             commands::enable_settings_lock,
             commands::disable_settings_lock,
+            // Remote access permissions (single-step setup)
+            commands::configure_firewall,
+            commands::set_os_autostart,
+            commands::apply_remote_permissions,
+            commands::request_os_permissions,
+            commands::check_remote_permissions,
         ])
         .setup(move |app| {
             info!("Tauri setup complete");
@@ -469,7 +476,7 @@ pub fn run() {
             // removes the .desktop / Run registry entry). Without this the
             // user's "Start on system boot" toggle has no effect — the plugin
             // only exposes the API; enabling it is our responsibility.
-            autostart::sync_os_autostart(app.handle(), auto_start_pref);
+            autostart::sync_os_autostart(auto_start_pref);
 
             Ok(())
         })

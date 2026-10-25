@@ -691,8 +691,17 @@ fn discover_wayland_display(runtime_dir: &str) -> Option<String> {
 
 // ── Binary discovery ──────────────────────────────────────────────────────
 
+/// Resolve the sidecar binary for callers outside this module (e.g. firewall
+/// rules that must allow the agent process as well as the GUI).
+pub fn resolve_binary_path() -> Option<PathBuf> {
+    let data_dir = directories::ProjectDirs::from("com", "betterdesk", "agent")
+        .map(|d| d.data_dir().to_path_buf())
+        .unwrap_or_else(|| PathBuf::from("."));
+    find_binary(&data_dir).ok()
+}
+
 /// Find the `betterdesk-agent` binary.
-/// Search order: env var → exe dir → data dir → PATH.
+/// Search order: env var  exe dir  data dir  PATH.
 fn find_binary(data_dir: &PathBuf) -> Result<PathBuf> {
     let bin_name = if cfg!(windows) {
         "betterdesk-agent.exe"
