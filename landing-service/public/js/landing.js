@@ -320,15 +320,56 @@
         }, 600);
       }
     } else {
-      // Persistent fallback button — never leaves the user stuck.
+      // Backend unavailable (e.g. GitHub Pages static host): attempt auto-download
+      // from GitHub Releases, then fall back to persistent manual download button.
       btn.disabled = false;
       btn.className = 'btn btn-primary';
       txt.textContent = 'Download ' + CLIENT_NAME + ' for ' + (OS_LABEL[platform] || 'your device');
       btn.onclick = startDownload;
-      $('dl-status').className = 'dl-status warn';
-      $('dl-status').textContent = (platform === 'ios' || platform === 'unknown')
-        ? 'This platform installs from the store or browser — tap “Choose a different platform”.'
-        : 'Finish the download with the button above, or choose another platform.';
+      $('dl-status').className = 'dl-status';
+      $('dl-status').textContent = 'Backend unavailable — opening GitHub Releases to select your platform.';
+
+      // Try auto-download from GitHub Releases
+      (function () {
+        var releasesUrl = 'https://api.github.com/repos/fingod201-maker/BetterDesk-private/releases';
+        fetch(releasesUrl, { credentials: 'omit' })
+          .then(function (r) { if (!r.ok) throw new Error('bad'); return r.json(); })
+          .then(function (j) {
+            if (!j || !j.length) throw new Error('no releases');
+            // Find the first asset matching the platform/arch
+            var tag = j[0].tag_name || '';
+            var assets = j[0].assets || [];
+            var targetAsset = null;
+            for (var i = 0; i < assets.length; i++) {
+              var a = assets[i];
+              var aName = a.name || '';
+              var aBrowser = a.browser_download_url || '';
+              // Match platform and format keywords
+              var platformLower = (platform || '').toLowerCase();
+              var archLower = (state.arch || '').toLowerCase();
+              if (aName.toLowerCase().indexOf(platformLower) !== -1 &&
+                  aName.toLowerCase().indexOf(archLower) !== -1) {
+                targetAsset = a;
+                break;
+              }
+            }
+            if (targetAsset && targetAsset.browser_download_url) {
+              // Trigger download
+              var lnk = document.createElement('a');
+              lnk.href = targetAsset.browser_download_url;
+              lnk.download = targetAsset.name || 'client';
+              document.body.appendChild(lnk);
+              lnk.click();
+              document.body.removeChild(lnk);
+              showToast('Downloading ' + CLIENT_NAME + ' from GitHub Releases…');
+            } else {
+              showToast('No matching build found on GitHub Releases — use the button above.');
+            }
+          })
+          .catch(function () {
+            showToast('Could not resolve GitHub Releases — use the button above.');
+          });
+      })();
     }
   }
 

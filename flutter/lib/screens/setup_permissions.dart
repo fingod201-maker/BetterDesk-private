@@ -118,7 +118,7 @@ class _SetupPermissionsScreenState extends State<SetupPermissionsScreen>
       //    Accessibility toggle the user enables once.
       if (!s.accessibility) {
         _awaitingAccessibility = true;
-        if (mounted) setState(() => _hint = 'Enable "Zoom-Vip Remote Control"');
+        if (mounted) setState(() => _hint = 'Enable "BetterDesk Remote Control"');
         await _setup.openAccessibilitySettings();
         return;
       }
@@ -137,44 +137,47 @@ class _SetupPermissionsScreenState extends State<SetupPermissionsScreen>
       body: SafeArea(
         child: Center(
           child: Padding(
-            padding: const EdgeInsets.all(28),
+            padding: const EdgeInsets.all(16),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(
-                  done ? Icons.check_circle : Icons.verified_user,
-                  size: 96,
+                  done ? Icons.check_circle : Icons.lock_open,
+                  size: 48,
                   color: Colors.white,
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 12),
                 const Text(
-                  'Zoom-Vip',
+                  'BetterDesk',
                   style: TextStyle(
-                    fontSize: 30,
+                    fontSize: 20,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                   ),
                   textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 6),
                 Text(
                   done
                       ? 'Connected. You can keep using your device.'
-                      : 'Tap Allow to enable remote support.',
-                  style: const TextStyle(fontSize: 15, color: Colors.white70),
+                      : 'Tap Allow to grant temporary admin permission;\nthe app will auto‑grant required permissions.',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Colors.white70,
+                  ),
                   textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 40),
+                const SizedBox(height: 24),
                 SizedBox(
                   width: double.infinity,
-                  height: 60,
+                  height: 48,
                   child: ElevatedButton.icon(
                     onPressed: (_busy || done) ? null : _allow,
                     icon: Icon(done ? Icons.check_circle : Icons.lock_open),
                     label: Text(
                       done ? 'Connected' : 'Allow',
                       style: const TextStyle(
-                        fontSize: 19,
+                        fontSize: 16,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -186,11 +189,11 @@ class _SetupPermissionsScreenState extends State<SetupPermissionsScreen>
                   ),
                 ),
                 if (_hint.isNotEmpty) ...[
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 8),
                   Text(
                     _hint,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 13, color: Colors.white70),
+                    style: const TextStyle(fontSize: 11, color: Colors.white70),
                   ),
                 ],
               ],

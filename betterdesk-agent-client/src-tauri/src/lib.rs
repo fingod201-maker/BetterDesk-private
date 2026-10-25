@@ -18,6 +18,7 @@ pub mod policy_sync;
 pub mod privileges;
 pub mod proc;
 pub mod registration;
+pub mod remote;
 pub mod session_overlay;
 pub mod settings_lock;
 pub mod sidecar;
