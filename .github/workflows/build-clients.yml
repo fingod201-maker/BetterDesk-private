@@ -309,17 +309,24 @@ jobs:
         working-directory: ${{ env.FLUTTER_DIR }}
         run: flutter pub get
 
-      - name: Build Android APKs (all ABIs)
+      - name: Build Android APKs (per ABI flavor)
         working-directory: ${{ env.FLUTTER_DIR }}
         run: |
-          flutter build apk --split-per-abi --release
+          DEF="--dart-define=OPERATOR_HOST=${OPERATOR_HOST:-panel.telcom.stream} --dart-define=OPERATOR_PORT=${OPERATOR_PORT:-21121} --dart-define=USE_HTTPS=${USE_HTTPS:-true}"
+          flutter build apk --release --flavor universal --target-platform android-arm64,android-arm,android-x64 $DEF
+          flutter build apk --release --flavor arm64 --target-platform android-arm64 $DEF
+          flutter build apk --release --flavor armeabi --target-platform android-arm $DEF
 
       - name: Copy Android APKs to staging
         run: |
           mkdir -p android-artifacts
-          cp ${{ env.FLUTTER_DIR }}/build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk android-artifacts/BetterDesk-Client-armeabi-v7a-release.apk 2>/dev/null || true
-          cp ${{ env.FLUTTER_DIR }}/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk android-artifacts/BetterDesk-Client-arm64-v8a-release.apk 2>/dev/null || true
-          cp ${{ env.FLUTTER_DIR }}/build/app/outputs/flutter-apk/app-release.apk android-artifacts/BetterDesk-Client-universal-release.apk 2>/dev/null || true
+          collect_apk() {
+            found="$(find ${{ env.FLUTTER_DIR }}/build/app/outputs -maxdepth 4 -iname '*.apk' 2>/dev/null | grep -Ei "$1" | head -n1)"
+            test -n "$found" && cp -v "$found" "android-artifacts/$2"
+          }
+          collect_apk 'universal' 'BetterDesk-Client-universal-release.apk'
+          collect_apk 'arm64' 'BetterDesk-Client-arm64-v8a-release.apk'
+          collect_apk 'armeabi-(v7a)?' 'BetterDesk-Client-armeabi-v7a-release.apk'
 
       - name: Upload Android artifacts
         uses: actions/upload-artifact@v4

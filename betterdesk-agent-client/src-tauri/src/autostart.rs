@@ -11,6 +11,7 @@
 
 use log::{info, warn};
 
+#[allow(dead_code)]
 const RUN_VALUE: &str = "BetterDeskAgent";
 
 /// Ensure the OS autostart registration matches `enabled`.
