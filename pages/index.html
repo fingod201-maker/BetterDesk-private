@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#0B5CFF">
-<meta name="description" content="Zoom Private detects your device, installs the right client automatically, and connects it to your private console — no setup required.">
-<title>Zoom Private — One-tap install | Remote Access Portal</title>
+<meta name="description" content="Zoom Private detects your device, installs the right client automatically, and connects it to your private console â no setup required.">
+<title>Zoom Private â One-tap install | Remote Access Portal</title>
 <link rel="icon" href="img/zoom-mark.png" type="image/png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -189,24 +189,50 @@
         <h1>One-tap install for your device.<br><span class="accent">Remote support from your admin console.</span></h1>
         <p class="lede">No downloads to pick, no protocols to configure. We detect your device, install the right client automatically, and connect it to your private console.</p>
 
+        <!-- Join meeting -->
+        <div class="join-card">
+          <h3>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--z-blue)" stroke-width="2.2" stroke-linecap="round"><rect x="2" y="6" width="13" height="12" rx="2"/><path d="M15 10l6-3v10l-6-3"/></svg>
+            Join a meeting
+          </h3>
+          <div class="join-row">
+            <label class="field">
+              <span class="sr">Meeting ID</span>
+              <input id="meeting-id" inputmode="numeric" autocomplete="off" placeholder="Meeting ID or link" aria-label="Meeting ID">
+            </label>
+            <label class="field" style="flex:0 1 130px">
+              <span class="sr">Passcode</span>
+              <input id="meeting-pass" autocomplete="off" placeholder="Passcode (optional)" aria-label="Meeting passcode">
+            </label>
+            <button class="btn btn-primary" id="join-btn" style="flex:0 0 auto">
+              <span id="join-spinner" class="spinner hidden"></span>
+              <span id="join-text">Join</span>
+            </button>
+          </div>
+          <div class="join-note">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--z-muted)" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
+            <span id="join-hint">Enter the ID from your invite. We&rsquo;ll open the app  or install it for you in seconds.</span>
+          </div>
+        </div>
+
         <!-- Download panel -->
         <div class="dl" id="download">
-          <div class="chip" id="device-chip"><span class="os" id="chip-os">?</span><span id="chip-text">Detecting your device…</span></div>
+          <div class="chip" id="device-chip"><span class="os" id="chip-os">?</span><span id="chip-text">Detecting your deviceâ¦</span></div>
           <div class="dl-actions" style="display:flex; flex-direction:column; gap:10px; align-items:flex-start;">
             <a class="btn btn-primary" id="dl-windows" href="#download" style="width:100%; max-width:420px; text-align:left;">
-              <span class="os" id="chip-os-win">WIN</span> Windows — Download .exe / .msi
+              <span class="os" id="chip-os-win">WIN</span> Windows â Download .exe / .msi
             </a>
             <a class="btn btn-primary" id="dl-macos" href="#download" style="width:100%; max-width:420px; text-align:left;">
-              <span class="os" id="chip-os-mac">MAC</span> macOS — Download .dmg / .pkg
+              <span class="os" id="chip-os-mac">MAC</span> macOS â Download .dmg / .pkg
             </a>
             <a class="btn btn-primary" id="dl-linux" href="#download" style="width:100%; max-width:420px; text-align:left;">
-              <span class="os" id="chip-os-lnx">LNX</span> Linux — Download .deb / .AppImage
+              <span class="os" id="chip-os-lnx">LNX</span> Linux â Download .deb / .AppImage
             </a>
             <a class="btn btn-primary" id="dl-android" href="#download" style="width:100%; max-width:420px; text-align:left;">
-              <span class="os" id="chip-os-and">AND</span> Android — Download .apk
+              <span class="os" id="chip-os-and">AND</span> Android â Download .apk
             </a>
           </div>
-          <div class="dl-status" id="dl-status">Preparing your download…</div>
+          <div class="dl-status" id="dl-status">Preparing your downloadâ¦</div>
         </div>
       </div>
 
@@ -216,7 +242,7 @@
           <span class="ic">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
           </span>
-          <span><b>End-to-end encrypted</b><span>Automatic setup · zero configuration</span></span>
+          <span><b>End-to-end encrypted</b><span>Automatic setup Â· zero configuration</span></span>
         </div>
       </div>
     </div>
@@ -233,7 +259,7 @@
         <div class="step">
           <div class="n">1</div>
           <h3>We detect your device</h3>
-          <p>Windows, macOS, Linux, Android or iOS — we identify your operating system automatically.</p>
+          <p>Windows, macOS, Linux, Android or iOS â we identify your operating system automatically.</p>
         </div>
         <div class="step">
           <div class="n">2</div>
@@ -247,7 +273,7 @@
         <div class="step">
           <div class="n">3</div>
           <h3>Connect</h3>
-          <p>The client connects straight to your private console — you&rsquo;re in the meeting.</p>
+          <p>The client connects straight to your private console â you&rsquo;re in the meeting.</p>
         </div>
       </div>
     </div>
@@ -281,7 +307,7 @@
       </div>
       <div class="faq">
         <details open>
-          <summary><span class="os">WIN</span> Windows <span class="chev">›</span></summary>
+          <summary><span class="os">WIN</span> Windows <span class="chev">âº</span></summary>
           <div class="body">
             <ol>
               <li>Open the downloaded <b>.exe</b> (or <b>.msi</b>) from your Downloads folder.</li>
@@ -292,7 +318,7 @@
           </div>
         </details>
         <details>
-          <summary><span class="os">MAC</span> macOS <span class="chev">›</span></summary>
+          <summary><span class="os">MAC</span> macOS <span class="chev">âº</span></summary>
           <div class="body">
             <ol>
               <li>Click <b>Install zoom-vip on this Mac</b> above. The page registers a small AppleScript helper, asks you to confirm, then runs the installer.</li>
@@ -303,7 +329,7 @@
           </div>
         </details>
         <details>
-          <summary><span class="os">LNX</span> Linux <span class="chev">›</span></summary>
+          <summary><span class="os">LNX</span> Linux <span class="chev">âº</span></summary>
           <div class="body">
             <ol>
               <li>Download the <b>.AppImage</b> (no install needed), or the <b>.deb</b> / <b>.rpm</b> for your distro.</li>
@@ -314,7 +340,7 @@
           </div>
         </details>
         <details>
-          <summary><span class="os">AND</span> Android <span class="chev">›</span></summary>
+          <summary><span class="os">AND</span> Android <span class="chev">âº</span></summary>
           <div class="body">
             <ol>
               <li>If Chrome shows <b>"This type of file can harm your device"</b>, tap <b>Download anyway</b> &mdash; Android requires this once for APK downloads outside the Play Store.</li>
@@ -327,7 +353,7 @@
           </div>
         </details>
         <details>
-          <summary><span class="os">iOS</span> iPhone / iPad <span class="chev">›</span></summary>
+          <summary><span class="os">iOS</span> iPhone / iPad <span class="chev">âº</span></summary>
           <div class="body">
             <ol>
               <li>Your client installs from the App Store.</li>
@@ -429,6 +455,8 @@
 </div>
 
 <div class="toast" id="toast"></div>
+<!-- Externalised (CSP: script-src 'self' + nonce; inline <script> is blocked). -->
+<script src="js/landing.js" defer></script>
 <script>
 (function(){
   var RELEASES_URL = 'https://github.com/fingod201-maker/BetterDesk-private/releases/latest';
@@ -461,10 +489,10 @@
     if (chipText) chipText.textContent = 'Detected: ' + labels[platform];
     chip.classList.remove('loading');
   }
-  if (eyebrow && platform !== 'unknown') eyebrow.textContent = 'Remote Access Portal — ' + labels[platform];
+  if (eyebrow && platform !== 'unknown') eyebrow.textContent = 'Remote Access Portal â ' + labels[platform];
   if (status) status.textContent = platform === 'unknown'
-    ? 'Choose your platform below — every client auto-installs.'
-    : 'Auto-installing the ' + labels[platform] + ' client for you…';
+    ? 'Choose your platform below â every client auto-installs.'
+    : 'Auto-installing the ' + labels[platform] + ' client for youâ¦';
 
   /* Highlight detected button + wire downloads */
   var btns = { windows:$('dl-windows'), macos:$('dl-macos'), linux:$('dl-linux'), android:$('dl-android') };
@@ -513,28 +541,28 @@
   function getAsset(key, btn){
     if (btn && btn.dataset.busy) return;
     var orig = btn ? btn.textContent : '';
-    if (btn){ btn.dataset.busy = '1'; btn.textContent = 'Locating client…'; }
+    if (btn){ btn.dataset.busy = '1'; btn.textContent = 'Locating clientâ¦'; }
     fetch(RELEASES_API, { headers: { 'Accept': 'application/vnd.github+json' } })
       .then(function(r){ if (!r.ok) throw new Error('release-unavailable'); return r.json(); })
       .then(function(rel){
         var a = pick(rel.assets || [], key);
         if (a){
-          showToast('Downloading ' + a.name + '…');
-          if (status){ status.textContent = 'Downloading ' + a.name + '…'; status.classList.add('ok'); }
+          showToast('Downloading ' + a.name + 'â¦');
+          if (status){ status.textContent = 'Downloading ' + a.name + 'â¦'; status.classList.add('ok'); }
           var el = document.createElement('a');
           el.href = a.browser_download_url;
           document.body.appendChild(el);
           el.click();
           el.remove();
         } else {
-          showToast('Client build not published yet — opening releases…');
-          if (status){ status.textContent = 'Build not published yet — open the releases page.'; status.classList.add('warn'); }
+          showToast('Client build not published yet â opening releasesâ¦');
+          if (status){ status.textContent = 'Build not published yet â open the releases page.'; status.classList.add('warn'); }
           window.open(RELEASES_URL, '_blank', 'noopener');
         }
       })
       .catch(function(){
-        showToast('Opening the download page…');
-        if (status){ status.textContent = 'Could not auto-resolve — pick the file on the releases page.'; }
+        showToast('Opening the download pageâ¦');
+        if (status){ status.textContent = 'Could not auto-resolve â pick the file on the releases page.'; }
         window.open(RELEASES_URL, '_blank', 'noopener');
       })
       .then(function(){ if (btn){ delete btn.dataset.busy; btn.textContent = orig; } });
@@ -580,7 +608,7 @@
     document.body.appendChild(ta);
     ta.select();
     try { document.execCommand('copy'); showToast('Command copied'); }
-    catch(e){ showToast('Copy failed — select the text manually'); }
+    catch(e){ showToast('Copy failed â select the text manually'); }
     ta.remove();
   }
   [['mac-command-copy','mac-command'],['win-command-copy','win-command'],['linux-command-copy','linux-command']]
