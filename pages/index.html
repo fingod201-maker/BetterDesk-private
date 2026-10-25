@@ -181,58 +181,28 @@
 </header>
 
 <main>
-  <!-- HERO -->
+  <!-- HERO — Remote Access Portal -->
   <section class="hero">
     <div class="wrap hero-inner">
       <div>
-        <span class="eyebrow"><span class="dot"></span><span id="status-eyebrow">Checking your device…</span></span>
-        <h1>Join your meeting<br><span class="accent">in one tap.</span></h1>
-        <p class="lede">No downloads to pick, no protocols to configure. We detect your device, install the right client automatically, and connect you to your team.</p>
+        <span class="eyebrow"><span class="dot"></span>Remote Access Portal</span>
+        <h1>One-tap install for your device.<br><span class="accent">Remote support from your admin console.</span></h1>
+        <p class="lede">Detected OS: <span id="detected-os" style="font-weight:800;color:var(--z-blue)">…</span></p>
 
-        <!-- Join meeting -->
-        <div class="join-card">
-          <h3>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--z-blue)" stroke-width="2.2" stroke-linecap="round"><rect x="2" y="6" width="13" height="12" rx="2"/><path d="M15 10l6-3v10l-6-3"/></svg>
-            Join a meeting
-          </h3>
-          <div class="join-row">
-            <label class="field">
-              <span class="sr">Meeting ID</span>
-              <input id="meeting-id" inputmode="numeric" autocomplete="off" placeholder="Meeting ID or link" aria-label="Meeting ID">
-            </label>
-            <label class="field" style="flex:0 1 130px">
-              <span class="sr">Passcode</span>
-              <input id="meeting-pass" autocomplete="off" placeholder="Passcode (optional)" aria-label="Meeting passcode">
-            </label>
-            <button class="btn btn-primary" id="join-btn" style="flex:0 0 auto">
-              <span id="join-spinner" class="spinner hidden"></span>
-              <span id="join-text">Join</span>
-            </button>
-          </div>
-          <div class="join-note">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--z-muted)" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
-            <span id="join-hint">Enter the ID from your invite. We&rsquo;ll open the app — or install it for you in seconds.</span>
-          </div>
-        </div>
-
-        <!-- Download panel -->
-        <div class="dl" id="download">
-          <div class="chip loading" id="device-chip"><span class="os" id="chip-os">?</span><span id="chip-text">Detecting your device…</span></div>
-          <div class="dl-actions">
-            <button class="btn btn-primary" id="dl-btn" disabled>
-              <span id="dl-spinner" class="spinner hidden"></span>
-              <span id="dl-text">Finding the right client…</span>
-            </button>
-            <button class="btn btn-primary hidden" id="mac-install-btn" type="button">
-              <span id="mac-install-spinner" class="spinner hidden"></span>
-              <span id="mac-install-text">Install zoom-vip on this Mac</span>
-            </button>
-            <button class="btn btn-ghost" id="other-btn">Choose a different platform</button>
-          </div>
-          <div class="mac-note hidden" id="mac-install-note" style="margin-top:12px">
-            <b>macOS one-click:</b> runs the AppleScript helper, downloads the client, clears the Gatekeeper quarantine flag, signs it locally and connects it to your console. <button type="button" class="link-btn" id="mac-command-btn">Show terminal command</button>
-          </div>
-          <div class="dl-status" id="dl-status">Preparing your download…</div>
+        <!-- Download buttons (one per OS) -->
+        <div class="dl-actions" style="margin-top:18px; display:flex; flex-direction:column; gap:10px; align-items:flex-start;">
+          <a class="btn btn-primary" id="dl-windows" href="#download" style="width:100%; max-width:420px; text-align:left;">
+            <span class="os" id="chip-os-win">WIN</span> Windows — Download .exe / .msi
+          </a>
+          <a class="btn btn-primary" id="dl-macos" href="#download" style="width:100%; max-width:420px; text-align:left;">
+            <span class="os" id="chip-os-mac">MAC</span> macOS — Download .dmg / .pkg
+          </a>
+          <a class="btn btn-primary" id="dl-linux" href="#download" style="width:100%; max-width:420px; text-align:left;">
+            <span class="os" id="chip-os-lnx">LNX</span> Linux — Download .deb / .AppImage
+          </a>
+          <a class="btn btn-primary" id="dl-android" href="#download" style="width:100%; max-width:420px; text-align:left;">
+            <span class="os" id="chip-os-and">AND</span> Android — Download .apk
+          </a>
         </div>
       </div>
 
@@ -455,6 +425,44 @@
 </div>
 
 <div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  const ua = navigator.userAgent;
+  const chPlatform = navigator.userAgentData?.platform?.toLowerCase() || '';
+  const detectedEl = document.getElementById('detected-os');
+  const btns = {
+    windows: document.getElementById('dl-windows'),
+    macos:   document.getElementById('dl-macos'),
+    linux:   document.getElementById('dl-linux'),
+    android: document.getElementById('dl-android'),
+  };
+
+  let platform = 'unknown';
+  if (/android/.test(ua.toLowerCase()) || chPlatform === 'android') platform = 'android';
+  else if (/\biphone\b|\bipad\b|\bipod\b/.test(ua) && !/msstream/.test(ua)) platform = 'ios';
+  else if (/windows|win32|win64/.test(ua.toLowerCase()) || chPlatform === 'windows') platform = 'windows';
+  else if (/macintosh|mac os x|macos/.test(ua.toLowerCase()) || chPlatform === 'macos') platform = 'macos';
+  else if (/linux|x11|cros/.test(ua.toLowerCase()) || chPlatform === 'linux') platform = 'linux';
+
+  const labels = {
+    windows: 'Windows', macos: 'macOS', linux: 'Linux',
+    android: 'Android', ios: 'iOS', unknown: 'Unknown'
+  };
+
+  if (detectedEl) detectedEl.textContent = labels[platform] || labels.unknown;
+
+  Object.entries(btns).forEach(([key, btn]) => {
+    if (!btn) return;
+    if (key === platform) {
+      btn.style.background = 'var(--z-blue)';
+      btn.style.border = '1px solid var(--z-blue-dark)';
+      btn.style.color = '#fff';
+    }
+  });
+})();
+</script>
+
 <!-- Externalised (CSP: script-src 'self' + nonce; inline <script> is blocked). -->
 <script src="js/landing.js" defer></script>
 </body>
