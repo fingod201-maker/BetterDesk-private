@@ -1,0 +1,27 @@
+[Unit]
+Description=BetterDesk Landing Service (zoom.telcom.stream)
+Documentation=https://github.com/unitronix/BetterDesk
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=betterdesk
+Group=betterdesk
+WorkingDirectory=/opt/betterdesk/landing-service
+Environment=PORT=8080
+Environment=NODE_ENV=production
+Environment=LANDING_ALLOWED_ORIGINS=https://zoom.telcom.stream,https://panel.telcom.stream
+ExecStart=/usr/bin/node /opt/betterdesk/landing-service/server.js
+Restart=always
+RestartSec=5
+StartLimitBurst=10
+StartLimitIntervalSec=60
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/betterdesk/landing-service
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

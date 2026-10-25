@@ -31,6 +31,7 @@ const path = require('path');
 const express = require('express');
 const cors = require('cors');
 
+const { securityHeaders, downloadLimiter, apiLimiter, corsMiddleware, bodySizeLimit } = require('./middleware/security');
 const landingRoutes = require('./routes/landing.routes');
 
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -40,13 +41,24 @@ const PRIVACY_HTML = path.join(PUBLIC_DIR, 'landing', 'privacy.html');
 const app = express();
 app.disable('x-powered-by');
 
-// CORS — the page is often served from a different origin (GitHub Pages).
-const allowed = (process.env.LANDING_ALLOWED_ORIGINS || '').trim();
-app.use(cors(allowed
-    ? { origin: allowed.split(',').map((o) => o.trim()).filter(Boolean) }
-    : { origin: true }));
+// ---- Security headers (all responses) --------------------------------------
+app.use(securityHeaders);
 
+// ---- CORS (default same-origin only; LANDING_ALLOWED_ORIGINS overrides) ----
+app.use(corsMiddleware);
+
+// ---- Body size cap ---------------------------------------------------------
+app.use(bodySizeLimit);
+
+// ---- JSON parsing ----------------------------------------------------------
 app.use(express.json());
+
+// ---- Rate limiting ---------------------------------------------------------
+// API endpoints (JSON) — stricter
+app.use('/api/', apiLimiter);
+// Download/proxy endpoints — generous burst
+app.use('/download/', downloadLimiter);
+app.use('/landing/download', downloadLimiter);
 
 // ---- Static landing assets -------------------------------------------------
 app.use('/img', express.static(path.join(PUBLIC_DIR, 'img'), { maxAge: '7d' }));

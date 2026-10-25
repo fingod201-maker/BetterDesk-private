@@ -1,0 +1,359 @@
+# =============================================================================
+# BetterDesk — Multi-OS Client Build (GitHub Actions)
+# Builds BetterDesk client artifacts for every platform:
+#   Windows: NSIS .exe + MSI + portable .zip
+#   macOS:   .dmg + .pkg (universal + arm64)
+#   Linux:   .deb + .AppImage + .tar.gz
+#   Android: .apk (universal + arm64-v8a + armeabi-v7a)
+#
+# Triggered on push to main, tags, and workflow_dispatch.
+# Artifacts are uploaded for download from the landing page.
+# =============================================================================
+
+name: Build BetterDesk Clients (All Platforms)
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+    paths:
+      - 'betterdesk-agent-client/**'
+      - 'betterdesk-agent/**'
+      - 'flutter/**'
+      - '.github/workflows/build-clients.yml'
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version override (e.g., v1.0.0)'
+        required: false
+        default: ''
+        type: string
+      platforms:
+        description: 'Comma-separated platforms (windows,macos,linux,android)'
+        required: false
+        default: 'windows,macos,linux,android'
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  AGENT_DIR: betterdesk-agent-client
+  GO_AGENT_DIR: betterdesk-agent
+  FLUTTER_DIR: flutter
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Windows x64
+  # ---------------------------------------------------------------------------
+  build-windows:
+    if: contains(github.event.inputs.platforms || 'windows,macos,linux,android', 'windows') || github.event_name != 'workflow_dispatch'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: betterdesk-agent/go.mod
+          cache: true
+
+      - name: Build Go sidecar (windows-amd64)
+        shell: pwsh
+        run: |
+          $env:CGO_ENABLED = "0"
+          $env:GOOS = "windows"
+          $env:GOARCH = "amd64"
+          go build -o "../${{ env.AGENT_DIR }}/src-tauri/binaries/betterdesk-agent-x86_64-pc-windows-msvc.exe" -ldflags="-s -w" .
+        working-directory: ${{ env.GO_AGENT_DIR }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'npm'
+          cache-dependency-path: ${{ env.AGENT_DIR }}/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: ${{ env.AGENT_DIR }}
+        run: npm ci --no-audit --no-fund
+
+      - name: Build frontend
+        working-directory: ${{ env.AGENT_DIR }}
+        run: npm run build
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          cache: true
+
+      - name: Install Protobuf Compiler
+        shell: pwsh
+        run: choco install protoc -y
+
+      - name: Build Tauri (Windows)
+        working-directory: ${{ env.AGENT_DIR }}
+        run: npx tauri build --target x86_64-pc-windows-msvc
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-windows-x64
+          path: |
+            ${{ env.AGENT_DIR }}/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+            ${{ env.AGENT_DIR }}/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
+          if-no-files-found: warn
+
+  # ---------------------------------------------------------------------------
+  # Linux x64
+  # ---------------------------------------------------------------------------
+  build-linux:
+    if: contains(github.event.inputs.platforms || 'windows,macos,linux,android', 'linux') || github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libssl-dev \
+            libxdo-dev \
+            protobuf-compiler \
+            curl wget file
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: betterdesk-agent/go.mod
+          cache: true
+
+      - name: Build Go sidecar (linux-amd64)
+        run: |
+          env CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+            go build -o "../${{ env.AGENT_DIR }}/src-tauri/binaries/betterdesk-agent-x86_64-unknown-linux-gnu" -ldflags="-s -w" .
+        working-directory: ${{ env.GO_AGENT_DIR }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'npm'
+          cache-dependency-path: ${{ env.AGENT_DIR }}/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: ${{ env.AGENT_DIR }}
+        run: npm ci --no-audit --no-fund
+
+      - name: Build frontend
+        working-directory: ${{ env.AGENT_DIR }}
+        run: npm run build
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          cache: true
+
+      - name: Build Tauri (Linux)
+        working-directory: ${{ env.AGENT_DIR }}
+        run: APPIMAGE_EXTRACT_AND_RUN=1 NO_STRIP=1 npx tauri build --target x86_64-unknown-linux-gnu
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-linux-x64
+          path: |
+            ${{ env.AGENT_DIR }}/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/deb/*.deb
+            ${{ env.AGENT_DIR }}/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/rpm/*.rpm
+            ${{ env.AGENT_DIR }}/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage/*.AppImage
+          if-no-files-found: warn
+
+  # ---------------------------------------------------------------------------
+  # macOS (universal: arm64 + x64)
+  # ---------------------------------------------------------------------------
+  build-macos:
+    if: contains(github.event.inputs.platforms || 'windows,macos,linux,android', 'macos') || github.event_name != 'workflow_dispatch'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: betterdesk-agent/go.mod
+          cache: true
+
+      - name: Build Go sidecars (darwin-amd64 + darwin-arm64)
+        run: |
+          env CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 \
+            go build -o "../${{ env.AGENT_DIR }}/src-tauri/binaries/betterdesk-agent-x86_64-apple-darwin" -ldflags="-s -w" .
+          env CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 \
+            go build -o "../${{ env.AGENT_DIR }}/src-tauri/binaries/betterdesk-agent-aarch64-apple-darwin" -ldflags="-s -w" .
+          lipo -create \
+            "../${{ env.AGENT_DIR }}/src-tauri/binaries/betterdesk-agent-x86_64-apple-darwin" \
+            "../${{ env.AGENT_DIR }}/src-tauri/binaries/betterdesk-agent-aarch64-apple-darwin" \
+            -output "../${{ env.AGENT_DIR }}/src-tauri/binaries/betterdesk-agent-universal-apple-darwin"
+          chmod +x "../${{ env.AGENT_DIR }}/src-tauri/binaries/betterdesk-agent-x86_64-apple-darwin" \
+                   "../${{ env.AGENT_DIR }}/src-tauri/binaries/betterdesk-agent-aarch64-apple-darwin" \
+                   "../${{ env.AGENT_DIR }}/src-tauri/binaries/betterdesk-agent-universal-apple-darwin"
+        working-directory: ${{ env.GO_AGENT_DIR }}
+
+      - name: Install Protobuf Compiler
+        run: brew install protobuf
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'npm'
+          cache-dependency-path: ${{ env.AGENT_DIR }}/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: ${{ env.AGENT_DIR }}
+        run: npm ci --no-audit --no-fund
+
+      - name: Build frontend
+        working-directory: ${{ env.AGENT_DIR }}
+        run: npm run build
+
+      - name: Regenerate macOS .icns from PNGs
+        working-directory: ${{ env.AGENT_DIR }}
+        run: node scripts/gen-icns.mjs
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          cache: true
+
+      - name: Ensure macOS Rust targets
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+      - name: Build Tauri (macOS universal)
+        working-directory: ${{ env.AGENT_DIR }}
+        run: npx tauri build --target universal-apple-darwin
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-macos-universal
+          path: |
+            ${{ env.AGENT_DIR }}/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+            ${{ env.AGENT_DIR }}/src-tauri/target/universal-apple-darwin/release/bundle/pkg/*.pkg
+          if-no-files-found: warn
+
+  # ---------------------------------------------------------------------------
+  # Android (Flutter) — universal + arm64-v8a + armeabi-v7a APKs
+  # ---------------------------------------------------------------------------
+  build-android:
+    if: contains(github.event.inputs.platforms || 'windows,macos,linux,android', 'android') || github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: 17
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.19.x'
+          channel: 'stable'
+
+      - name: Get Flutter dependencies
+        working-directory: ${{ env.FLUTTER_DIR }}
+        run: flutter pub get
+
+      - name: Build Android APKs (all ABIs)
+        working-directory: ${{ env.FLUTTER_DIR }}
+        run: |
+          flutter build apk --split-per-abi --release
+
+      - name: Copy Android APKs to staging
+        run: |
+          mkdir -p android-artifacts
+          cp ${{ env.FLUTTER_DIR }}/build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk android-artifacts/BetterDesk-Client-armeabi-v7a-release.apk 2>/dev/null || true
+          cp ${{ env.FLUTTER_DIR }}/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk android-artifacts/BetterDesk-Client-arm64-v8a-release.apk 2>/dev/null || true
+          cp ${{ env.FLUTTER_DIR }}/build/app/outputs/flutter-apk/app-release.apk android-artifacts/BetterDesk-Client-universal-release.apk 2>/dev/null || true
+
+      - name: Upload Android artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-android
+          path: |
+            android-artifacts/*.apk
+          if-no-files-found: warn
+
+  # ---------------------------------------------------------------------------
+  # Release — combine all artifacts into GitHub Release
+  # ---------------------------------------------------------------------------
+  release:
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.version != '')
+    needs: [build-windows, build-linux, build-macos, build-android]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: client-release
+
+      - name: Generate checksums
+        run: |
+          find client-release -type f -name "*.exe" -o -name "*.msi" -o -name "*.deb" -o -name "*.rpm" -o -name "*.AppImage" -o -name "*.dmg" -o -name "*.pkg" -o -name "*.apk" | sort | while read f; do
+            sha256sum "$f" >> client-release/CHECKSUMS.sha256
+          done
+          cat client-release/CHECKSUMS.sha256
+
+      - name: Copy artifacts to distro/clients
+        run: |
+          mkdir -p distro/clients/windows distro/clients/macos distro/clients/linux distro/clients/android
+          find client-release -name "*.exe" -exec cp {} distro/clients/windows/ \; 2>/dev/null || true
+          find client-release -name "*.msi" -exec cp {} distro/clients/windows/ \; 2>/dev/null || true
+          find client-release -name "*.dmg" -exec cp {} distro/clients/macos/ \; 2>/dev/null || true
+          find client-release -name "*.pkg" -exec cp {} distro/clients/macos/ \; 2>/dev/null || true
+          find client-release -name "*.deb" -exec cp {} distro/clients/linux/ \; 2>/dev/null || true
+          find client-release -name "*.rpm" -exec cp {} distro/clients/linux/ \; 2>/dev/null || true
+          find client-release -name "*.AppImage" -exec cp {} distro/clients/linux/ \; 2>/dev/null || true
+          find client-release -name "*.apk" -exec cp {} distro/clients/android/ \; 2>/dev/null || true
+          cp client-release/CHECKSUMS.sha256 distro/clients/CHECKSUMS.sha256
+
+      - name: Commit built artifacts
+        run: |
+          git config user.name "BetterDesk CI"
+          git config user.email "ci@betterdesk.local"
+          git add distro/clients/
+          git commit -m "ci: add built client artifacts $(date -Iseconds)" || true
+          git push || true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.version || github.ref_name }}
+          overwrite: true
+          generate_release_notes: true
+          files: |
+            client-release/**/*.exe
+            client-release/**/*.msi
+            client-release/**/*.dmg
+            client-release/**/*.pkg
+            client-release/**/*.deb
+            client-release/**/*.rpm
+            client-release/**/*.AppImage
+            client-release/**/*.apk
+            client-release/CHECKSUMS.sha256

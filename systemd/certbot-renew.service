@@ -1,0 +1,9 @@
+[Unit]
+Description=Renew Let's Encrypt SSL certificates
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/bin/certbot renew --quiet --no-eff-email --post-hook "systemctl reload betterdesk-nginx"

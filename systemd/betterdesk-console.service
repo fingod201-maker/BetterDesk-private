@@ -1,0 +1,45 @@
+[Unit]
+Description=BetterDesk Console + Go Server (panel.telcom.stream)
+Documentation=https://github.com/unitronix/BetterDesk
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=betterdesk
+Group=betterdesk
+WorkingDirectory=/opt/betterdesk
+Environment=NODE_ENV=production
+Environment=PORT=5000
+Environment=HOST=0.0.0.0
+Environment=API_HOST=0.0.0.0
+Environment=API_ENABLED=false
+Environment=SERVER_BACKEND=betterdesk
+Environment=HBBS_API_URL=http://127.0.0.1:21121/api
+Environment=BETTERDESK_API_URL=http://127.0.0.1:21121/api
+Environment=RUSTDESK_PATH=/opt/betterdesk/data
+Environment=DATA_DIR=/opt/betterdesk/data
+Environment=DB_PATH=/opt/betterdesk/data/db_v2.sqlite3
+Environment=PUB_KEY_PATH=/opt/betterdesk/data/id_ed25519.pub
+Environment=API_KEY_PATH=/opt/betterdesk/data/.api_key
+Environment=SESSION_SECRET=${SESSION_SECRET}
+Environment=DB_TYPE=sqlite
+Environment=DOCKER=false
+Environment=ENCRYPTED_ONLY=1
+Environment=RELAY_SERVERS=${RELAY_PUBLIC_IP}
+Environment=SIGNAL_RATE_LIMIT_PER_IP=20
+Environment=ENROLLMENT_MODE=managed
+Environment=NTP_SERVERS=pool.ntp.org,time.google.com,time.cloudflare.com
+ExecStart=/usr/bin/node /opt/betterdesk/web-nodejs/server.js
+Restart=always
+RestartSec=5
+StartLimitBurst=10
+StartLimitIntervalSec=60
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/betterdesk/data /opt/betterdesk/web-nodejs
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
