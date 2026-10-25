@@ -14,7 +14,6 @@ use anyhow::{anyhow, Context, Result};
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use futures_util::{SinkExt, StreamExt};
 use log::{debug, error, info, warn};
-use native_tls::TlsConnector as NativeTlsConnector;
 use portable_pty::{CommandBuilder, NativePtySystem, PtySize, PtySystem};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};

@@ -11,11 +11,10 @@
 //!
 //! Reconnect loop with exponential backoff (max 60s).
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use futures_util::{SinkExt, StreamExt};
 use log::{debug, info, warn};
-use native_tls::TlsConnector as NativeTlsConnector;
 use serde::Serialize;
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};

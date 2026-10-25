@@ -285,7 +285,7 @@ pub fn get_network_adapters() -> Vec<crate::sysinfo_collect::NetworkAdapter> {
 
 #[tauri::command]
 pub async fn reconnect_agent(state: State<'_, AgentState>) -> Result<String, String> {
-    let (address, device_id, console_url) = {
+    let (address, device_id, _console_url) = {
         let config = state.config.lock().map_err(|e| e.to_string())?;
         if !config.is_registered() {
             return Err("Device not registered".to_string());
@@ -315,7 +315,7 @@ pub async fn reconnect_agent(state: State<'_, AgentState>) -> Result<String, Str
 
 #[tauri::command]
 pub async fn send_diagnostics(state: State<'_, AgentState>) -> Result<String, String> {
-    let (address, device_id, console_url) = {
+    let (address, device_id, _console_url) = {
         let config = state.config.lock().map_err(|e| e.to_string())?;
         if !config.is_registered() {
             return Err("Device not registered".to_string());
