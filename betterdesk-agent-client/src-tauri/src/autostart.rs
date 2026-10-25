@@ -10,6 +10,7 @@
 //! hidden on boot and only the tray icon is shown.
 
 use log::{info, warn};
+use std::process::Command;
 
 #[allow(dead_code)]
 const RUN_VALUE: &str = "BetterDeskAgent";
@@ -33,7 +34,7 @@ pub fn sync_os_autostart(enabled: bool) {
             // starts in the tray only (see lib.rs). Without the flag a
             // console/UI window would pop up on every user logon.
             let launch = format!("\"{}\" --autostart", exe_path);
-            let status = crate::proc::hidden("reg")
+            let status = Command::new("reg")
                 .args([
                     "add",
                     "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
@@ -52,7 +53,7 @@ pub fn sync_os_autostart(enabled: bool) {
                 Err(e) => warn!("[autostart] Cannot run reg add: {}", e),
             }
         } else {
-            let status = crate::proc::hidden("reg")
+            let status = Command::new("reg")
                 .args([
                     "delete",
                     "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
