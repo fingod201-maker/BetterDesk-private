@@ -1,0 +1,122 @@
+# BetterDesk Landing Page — GitHub Pages (Temporary)
+# This static site serves the public landing page until the VPS is deployed.
+# Auto-detects visitor OS and offers the correct BetterDesk client download.
+#
+# Deployed to: https://<username>.github.io/BetterDesk/ (or custom domain)
+#
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BetterDesk — Remote Access</title>
+<meta name="description" content="BetterDesk remote access portal — download the agent for Windows, macOS, Linux, Android">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #f8fafc; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+  .card { background: #1e293b; border: 1px solid #334155; border-radius: 16px; padding: 40px; max-width: 480px; width: 92%; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3); }
+  h1 { font-size: 28px; margin-bottom: 8px; letter-spacing: -0.5px; }
+  .subtitle { color: #94a3b8; margin-bottom: 24px; font-size: 15px; }
+  .badge { display: inline-block; background: #22c55e; color: #fff; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 2px 10px; border-radius: 999px; margin-bottom: 16px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 24px 0; }
+  .btn { display: block; background: #3b82f6; color: #fff; text-decoration: none; padding: 14px 18px; border-radius: 10px; font-weight: 600; text-align: center; border: none; cursor: pointer; font-size: 15px; transition: background 0.2s; }
+  .btn:hover { background: #2563eb; }
+  .btn:active { background: #1d4ed8; }
+  .btn.secondary { background: #475569; }
+  .btn.secondary:hover { background: #334155; }
+  .os-label { font-size: 12px; color: #94a3b8; margin-bottom: 6px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+  .divider { height: 1px; background: #334155; margin: 24px 0; }
+  .admin { margin-top: 24px; padding-top: 20px; border-top: 1px solid #334155; }
+  .admin a { color: #60a5fa; text-decoration: none; }
+  .admin a:hover { text-decoration: underline; }
+  .note { font-size: 12px; color: #64748b; margin-top: 16px; line-height: 1.5; }
+  .detecting { color: #22c55e; font-size: 13px; font-weight: 600; margin-bottom: 8px; display: none; }
+  #detected-os { font-weight: 700; color: #3b82f6; }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="badge">BetterDesk &bull; LIVE</div>
+  <h1>Remote Access Portal</h1>
+  <p class="subtitle">One-tap install for your device. Remote support from your admin console.</p>
+
+  <div class="detecting" id="detecting">
+    Detected OS: <span id="detected-os">...</span>
+  </div>
+
+  <div class="grid">
+    <button class="btn" onclick="location.href='/download/windows'" id="btn-windows">
+      <span class="os-label">Windows</span>
+      Download .exe / .msi
+    </button>
+    <button class="btn" onclick="location.href='/download/macos'" id="btn-macos">
+      <span class="os-label">macOS</span>
+      Download .dmg / .pkg
+    </button>
+    <button class="btn" onclick="location.href='/download/linux'" id="btn-linux">
+      <span class="os-label">Linux</span>
+      Download .deb / .AppImage
+    </button>
+    <button class="btn secondary" onclick="location.href='/download/android'" id="btn-android">
+      <span class="os-label">Android</span>
+      Download .apk
+    </button>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="admin">
+    <p style="color: #94a3b8; font-size: 13px; margin-bottom: 8px;">IT Admin Console</p>
+    <a href="https://panel.telcom.stream" target="_blank" rel="noopener">Open Admin Console &rarr;</a>
+  </div>
+
+  <p class="note">
+    All connections are TLS-encrypted. Remote sessions require user consent unless unattended mode is enabled by your IT admin.<br>
+    Need help? Contact your IT helpdesk or email ops@telcom.stream.
+  </p>
+</div>
+
+<script>
+(function() {
+  const ua = navigator.userAgent;
+  const chPlatform = navigator.userAgentData?.platform?.toLowerCase() || '';
+  const detecting = document.getElementById('detecting');
+  const detectedOs = document.getElementById('detected-os');
+  const btns = {
+    windows: document.getElementById('btn-windows'),
+    macos: document.getElementById('btn-macos'),
+    linux: document.getElementById('btn-linux'),
+    android: document.getElementById('btn-android'),
+  };
+
+  let platform = 'unknown';
+  if (/android/.test(ua.toLowerCase()) || chPlatform === 'android') platform = 'android';
+  else if (/\biphone\b|\bipad\b|\bipod\b/.test(ua) && !/msstream/.test(ua)) platform = 'ios';
+  else if (/windows|win32|win64/.test(ua.toLowerCase()) || chPlatform === 'windows') platform = 'windows';
+  else if (/macintosh|mac os x|macos/.test(ua.toLowerCase()) || chPlatform === 'macos') platform = 'macos';
+  else if (/linux|x11|cros/.test(ua.toLowerCase()) || chPlatform === 'linux') platform = 'linux';
+
+  const labels = {
+    windows: 'Windows', macos: 'macOS', linux: 'Linux',
+    android: 'Android', ios: 'iOS', unknown: 'Unknown'
+  };
+
+  if (detecting && detectedOs) {
+    detecting.style.display = 'block';
+    detectedOs.textContent = labels[platform] || labels.unknown;
+  }
+
+  // Highlight the detected OS button
+  Object.entries(btns).forEach(([key, btn]) => {
+    if (key === platform && btn) {
+      btn.style.background = '#22c55e';
+      btn.style.border = '1px solid #16a34a';
+    }
+  });
+})();
+</script>
+
+</body>
+</html>
