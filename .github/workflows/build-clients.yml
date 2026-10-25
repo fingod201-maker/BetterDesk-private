@@ -319,11 +319,7 @@ jobs:
         run: |
           if [ -n "${KEYSTORE_B64}" ] && [ -n "${KEY_ALIAS}" ]; then
             echo "$KEYSTORE_B64" | base64 -d > app/upload-keystore.jks
-            printf 'storeFile=upload-keystore.jks
-keyAlias=%s
-keyPassword=%s
-storePassword=%s
-'               "${KEY_ALIAS}" "${KEY_PASSWORD}" "${STORE_PASSWORD}" > key.properties
+            printf 'storeFile=upload-keystore.jks\nkeyAlias=%s\nkeyPassword=%s\nstorePassword=%s\n' "${KEY_ALIAS}" "${KEY_PASSWORD}" "${STORE_PASSWORD}" > key.properties
             echo "Release signing configured."
           else
             echo "No keystore secret - DEBUG-signed (sideload only)."
