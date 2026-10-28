@@ -137,7 +137,7 @@ class _UnattendedAccessScreenState extends State<UnattendedAccessScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Zoom-Vip — Auto-Connect'),
+        title: const Text('Zoom-Private - Auto-Connect'),
         automaticallyImplyLeading: false,
       ),
       body: Padding(
