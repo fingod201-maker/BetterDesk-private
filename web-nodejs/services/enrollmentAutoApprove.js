@@ -24,7 +24,7 @@ const api = require('./betterdeskApi');
 
 const ENABLED = String(process.env.ENROLLMENT_AUTO_APPROVE || '1').toLowerCase() !== '0';
 const INTERVAL_MS = Math.max(2, parseInt(process.env.ENROLLMENT_AUTO_APPROVE_INTERVAL, 10) || 5) * 1000;
-const ALLOWED_BUNDLES = String(process.env.ENROLLMENT_AUTO_APPROVE_BUNDLES || 'com.betterdesk.agent')
+const ALLOWED_BUNDLES = String(process.env.ENROLLMENT_AUTO_APPROVE_BUNDLES || 'com.betterdesk.agent,com.betterdesk.client.universal')
     .split(',')
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean);
