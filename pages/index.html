@@ -1,638 +1,587 @@
-<!-- test edit -->
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#0B5CFF">
-<meta name="description" content="Zoom Private detects your device, installs the right client automatically, and connects it to your private console — no setup required.">
-<title>Zoom Private — One-tap install | Remote Access Portal</title>
+<meta name="description" content="Zoom Private detects your device and gives you the correct client in one tap. Windows, macOS, Linux and Android. No account, no configuration.">
+<title>Zoom Private &mdash; One-tap remote access</title>
 <link rel="icon" href="img/zoom-mark.png" type="image/png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root{
-    --z-blue:#0B5CFF; --z-blue-dark:#0847cc; --z-blue-soft:#e8f0ff;
-    --z-ink:#0b1b33; --z-ink-soft:#25344d; --z-muted:#5a6b85;
-    --z-bg:#f6f8fc; --z-card:#ffffff; --z-border:#e3e9f2;
-    --z-success:#12b76a; --z-success-soft:#e7f8ef;
-    --z-warn:#b54708; --z-warn-soft:#fef3e6;
-    --radius:16px; --radius-sm:10px;
-    --shadow-sm:0 1px 2px rgba(16,32,64,.06),0 1px 3px rgba(16,32,64,.05);
-    --shadow-md:0 10px 30px -12px rgba(11,60,160,.25);
-    --shadow-lg:0 30px 60px -20px rgba(11,60,160,.35);
+    --blue:#0B5CFF;
+    --blue-dark:#0847cc;
+    --blue-soft:#e9f1ff;
+    --ink:#0b1b33;
+    --ink-soft:#243550;
+    --muted:#5d6f8a;
+    --bg:#f7f9fd;
+    --card:#ffffff;
+    --border:#e2e9f4;
+    --success:#0f9d63;
+    --success-soft:#e6f7ef;
+    --warn:#a85b12;
+    --warn-soft:#fff3e3;
+    --radius:18px;
+    --radius-sm:12px;
+    --shadow-sm:0 1px 2px rgba(16,32,64,.05), 0 4px 14px -8px rgba(16,32,64,.12);
+    --shadow-md:0 18px 40px -18px rgba(11,60,160,.28);
+    --shadow-lg:0 36px 70px -28px rgba(11,60,160,.42);
   }
-  *{margin:0;padding:0;box-sizing:border-box}
+  *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
   html{scroll-behavior:smooth}
   body{
-    font-family:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
-    color:var(--z-ink); background:var(--z-bg); line-height:1.6;
-    -webkit-font-smoothing:antialiased; overflow-x:hidden;
+    font-family:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+    color:var(--ink);
+    background:
+      radial-gradient(900px 520px at 88% -8%, rgba(11,92,255,.10), transparent 62%),
+      radial-gradient(720px 480px at -8% 18%, rgba(15,157,99,.07), transparent 58%),
+      var(--bg);
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
   }
+  img{max-width:100%;display:block}
   a{color:inherit;text-decoration:none}
-  .wrap{max-width:1160px;margin:0 auto;padding:0 24px}
+  button{font:inherit}
+  .wrap{max-width:1140px;margin:0 auto;padding:0 22px}
+  .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  .hidden{display:none !important}
 
-  /* ---------- Header ---------- */
-  header{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.85);backdrop-filter:blur(12px);border-bottom:1px solid var(--z-border)}
-  .nav{display:flex;align-items:center;justify-content:space-between;height:68px}
-  .brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:1.2rem;letter-spacing:-.02em}
-  .brand img{width:34px;height:34px;border-radius:9px;box-shadow:0 4px 14px rgba(11,92,255,.35)}
-  .nav-links{display:none;gap:28px;align-items:center}
-  @media(min-width:860px){.nav-links{display:flex}}
-  .nav-links a{color:var(--z-muted);font-weight:500;font-size:.92rem;transition:color .15s}
-  .nav-links a:hover{color:var(--z-ink)}
-  .nav-cta{background:var(--z-blue);color:#fff;font-weight:600;font-size:.9rem;padding:.6rem 1.1rem;border-radius:999px;transition:background .15s,transform .15s;white-space:nowrap}
-  .nav-cta:hover{background:var(--z-blue-dark);transform:translateY(-1px)}
+  /* Header */
+  .site-header{
+    position:sticky;top:0;z-index:60;
+    background:rgba(255,255,255,.86);
+    backdrop-filter:blur(14px);
+    -webkit-backdrop-filter:blur(14px);
+    border-bottom:1px solid rgba(226,233,244,.9);
+  }
+  .nav{display:flex;align-items:center;justify-content:space-between;gap:18px;height:70px}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:1.15rem;letter-spacing:-.02em;flex:none}
+  .brand img{width:34px;height:34px;border-radius:10px;box-shadow:0 6px 16px -6px rgba(11,92,255,.65)}
+  .brand em{font-style:normal;color:var(--blue)}
+  .nav-links{display:none;align-items:center;gap:28px}
+  .nav-links a{color:var(--muted);font-size:.92rem;font-weight:500;transition:color .15s}
+  .nav-links a:hover{color:var(--ink)}
+  .nav-cta{
+    display:inline-flex;align-items:center;justify-content:center;
+    min-height:40px;padding:0 18px;border-radius:999px;
+    background:var(--blue);color:#fff;font-size:.88rem;font-weight:600;
+    box-shadow:0 10px 22px -12px rgba(11,92,255,.9);
+    transition:background .15s,transform .15s;
+    white-space:nowrap;
+  }
+  .nav-cta:hover{background:var(--blue-dark);transform:translateY(-1px)}
+  @media(min-width:880px){.nav-links{display:flex}}
 
-  /* ---------- Hero ---------- */
-  .hero{position:relative;overflow:hidden}
-  .hero-inner{display:grid;grid-template-columns:1fr;gap:48px;padding:56px 0 40px;align-items:center}
-  @media(min-width:980px){.hero-inner{grid-template-columns:1.05fr .95fr;gap:40px;padding:72px 0 56px}}
-  .eyebrow{display:inline-flex;align-items:center;gap:8px;background:var(--z-blue-soft);color:var(--z-blue);font-weight:600;font-size:.8rem;padding:.35rem .75rem;border-radius:999px;margin-bottom:18px}
-  .eyebrow .dot{width:7px;height:7px;border-radius:50%;background:var(--z-success);box-shadow:0 0 0 3px rgba(18,183,106,.2)}
-  h1{font-size:clamp(2.1rem,4.6vw,3.4rem);line-height:1.06;letter-spacing:-.03em;font-weight:800;margin-bottom:16px}
-  h1 .accent{color:var(--z-blue)}
-  .lede{color:var(--z-muted);font-size:1.08rem;max-width:520px;margin-bottom:28px}
+  /* Hero */
+  .hero{position:relative;padding:44px 0 24px}
+  @media(min-width:980px){.hero{padding:70px 0 40px}}
+  .hero-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:44px;align-items:center}
+  @media(min-width:980px){.hero-grid{grid-template-columns:minmax(0,1.04fr) minmax(0,.96fr);gap:52px}}
+  .hero-copy{min-width:0}
+  .eyebrow{
+    display:inline-flex;align-items:center;gap:8px;
+    background:var(--blue-soft);color:var(--blue-dark);
+    font-size:.78rem;font-weight:700;letter-spacing:.02em;
+    padding:.38rem .8rem;border-radius:999px;margin-bottom:18px;
+  }
+  .eyebrow .dot{width:7px;height:7px;border-radius:50%;background:var(--success);box-shadow:0 0 0 3px rgba(15,157,99,.18)}
+  h1{font-size:clamp(2.15rem,5vw,3.55rem);line-height:1.04;letter-spacing:-.035em;font-weight:800;margin-bottom:16px}
+  h1 .accent{background:linear-gradient(100deg,var(--blue) 10%,#2f8bff 55%,#0f9d63 120%);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .lede{color:var(--muted);font-size:1.06rem;max-width:540px;margin-bottom:26px}
+  .hero-points{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:18px;color:var(--muted);font-size:.82rem;font-weight:500}
+  .hero-points span{display:inline-flex;align-items:center;gap:6px}
+  .hero-points svg{color:var(--success);flex:none}
 
-  /* Join card */
-  .join-card{background:var(--z-card);border:1px solid var(--z-border);border-radius:var(--radius);padding:22px;box-shadow:var(--shadow-md);max-width:520px}
-  .feat-grid{display:grid;grid-template-columns:1fr;gap:24px;padding:32px 0}
-  @media(min-width:860px){.feat-grid{grid-template-columns:repeat(3,1fr)}}
-  .feat-card{background:var(--z-card);border:1px solid var(--z-border);border-radius:var(--radius);padding:24px;text-align:center;transition:transform .2s}
-  .feat-card:hover{transform:translateY(-4px)}
-  .feat-icon{font-size:3rem;margin-bottom:16px;display:block}
-  .feat-title{font-size:1.2rem;font-weight:600;margin-bottom:8px}
-  .feat-desc{color:var(--z-muted);font-size:.9rem}n-card h3{font-size:.95rem;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px}
-  .join-row{display:flex;gap:10px;flex-wrap:wrap}
-  .field{flex:1 1 160px;min-width:0;position:relative}
-  .field input{width:100%;padding:.82rem .9rem;border:1.5px solid var(--z-border);border-radius:var(--radius-sm);font-size:.95rem;font-family:inherit;background:#fbfcfe;transition:border-color .15s,box-shadow .15s}
-  .field input:focus{outline:none;border-color:var(--z-blue);box-shadow:0 0 0 3px rgba(11,92,255,.15);background:#fff}
-  .btn{display:inline-flex;align-items:center;justify-content:center;gap:9px;border:none;border-radius:var(--radius-sm);font-family:inherit;font-weight:600;font-size:.95rem;padding:.82rem 1.2rem;cursor:pointer;transition:transform .15s,background .15s,box-shadow .15s;white-space:nowrap}
+  /* Download card */
+  .download-card{
+    background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+    padding:22px;box-shadow:var(--shadow-md);max-width:560px;min-width:0;position:relative;overflow:hidden;
+  }
+  .download-card::before{
+    content:"";position:absolute;inset:0 0 auto 0;height:4px;
+    background:linear-gradient(90deg,var(--blue),#3b8cff 55%,#0f9d63);
+  }
+  .detected{display:flex;align-items:center;gap:12px;margin-bottom:18px}
+  .os-badge{
+    width:44px;height:44px;border-radius:13px;flex:none;
+    display:grid;place-items:center;font-size:.72rem;font-weight:800;letter-spacing:.03em;
+    background:var(--blue-soft);color:var(--blue-dark);border:1px solid #d4e4ff;
+  }
+  .os-badge.ready{background:var(--success-soft);color:var(--success);border-color:#c6eedc}
+  .detected-copy{min-width:0}
+  .detected-copy strong{display:block;font-size:.98rem;letter-spacing:-.01em}
+  .detected-copy span{display:block;font-size:.8rem;color:var(--muted)}
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:9px;
+    min-height:48px;padding:0 20px;border:0;border-radius:var(--radius-sm);
+    font-weight:650;font-size:.95rem;cursor:pointer;
+    transition:transform .15s,background .15s,border-color .15s,box-shadow .15s;
+    text-align:center;white-space:nowrap;
+  }
   .btn:active{transform:translateY(1px)}
-  .btn-primary{background:var(--z-blue);color:#fff;box-shadow:0 10px 22px -8px rgba(11,92,255,.6)}
-  .btn-primary:hover{background:var(--z-blue-dark);transform:translateY(-1px)}
-  .btn-primary:disabled{opacity:.55;cursor:not-allowed;transform:none;box-shadow:none}
-  .btn-ghost{background:#fff;color:var(--z-ink);border:1.5px solid var(--z-border)}
-  .btn-ghost:hover{background:#f2f6fc;border-color:#c9d6ea}
-  .join-note{margin-top:12px;font-size:.82rem;color:var(--z-muted);display:flex;gap:8px;align-items:flex-start}
-  .join-note svg{flex:none;margin-top:2px}
-
-  /* Download panel */
-  .dl{margin-top:22px;border-top:1px dashed var(--z-border);padding-top:20px}
-  .chip{display:inline-flex;align-items:center;gap:9px;background:var(--z-blue-soft);border:1px solid #cfe0ff;color:var(--z-blue-dark);font-weight:600;font-size:.85rem;padding:.5rem .8rem;border-radius:999px;margin-bottom:14px}
-  .chip .os{width:22px;height:22px;border-radius:6px;background:var(--z-blue);color:#fff;display:grid;place-items:center;font-size:.72rem;font-weight:800}
-  .chip.loading{background:#eef2f8;border-color:var(--z-border);color:var(--z-muted)}
-  .chip.loading .os{background:#c1cddf}
-  .dl-actions{display:flex;flex-direction:column;gap:10px}
-  .dl-status{font-size:.82rem;color:var(--z-muted);min-height:1.2em}
-  .dl-status.ok{color:var(--z-success);font-weight:600}
-  .dl-status.warn{color:var(--z-warn);font-weight:600}
-  .mac-note{background:var(--z-blue-soft);border:1px solid #cfe0ff;color:var(--z-ink-soft);border-radius:var(--radius-sm);padding:11px 13px;font-size:.82rem;line-height:1.5}
-  .mac-note b{color:var(--z-blue-dark)}
-  .link-btn{background:none;border:none;padding:0;color:var(--z-blue);font:inherit;font-weight:600;cursor:pointer;text-decoration:underline}
-  .mac-cmd{background:#0b1b33;color:#dbe7ff;border-radius:10px;padding:12px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.78rem;line-height:1.5;word-break:break-all;white-space:pre-wrap;margin:12px 0}
-  .modal-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
-  .modal-actions .btn{flex:1 1 180px}
-  .spinner{width:15px;height:15px;border:2px solid rgba(255,255,255,.45);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite}
-  .spinner.dark{border-color:rgba(11,92,255,.25);border-top-color:var(--z-blue)}
-  @keyframes spin{to{transform:rotate(360deg)}}
+  .btn-primary{
+    width:100%;background:linear-gradient(180deg,#1466ff,var(--blue));
+    color:#fff;box-shadow:0 14px 26px -14px rgba(11,92,255,.9);
+  }
+  .btn-primary:hover{background:linear-gradient(180deg,var(--blue),var(--blue-dark));transform:translateY(-1px)}
+  .btn-primary[aria-disabled="true"]{opacity:.6;pointer-events:none}
+  .btn-ghost{
+    width:100%;background:#fff;color:var(--ink-soft);
+    border:1.5px solid var(--border);box-shadow:var(--shadow-sm);
+  }
+  .btn-ghost:hover{background:#f3f7fe;border-color:#c9d8ee}
+  .btn-soft{background:var(--blue-soft);color:var(--blue-dark);border:1px solid #d4e4ff}
+  .btn-soft:hover{background:#dce9ff}
+  .btn-row{display:flex;flex-direction:column;gap:10px}
+  .btn-icon{display:inline-flex;flex:none}
+  .download-meta{display:flex;flex-wrap:wrap;gap:6px 14px;justify-content:center;margin-top:12px;font-size:.78rem;color:var(--muted)}
+  .download-meta b{color:var(--ink-soft);font-weight:600}
+  .download-status{margin-top:12px;font-size:.8rem;color:var(--muted);min-height:1.25em;text-align:center}
+  .download-status.ok{color:var(--success);font-weight:600}
+  .download-status.warn{color:var(--warn);font-weight:600}
+  .download-status a{color:var(--blue);font-weight:600;text-decoration:underline}
 
   /* Hero art */
-  .hero-art{position:relative;border-radius:24px;overflow:hidden;box-shadow:var(--shadow-lg);border:1px solid var(--z-border);background:linear-gradient(135deg,#0b1b33,#123a7a)}
-  .hero-art img{display:block;width:100%;height:100%;object-fit:cover;aspect-ratio:1/1;opacity:.96}
-  .hero-art .float{position:absolute;left:18px;bottom:18px;right:18px;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:12px;box-shadow:var(--shadow-md)}
-  .hero-art .float .ic{width:38px;height:38px;border-radius:10px;background:var(--z-success-soft);color:var(--z-success);display:grid;place-items:center;flex:none}
-  .hero-art .float b{display:block;font-size:.9rem}
-  .hero-art .float span{font-size:.78rem;color:var(--z-muted)}
+  .hero-art{position:relative;min-width:0;border-radius:26px;overflow:hidden;border:1px solid rgba(255,255,255,.7);box-shadow:var(--shadow-lg);background:linear-gradient(140deg,#0b1b33,#123a7a);isolation:isolate}
+  .hero-art img{width:100%;max-width:100%;height:100%;object-fit:cover;aspect-ratio:4/3.4;opacity:.97}
+  @media(min-width:980px){.hero-art img{aspect-ratio:4/4.3}}
+  .hero-art .float{
+    position:absolute;left:16px;right:16px;bottom:16px;
+    display:flex;align-items:center;gap:12px;
+    background:rgba(255,255,255,.94);backdrop-filter:blur(10px);
+    border-radius:14px;padding:13px 15px;box-shadow:var(--shadow-md);
+  }
+  .hero-art .float .ic{width:38px;height:38px;border-radius:11px;background:var(--success-soft);color:var(--success);display:grid;place-items:center;flex:none}
+  .hero-art .float b{display:block;font-size:.88rem}
+  .hero-art .float span{display:block;font-size:.75rem;color:var(--muted)}
 
-  /* ---------- Sections ---------- */
-  section.pad{padding:64px 0}
-  .section-head{text-align:center;max-width:640px;margin:0 auto 44px}
-  .section-head h2{font-size:clamp(1.5rem,3vw,2.1rem);letter-spacing:-.02em;font-weight:800;margin-bottom:10px}
-  .section-head p{color:var(--z-muted)}
-  .steps{display:grid;grid-template-columns:1fr;gap:20px}
-  @media(min-width:820px){.steps{grid-template-columns:repeat(3,1fr)}}
-  .step{background:var(--z-card);border:1px solid var(--z-border);border-radius:var(--radius);padding:26px;box-shadow:var(--shadow-sm)}
-  .step .n{width:38px;height:38px;border-radius:11px;background:var(--z-blue-soft);color:var(--z-blue);display:grid;place-items:center;font-weight:800;margin-bottom:16px}
-  .step h3{font-size:1.05rem;margin-bottom:8px}
-  .step p{color:var(--z-muted);font-size:.92rem}
-  .step ul{color:var(--z-muted);font-size:.9rem;margin:10px 0 0 18px}
-  .step ul li{margin-bottom:4px}
+  /* Sections */
+  .section{padding:62px 0}
+  .section-head{text-align:center;max-width:660px;margin:0 auto 38px}
+  .section-head h2{font-size:clamp(1.55rem,3.2vw,2.15rem);line-height:1.15;letter-spacing:-.025em;font-weight:800;margin-bottom:10px}
+  .section-head p{color:var(--muted);font-size:.98rem}
+  .platforms{padding:10px 0 46px}
+  .platform-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  @media(min-width:820px){.platform-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}}
+  .platform-card{
+    display:flex;align-items:center;gap:12px;width:100%;min-width:0;text-align:left;
+    background:var(--card);border:1px solid var(--border);border-radius:14px;
+    padding:14px;cursor:pointer;box-shadow:var(--shadow-sm);
+    transition:transform .18s,border-color .18s,box-shadow .18s;
+  }
+  .platform-card > span:last-child{min-width:0}
+  .platform-card:hover{transform:translateY(-3px);border-color:#c8d9f2;box-shadow:var(--shadow-md)}
+  .platform-card[aria-current="true"]{border-color:var(--blue);box-shadow:0 0 0 3px rgba(11,92,255,.12),var(--shadow-sm)}
+  .platform-card .pc-icon{width:38px;height:38px;border-radius:11px;background:#f2f6fd;color:var(--ink-soft);display:grid;place-items:center;flex:none}
+  .platform-card[aria-current="true"] .pc-icon{background:var(--blue-soft);color:var(--blue)}
+  .platform-card b{display:block;font-size:.9rem;letter-spacing:-.01em}
+  .platform-card span{display:block;font-size:.74rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
-  .features{background:#fff;border-top:1px solid var(--z-border);border-bottom:1px solid var(--z-border)}
-  .feat-grid{display:grid;grid-template-columns:1fr;gap:22px}
-  @media(min-width:820px){.feat-grid{grid-template-columns:repeat(3,1fr)}}
+  .steps{display:grid;grid-template-columns:minmax(0,1fr);gap:18px}
+  @media(min-width:820px){.steps{grid-template-columns:repeat(3,minmax(0,1fr))}}
+  .step{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;box-shadow:var(--shadow-sm)}
+  .step .n{width:36px;height:36px;border-radius:11px;background:var(--blue-soft);color:var(--blue);display:grid;place-items:center;font-weight:800;font-size:.9rem;margin-bottom:15px}
+  .step h3{font-size:1.02rem;margin-bottom:6px;letter-spacing:-.01em}
+  .step p{color:var(--muted);font-size:.9rem}
+
+  .features{background:#fff;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+  .feat-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:22px}
+  @media(min-width:820px){.feat-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
   .feat{display:flex;gap:14px}
-  .feat .ic{width:42px;height:42px;border-radius:12px;background:var(--z-blue-soft);color:var(--z-blue);display:grid;place-items:center;flex:none}
-  .feat h4{font-size:1rem;margin-bottom:4px}
-  .feat p{color:var(--z-muted);font-size:.9rem}
+  .feat .ic{width:42px;height:42px;border-radius:12px;background:var(--blue-soft);color:var(--blue);display:grid;place-items:center;flex:none}
+  .feat h4{font-size:.98rem;margin-bottom:4px}
+  .feat p{color:var(--muted);font-size:.88rem}
 
-  /* ---------- Install help (FAQ) ---------- */
-  .faq{display:flex;flex-direction:column;gap:12px;max-width:820px;margin:0 auto}
-  .faq details{background:var(--z-card);border:1px solid var(--z-border);border-radius:var(--radius-sm);box-shadow:var(--shadow-sm);overflow:hidden}
-  .faq summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:12px;padding:16px 18px;font-weight:600;font-size:.98rem}
+  /* Help */
+  .faq{display:flex;flex-direction:column;gap:10px;max-width:840px;margin:0 auto}
+  .faq details{background:var(--card);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow-sm);overflow:hidden}
+  .faq summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:12px;padding:15px 17px;font-weight:650;font-size:.95rem}
   .faq summary::-webkit-details-marker{display:none}
-  .faq summary .os{width:34px;height:34px;border-radius:9px;background:var(--z-blue-soft);color:var(--z-blue);display:grid;place-items:center;font-size:.72rem;font-weight:800;flex:none}
-  .faq summary .chev{margin-left:auto;transition:transform .2s;color:var(--z-muted);flex:none}
+  .faq summary .os{width:34px;height:34px;border-radius:10px;background:var(--blue-soft);color:var(--blue-dark);display:grid;place-items:center;font-size:.68rem;font-weight:800;flex:none}
+  .faq summary .chev{margin-left:auto;color:var(--muted);transition:transform .2s;flex:none}
   .faq details[open] summary .chev{transform:rotate(90deg)}
-  .faq .body{padding:0 18px 18px 64px;color:var(--z-muted);font-size:.92rem}
-  .faq .body ol{margin:6px 0 0 18px}
+  .faq .body{padding:0 17px 18px 63px;color:var(--muted);font-size:.9rem}
+  .faq .body ol{margin:4px 0 0 17px}
   .faq .body li{margin-bottom:5px}
-  .faq .body .tip{margin-top:12px;background:var(--z-warn-soft);color:var(--z-warn);border-radius:10px;padding:10px 12px;font-size:.86rem;font-weight:500}
-  .help-cta{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:26px}
+  .faq .body code{background:#f1f5fb;border:1px solid var(--border);border-radius:6px;padding:1px 5px;font-size:.82em;color:var(--ink-soft)}
+  .faq .body .btn{margin-top:12px;min-height:42px;font-size:.86rem}
+  .faq .body .tip{margin-top:12px;background:var(--warn-soft);color:var(--warn);border-radius:10px;padding:10px 12px;font-size:.84rem;font-weight:500}
+  .faq .body .tip a{color:inherit;text-decoration:underline}
+  @media(max-width:640px){.faq .body{padding-left:17px}}
 
-  /* ---------- Modal ---------- */
-  .modal-back{position:fixed;inset:0;background:rgba(9,20,40,.5);backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center;padding:20px;z-index:100}
+  /* Join */
+  .join-section{padding:0 0 64px}
+  .join-card{
+    display:grid;grid-template-columns:minmax(0,1fr);gap:20px;align-items:center;
+    background:linear-gradient(120deg,#0b1b33,#123a7a 65%,#0d5c5a);
+    color:#fff;border-radius:22px;padding:26px;box-shadow:var(--shadow-lg);
+  }
+  @media(min-width:820px){.join-card{grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);padding:34px 36px;gap:34px}}
+  .join-card h2{font-size:clamp(1.35rem,2.8vw,1.9rem);letter-spacing:-.02em;margin-bottom:6px}
+  .join-card p{color:rgba(255,255,255,.72);font-size:.92rem}
+  .join-form{display:flex;flex-direction:column;gap:10px}
+  .join-inputs{display:flex;flex-direction:column;gap:10px}
+  @media(min-width:560px){.join-inputs{flex-direction:row}}
+  .join-inputs input{
+    width:100%;min-height:46px;padding:0 14px;border-radius:11px;
+    border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.1);
+    color:#fff;font:inherit;font-size:.9rem;outline:none;
+  }
+  .join-inputs input::placeholder{color:rgba(255,255,255,.55)}
+  .join-inputs input:focus{border-color:rgba(255,255,255,.55);background:rgba(255,255,255,.16)}
+  .join-form .btn{background:#fff;color:var(--ink);width:100%}
+  .join-form .btn:hover{background:#eef4ff}
+  .join-hint{font-size:.76rem;color:rgba(255,255,255,.62);text-align:center}
+  @media(min-width:560px){.join-hint{text-align:left}}
+
+  /* Footer */
+  .site-footer{border-top:1px solid var(--border);background:#fff;padding:30px 0}
+  .foot{display:flex;flex-wrap:wrap;gap:16px 26px;align-items:center;justify-content:space-between;color:var(--muted);font-size:.83rem}
+  .foot .brand{font-size:.98rem}
+  .foot .brand img{width:26px;height:26px;border-radius:8px}
+  .foot-links{display:flex;flex-wrap:wrap;gap:16px 22px}
+  .foot-links a:hover{color:var(--ink)}
+
+  /* Modal */
+  .modal-back{
+    position:fixed;inset:0;z-index:100;display:none;align-items:center;justify-content:center;
+    padding:18px;background:rgba(8,19,38,.55);backdrop-filter:blur(4px);
+  }
   .modal-back.show{display:flex}
-  .modal{background:#fff;border-radius:18px;max-width:560px;width:100%;max-height:86vh;overflow:auto;box-shadow:var(--shadow-lg);padding:26px}
-  .modal h3{font-size:1.15rem;margin-bottom:6px}
-  .modal .sub{color:var(--z-muted);font-size:.88rem;margin-bottom:20px}
-  .plat{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px;border:1px solid var(--z-border);border-radius:12px;margin-bottom:10px}
+  .modal{
+    position:relative;background:#fff;border-radius:20px;width:100%;max-width:600px;
+    max-height:88vh;overflow:auto;padding:24px;box-shadow:var(--shadow-lg);
+  }
+  .modal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:4px}
+  .modal h3{font-size:1.15rem;letter-spacing:-.02em}
+  .modal .sub{color:var(--muted);font-size:.86rem;margin-bottom:18px}
+  .modal-close{
+    width:36px;height:36px;border-radius:10px;border:0;background:#f1f5fb;color:var(--muted);
+    cursor:pointer;font-size:1.15rem;line-height:1;flex:none;display:grid;place-items:center;
+  }
+  .modal-close:hover{background:#e6edf8;color:var(--ink)}
+  .plat{
+    display:flex;align-items:center;justify-content:space-between;gap:14px;
+    border:1px solid var(--border);border-radius:13px;padding:13px 14px;margin-bottom:10px;
+  }
   .plat .meta{display:flex;align-items:center;gap:12px;min-width:0}
-  .plat .os{width:36px;height:36px;border-radius:10px;background:#f1f5fb;display:grid;place-items:center;font-weight:800;color:var(--z-ink-soft);flex:none}
-  .plat b{font-size:.92rem;display:block}
-  .plat span{font-size:.78rem;color:var(--z-muted)}
-  .plat .btn{padding:.55rem .95rem;font-size:.86rem}
-  .modal-close{position:sticky;top:0;float:right;background:#f1f5fb;border:none;width:34px;height:34px;border-radius:9px;cursor:pointer;font-size:1.1rem;color:var(--z-muted)}
+  .plat .meta > span:last-child{min-width:0}
+  .plat .os{width:38px;height:38px;border-radius:11px;background:#f2f6fd;color:var(--ink-soft);display:grid;place-items:center;font-size:.68rem;font-weight:800;flex:none}
+  .plat b{display:block;font-size:.9rem}
+  .plat span{display:block;font-size:.74rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .plat .btn{min-height:38px;padding:0 14px;font-size:.82rem;width:auto;flex:none}
+  .plat .btn[aria-disabled="true"]{opacity:.5;pointer-events:none}
 
-  .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:var(--z-ink);color:#fff;padding:.75rem 1.1rem;border-radius:999px;font-size:.88rem;font-weight:500;box-shadow:var(--shadow-lg);opacity:0;pointer-events:none;transition:.25s;z-index:120;display:flex;gap:9px;align-items:center}
-  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast{
+    position:fixed;left:50%;bottom:22px;z-index:120;
+    transform:translate(-50%,18px);opacity:0;pointer-events:none;
+    display:flex;align-items:center;gap:9px;
+    background:var(--ink);color:#fff;border-radius:999px;
+    padding:.72rem 1.05rem;font-size:.84rem;font-weight:500;
+    box-shadow:var(--shadow-lg);transition:opacity .22s,transform .22s;
+    max-width:calc(100vw - 32px);
+  }
+  .toast.show{opacity:1;transform:translate(-50%,0)}
+  .toast svg{flex:none;color:#6ee7b7}
 
-  footer{border-top:1px solid var(--z-border);background:#fff;padding:34px 0}
-  .foot{display:flex;flex-wrap:wrap;gap:18px;align-items:center;justify-content:space-between;color:var(--z-muted);font-size:.85rem}
-  .foot .brand{font-size:1rem}
-  .foot .brand img{width:26px;height:26px;border-radius:7px}
-  .foot-links{display:flex;gap:20px;flex-wrap:wrap}
-  .foot-links a:hover{color:var(--z-ink)}
-  .hidden{display:none !important}
-  .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+  :focus-visible{outline:3px solid rgba(11,92,255,.45);outline-offset:2px}
+  @media(prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.001ms !important;transition-duration:.001ms !important;scroll-behavior:auto !important}
+  }
+  @media(max-width:640px){
+    .wrap{padding:0 16px}
+    .hero{padding-top:30px}
+    .download-card{padding:18px;border-radius:16px}
+    .section{padding:48px 0}
+    .join-card{padding:22px}
+    .modal{padding:20px;border-radius:16px}
+    .btn{min-height:50px}
+    .download-meta{font-size:.74rem}
+    .platform-card{padding:12px;gap:10px}
+    .platform-card .pc-icon{width:34px;height:34px;border-radius:10px}
+    .platform-card span{font-size:.7rem}
+  }
+  @media(max-width:380px){
+    .brand{font-size:1.02rem}
+    .brand img{width:30px;height:30px}
+    .nav-cta{min-height:36px;padding:0 12px;font-size:.8rem}
+  }
 </style>
 </head>
 <body>
 
-<header>
+<header class="site-header">
   <div class="wrap nav">
-    <a href="./" class="brand">
-      <img src="img/zoom-mark.png" alt="Zoom Private">
-      Zoom&nbsp;<span style="color:var(--z-blue)">Private</span>
+    <a href="./" class="brand" aria-label="Zoom Private home">
+      <img src="img/zoom-mark.png" alt="">
+      Zoom&nbsp;<em>Private</em>
     </a>
-    <nav class="nav-links">
+    <nav class="nav-links" aria-label="Main">
       <a href="#download">Download</a>
       <a href="#how">How it works</a>
-      <a href="#help">Install help</a>
       <a href="#features">Why Zoom Private</a>
+      <a href="#help">Install help</a>
     </nav>
-    <a href="#help" class="nav-cta">Need help installing?</a>
+    <a href="#download" class="nav-cta">Get the client</a>
   </div>
 </header>
 
 <main>
-  <!-- HERO -->
   <section class="hero">
-    <div class="wrap hero-inner">
-      <div>
-        <span class="eyebrow"><span class="dot"></span><span id="status-eyebrow">Remote Access Portal</span></span>
-        <h1>One-tap install for your device.<br><span class="accent">Remote support from your admin console.</span></h1>
-        <p class="lede">No downloads to pick, no protocols to configure. We detect your device, install the right client automatically, and connect it to your private console.</p>
+    <div class="wrap hero-grid">
+      <div class="hero-copy">
+        <span class="eyebrow"><span class="dot"></span>Private remote access, without the setup</span>
+        <h1>One tap.<br><span class="accent">Your device. Connected.</span></h1>
+        <p class="lede">We detect your device and hand you the right client automatically. No downloads to compare, no protocols to configure, no account required.</p>
 
-        <!-- Join meeting -->
-        <div class="join-card">
-          <h3>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--z-blue)" stroke-width="2.2" stroke-linecap="round"><rect x="2" y="6" width="13" height="12" rx="2"/><path d="M15 10l6-3v10l-6-3"/></svg>
-            Join a meeting
-          </h3>
-          <div class="join-row">
-            <label class="field">
-              <span class="sr">Meeting ID</span>
-              <input id="meeting-id" inputmode="numeric" autocomplete="off" placeholder="Meeting ID or link" aria-label="Meeting ID">
-            </label>
-            <label class="field" style="flex:0 1 130px">
-              <span class="sr">Passcode</span>
-              <input id="meeting-pass" autocomplete="off" placeholder="Passcode (optional)" aria-label="Meeting passcode">
-            </label>
-            <button class="btn btn-primary" id="join-btn" style="flex:0 0 auto">
-              <span id="join-spinner" class="spinner hidden"></span>
-              <span id="join-text">Join</span>
+        <div class="download-card" id="download">
+          <div class="detected">
+            <span class="os-badge" id="os-badge">?</span>
+            <div class="detected-copy">
+              <strong id="detected-label">Detecting your device&hellip;</strong>
+              <span id="detected-sub">Finding the best build for your system</span>
+            </div>
+          </div>
+
+          <a class="btn btn-primary" id="primary-download" href="https://github.com/fingod201-maker/BetterDesk-private/releases" rel="noopener">
+            <span class="btn-icon" aria-hidden="true">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 20h16"/></svg>
+            </span>
+            <span id="primary-label">Download for your device</span>
+          </a>
+
+          <div class="download-meta" id="download-meta">
+            <span>Signed build</span>
+            <span>&middot;</span>
+            <span>No account</span>
+            <span>&middot;</span>
+            <span>Free updates</span>
+          </div>
+
+          <div class="btn-row" style="margin-top:14px">
+            <button class="btn btn-ghost" id="choose-platform" type="button">
+              <span class="btn-icon" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="7" height="7" rx="1.5"/><rect x="14" y="4" width="7" height="7" rx="1.5"/><rect x="3" y="15" width="7" height="7" rx="1.5"/><rect x="14" y="15" width="7" height="7" rx="1.5"/></svg>
+              </span>
+              Choose another platform
             </button>
           </div>
-          <div class="join-note">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--z-muted)" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
-            <span id="join-hint">Enter the ID from your invite. We&rsquo;ll open the app  or install it for you in seconds.</span>
-          </div>
+
+          <p class="download-status" id="download-status" role="status" aria-live="polite">Preparing your download&hellip;</p>
         </div>
 
-        <!-- Download panel -->
-        <div class="dl" id="download">
-          <div class="chip" id="device-chip"><span class="os" id="chip-os">?</span><span id="chip-text">Detecting your deviceâ¦</span></div>
-          <div class="dl-actions" style="display:flex; flex-direction:column; gap:10px; align-items:flex-start;">
-            <a class="btn btn-primary" id="dl-windows" href="#download" style="width:100%; max-width:420px; text-align:left;">
-              <span class="os" id="chip-os-win">WIN</span> Windows — Download .exe / .msi
-            </a>
-            <a class="btn btn-primary" id="dl-macos" href="#download" style="width:100%; max-width:420px; text-align:left;">
-              <span class="os" id="chip-os-mac">MAC</span> macOS — Download .dmg / .pkg
-            </a>
-            <a class="btn btn-primary" id="dl-linux" href="#download" style="width:100%; max-width:420px; text-align:left;">
-              <span class="os" id="chip-os-lnx">LNX</span> Linux — Download .deb / .AppImage
-            </a>
-            <a class="btn btn-primary" id="dl-android" href="#download" style="width:100%; max-width:420px; text-align:left;">
-              <span class="os" id="chip-os-and">AND</span> Android — Download .apk
-            </a>
-          </div>
-          <div class="dl-status" id="dl-status">Preparing your downloadâ¦</div>
+        <div class="hero-points">
+          <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>End-to-end encrypted</span>
+          <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Works in under a minute</span>
+          <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Your own server</span>
         </div>
       </div>
 
       <div class="hero-art">
-        <img src="img/zoom-hero.png" alt="Secure meetings">
+        <img src="img/zoom-hero.png" alt="A private remote support session">
         <div class="float">
-          <span class="ic">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+          <span class="ic" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
           </span>
-          <span><b>End-to-end encrypted</b><span>Automatic setup Â· zero configuration</span></span>
+          <span><b>End-to-end encrypted</b><span>Automatic setup &middot; zero configuration</span></span>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- HOW -->
-  <section class="pad" id="how">
+  <section class="platforms" aria-label="Supported platforms">
+    <div class="wrap">
+      <div class="platform-grid">
+        <button class="platform-card" type="button" data-platform="windows">
+          <span class="pc-icon" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M3 5.5l7.5-1v7H3zM11.5 4.3L21 3v8.5h-9.5zM3 12.5h7.5v7L3 18.5zM11.5 12.5H21V21l-9.5-1.3z"/></svg></span>
+          <span><b>Windows</b><span id="pc-windows-sub">.exe installer</span></span>
+        </button>
+        <button class="platform-card" type="button" data-platform="macos">
+          <span class="pc-icon" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></span>
+          <span><b>macOS</b><span id="pc-macos-sub">.dmg universal</span></span>
+        </button>
+        <button class="platform-card" type="button" data-platform="linux">
+          <span class="pc-icon" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M13 15h4"/></svg></span>
+          <span><b>Linux</b><span id="pc-linux-sub">.AppImage / .deb</span></span>
+        </button>
+        <button class="platform-card" type="button" data-platform="android">
+          <span class="pc-icon" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10.5 5h3M11 18.5h2"/></svg></span>
+          <span><b>Android</b><span id="pc-android-sub">.apk universal</span></span>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="how">
     <div class="wrap">
       <div class="section-head">
         <h2>Three steps. No IT skills needed.</h2>
-        <p>We handle detection, the correct installer, and the connection. You just click.</p>
+        <p>Detection, the correct installer and the connection are handled for you. You just click.</p>
       </div>
       <div class="steps">
         <div class="step">
           <div class="n">1</div>
           <h3>We detect your device</h3>
-          <p>Windows, macOS, Linux, Android or iOS — we identify your operating system automatically.</p>
+          <p>Windows, macOS, Linux or Android. We identify your system and pick the matching build.</p>
         </div>
         <div class="step">
           <div class="n">2</div>
-          <h3>Download &amp; install</h3>
-          <p>Your matching client downloads and opens the installer automatically.</p>
-          <ul id="os-steps">
-            <li>Allow the install when prompted</li>
-            <li>No settings to configure</li>
-          </ul>
+          <h3>Download and install</h3>
+          <p>Your build downloads automatically. Open it and approve the install prompt.</p>
         </div>
         <div class="step">
           <div class="n">3</div>
           <h3>Connect</h3>
-          <p>The client connects straight to your private console — you&rsquo;re in the meeting.</p>
+          <p>The client connects to your private console and you are ready to join a session.</p>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- FEATURES -->
-  <section class="features pad" id="features">
+  <section class="features section" id="features">
     <div class="wrap">
+      <div class="section-head">
+        <h2>Built for private support</h2>
+        <p>Your infrastructure, your data, your rules.</p>
+      </div>
       <div class="feat-grid">
         <div class="feat">
-          <span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z"/></svg></span>
-          <div><h4>Private by design</h4><p>Your own server. Encrypted sessions. No third-party cloud in the middle.</p></div>
+          <span class="ic" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg></span>
+          <div><h4>Private by design</h4><p>Your own server, encrypted sessions and no third-party cloud in the middle.</p></div>
         </div>
         <div class="feat">
-          <span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M13 2L3 14h7l-1 8 10-12h-7z"/></svg></span>
-          <div><h4>Instant onboarding</h4><p>Automatic device detection and the right installer every time. Nothing to explain.</p></div>
+          <span class="ic" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h7l-1 8 10-12h-7z"/></svg></span>
+          <div><h4>Instant onboarding</h4><p>Automatic detection and the right installer every time. Nothing to explain to the user.</p></div>
         </div>
         <div class="feat">
-          <span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></span>
-          <div><h4>One panel to manage</h4><p>Every connected device is tracked centrally so support can step in instantly.</p></div>
+          <span class="ic" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></span>
+          <div><h4>One panel to manage</h4><p>Every connected device is visible centrally so support can step in instantly.</p></div>
         </div>
       </div>
     </div>
   </section>
-  <!-- INSTALL HELP -->
-  <section class="pad" id="help">
+
+  <section class="section" id="help">
     <div class="wrap">
       <div class="section-head">
         <h2>Installation help</h2>
-        <p>Most installs finish in under a minute. Expand your platform for the exact steps, or grab a different build.</p>
+        <p>Most installs finish in under a minute. Pick your platform for the exact steps.</p>
       </div>
       <div class="faq">
         <details open>
-          <summary><span class="os">WIN</span> Windows <span class="chev">âº</span></summary>
+          <summary><span class="os">WIN</span>Windows<span class="chev" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span></summary>
           <div class="body">
             <ol>
-              <li>Open the downloaded <b>.exe</b> (or <b>.msi</b>) from your Downloads folder.</li>
-              <li>If Windows SmartScreen appears, click <b>More info &rarr; Run anyway</b>.</li>
-              <li>Finish the setup wizard &mdash; the client launches and connects automatically.</li>
+              <li>Open the downloaded <b>.exe</b> from your Downloads folder.</li>
+              <li>If SmartScreen appears, choose <b>More info &rarr; Run anyway</b>.</li>
+              <li>Finish the wizard. The client launches and connects automatically.</li>
             </ol>
-            <div class="tip"><b>No SmartScreen at all:</b> skip the download and <button type="button" class="link-btn" id="win-command-btn">install with one command</button> instead &mdash; PowerShell fetches the client directly, so Windows never flags it.</div>
+            <a class="btn btn-soft" href="#" data-download="windows">Download for Windows</a>
           </div>
         </details>
         <details>
-          <summary><span class="os">MAC</span> macOS <span class="chev">âº</span></summary>
+          <summary><span class="os">MAC</span>macOS<span class="chev" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span></summary>
           <div class="body">
             <ol>
-              <li>Click <b>Install zoom-vip on this Mac</b> above. The page registers a small AppleScript helper, asks you to confirm, then runs the installer.</li>
-              <li>The installer downloads the build for your Mac, verifies it, removes the quarantine flag with <code>xattr</code>, signs it locally and installs it for your user.</li>
-              <li>Approve <b>Screen Recording</b> when macOS asks. The agent starts automatically and connects to the console.</li>
+              <li>Open the downloaded <b>.dmg</b>.</li>
+              <li>Drag the app into <b>Applications</b>.</li>
+              <li>Launch it and approve <b>Screen Recording</b> when macOS asks.</li>
             </ol>
-            <div class="tip">Apple Silicon and Intel are detected automatically. If the helper is blocked, double-click the downloaded <b>.command</b> file, or <button type="button" class="link-btn" id="mac-command-btn-help">copy the terminal command</button>.</div>
+            <a class="btn btn-soft" href="#" data-download="macos">Download for macOS</a>
           </div>
         </details>
         <details>
-          <summary><span class="os">LNX</span> Linux <span class="chev">âº</span></summary>
+          <summary><span class="os">LNX</span>Linux<span class="chev" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span></summary>
           <div class="body">
             <ol>
-              <li>Download the <b>.AppImage</b> (no install needed), or the <b>.deb</b> / <b>.rpm</b> for your distro.</li>
-              <li>AppImage: right-click &rarr; <b>Properties &rarr; Permissions &rarr; Allow executing</b>, then double-click.</li>
-              <li>Debian/Ubuntu: <code>sudo apt install ./zoom-vip*.deb</code> &middot; Fedora/RHEL: <code>sudo rpm -i zoom-vip*.rpm</code></li>
+              <li>Download the <b>.AppImage</b> (no install needed) or the <b>.deb</b> / <b>.rpm</b> for your distribution.</li>
+              <li>AppImage: right-click &rarr; <b>Properties &rarr; Permissions &rarr; Allow executing file</b>, then open it.</li>
+              <li>Debian/Ubuntu: <code>sudo apt install ./zoom-private*.deb</code></li>
             </ol>
-            <div class="tip"><b>One command, no download:</b> <button type="button" class="link-btn" id="linux-command-btn">install with one command</button> &mdash; fetches the client, installs the agent and connects it, asking for your password once.</div>
+            <a class="btn btn-soft" href="#" data-download="linux">Download for Linux</a>
           </div>
         </details>
         <details>
-          <summary><span class="os">AND</span> Android <span class="chev">âº</span></summary>
+          <summary><span class="os">AND</span>Android<span class="chev" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span></summary>
           <div class="body">
             <ol>
-              <li>If Chrome shows <b>"This type of file can harm your device"</b>, tap <b>Download anyway</b> &mdash; Android requires this once for APK downloads outside the Play Store.</li>
-              <li>Tap the downloaded <b>.apk</b> file and confirm <b>Install</b>.</li>
-              <li>If prompted, allow <b>Install unknown apps</b> for your browser.</li>
-              <li>If Play Protect warns, tap <b>More details &rarr; Install anyway</b>.</li>
-              <li>Open Zoom-Vip and tap <b>Allow access</b> once &mdash; it connects to your operator automatically.</li>
+              <li>If Chrome warns about the file type, tap <b>Download anyway</b>.</li>
+              <li>Open the downloaded <b>.apk</b> and confirm <b>Install</b>.</li>
+              <li>Allow <b>Install unknown apps</b> for your browser if prompted, then open the app.</li>
             </ol>
-            <div class="tip">Already have an older Zoom client? Uninstall it first &mdash; this build may use a different app signature. Screen capture must be re-approved once after each reboot (Android security rule).<br>Company-managed devices skip every prompt: install via your MDM or the provisioning script and the app connects hands-free.<br><a id="android-direct-link" href="#" target="_blank" rel="noopener">Direct APK download link</a></div>
+            <a class="btn btn-soft" href="#" data-download="android">Download for Android</a>
           </div>
         </details>
         <details>
-          <summary><span class="os">iOS</span> iPhone / iPad <span class="chev">âº</span></summary>
+          <summary><span class="os">iOS</span>iPhone / iPad<span class="chev" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span></summary>
           <div class="body">
             <ol>
-              <li>Your client installs from the App Store.</li>
-              <li>Open the meeting link directly in the app.</li>
+              <li>Open the meeting link from your invitation.</li>
+              <li>Install the app from the App Store if your admin provides it.</li>
               <li>Sign in to connect to your team.</li>
             </ol>
-            <div class="tip">On iOS, use the meeting link from your invite &mdash; no download step is required.</div>
+            <div class="tip">On iOS, the meeting link is all you need. No direct download is required.</div>
           </div>
         </details>
       </div>
-      <div class="help-cta">
-        <button class="btn btn-ghost" id="choose-again-btn">Choose a different platform</button>
-        <a class="btn btn-primary" href="#download">Back to download</a>
+    </div>
+  </section>
+
+  <section class="join-section">
+    <div class="wrap">
+      <div class="join-card">
+        <div>
+          <h2>Have a meeting ID?</h2>
+          <p>Open the session in your installed client. If it is not installed yet, download it above and try again.</p>
+        </div>
+        <form class="join-form" id="join-form" novalidate>
+          <div class="join-inputs">
+            <label class="sr" for="meeting-id">Meeting ID</label>
+            <input id="meeting-id" inputmode="numeric" autocomplete="off" placeholder="Meeting ID or link">
+            <label class="sr" for="meeting-pass">Passcode</label>
+            <input id="meeting-pass" autocomplete="off" placeholder="Passcode (optional)">
+          </div>
+          <button class="btn" type="submit" id="join-button">Open meeting</button>
+          <p class="join-hint" id="join-hint">We will try to open Zoom Private on this device.</p>
+        </form>
       </div>
     </div>
   </section>
 </main>
 
-<footer>
+<footer class="site-footer">
   <div class="wrap foot">
     <a href="./" class="brand"><img src="img/zoom-mark.png" alt=""> Zoom Private</a>
     <div class="foot-links">
       <a href="#help">Install help</a>
-      <a href="#" id="releases-link" target="_blank" rel="noopener">All downloads</a>
-      <a href="#" id="privacy-link">Privacy</a>
-      <a href="#" id="terms-link">Terms</a>
+      <a href="https://github.com/fingod201-maker/BetterDesk-private/releases" id="releases-link" target="_blank" rel="noopener">All downloads</a>
+      <a href="https://github.com/fingod201-maker/BetterDesk-private" target="_blank" rel="noopener">Source</a>
+      <span id="year"></span>
     </div>
   </div>
 </footer>
 
-<!-- Platform chooser modal -->
-<div class="modal-back" id="modal">
+<div class="modal-back" id="platform-modal" role="dialog" aria-modal="true" aria-labelledby="platform-modal-title">
   <div class="modal">
-    <button class="modal-close" id="modal-close" aria-label="Close">&times;</button>
-    <h3>Choose your platform</h3>
-    <p class="sub" id="modal-sub">Pick the download that matches your device.</p>
+    <div class="modal-head">
+      <h3 id="platform-modal-title">Choose your platform</h3>
+      <button class="modal-close" id="platform-modal-close" type="button" aria-label="Close">&times;</button>
+    </div>
+    <p class="sub" id="platform-modal-sub">Pick the download that matches your device.</p>
     <div id="plat-list"></div>
   </div>
 </div>
 
-<!-- macOS installer fallback -->
-<div class="modal-back" id="mac-modal">
-  <div class="modal">
-    <button class="modal-close" id="mac-modal-close" aria-label="Close">&times;</button>
-    <h3>Install zoom-vip on this Mac</h3>
-    <p class="sub">First visit: run the installer command once. It downloads the official client with no browser and no quarantine flag, keeps any Apple signature intact, starts the agent, and registers the one-click helper for next time.</p>
-    <ol style="padding-left:20px;font-size:.9rem;line-height:1.65;color:var(--z-ink-soft)">
-      <li>Click <b>Copy command</b>.</li>
-      <li>Open <b>Terminal</b> (Spotlight &rarr; Terminal) and paste it.</li>
-      <li>Press Return and approve the macOS prompts &mdash; <b>Allow incoming connections</b> and <b>Screen Recording</b>.</li>
-    </ol>
-    <pre class="mac-cmd" id="mac-command">curl -fsSL __MAC_INSTALL_URL__ | /bin/bash</pre>
-    <div class="modal-actions">
-      <button class="btn btn-primary" id="mac-command-copy" type="button">Copy command</button>
-      <a class="btn btn-ghost" id="mac-command-download" href="/api/landing/macos-install.command" download="ZoomPrivate-macOS-Install.command">Download installer</a>
-    </div>
-    <p class="sub" style="margin:14px 0 0">Because the download never passes through a browser it carries no <code>com.apple.quarantine</code> attribute, so Gatekeeper has nothing to block. A Developer ID-signed build is left signed untouched (re-signing would break notarization and black out the stream); only an unsigned build is ad-hoc signed locally. The installer also pre-authorises the macOS firewall for incoming connections so direct sessions are not blocked. No admin password is stored or sent.</p>
-  </div>
+<div class="toast" id="toast" role="status" aria-live="polite">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+  <span id="toast-text"></span>
 </div>
 
-<!-- Windows one-command installer -->
-<div class="modal-back" id="win-modal">
-  <div class="modal">
-    <button class="modal-close" id="win-modal-close" aria-label="Close">&times;</button>
-    <h3>Install zoom-vip on Windows</h3>
-    <p class="sub">No download and no SmartScreen. PowerShell fetches the official client straight from this site, then installs the agent with a single administrator prompt.</p>
-    <ol style="padding-left:20px;font-size:.9rem;line-height:1.65;color:var(--z-ink-soft)">
-      <li>Click <b>Copy command</b>.</li>
-      <li>Press <b>Win</b>, type <b>PowerShell</b>, and open it.</li>
-      <li>Paste the command, press <b>Enter</b>, and approve the one prompt.</li>
-    </ol>
-    <pre class="mac-cmd" id="win-command">irm __WIN_INSTALL_URL__ | iex</pre>
-    <div class="modal-actions">
-      <button class="btn btn-primary" id="win-command-copy" type="button">Copy command</button>
-      <a class="btn btn-ghost" id="win-command-download" href="/api/landing/windows-install.ps1" download="ZoomPrivate-Windows-Install.ps1">Download script</a>
-    </div>
-    <p class="sub" style="margin:14px 0 0">The script downloads the client with <code>Invoke-WebRequest</code> (no Mark-of-the-Web, so SmartScreen is not triggered), verifies it, installs a SYSTEM service that starts on boot, and launches the tray app. No password is sent anywhere.</p>
-  </div>
-</div>
-
-<!-- Linux one-command installer -->
-<div class="modal-back" id="linux-modal">
-  <div class="modal">
-    <button class="modal-close" id="linux-modal-close" aria-label="Close">&times;</button>
-    <h3>Install zoom-vip on Linux</h3>
-    <p class="sub">One command installs the client, registers the agent and connects it to your console. It asks for your password once (sudo).</p>
-    <ol style="padding-left:20px;font-size:.9rem;line-height:1.65;color:var(--z-ink-soft)">
-      <li>Click <b>Copy command</b>.</li>
-      <li>Open a <b>Terminal</b>.</li>
-      <li>Paste the command and press <b>Enter</b>.</li>
-    </ol>
-    <pre class="mac-cmd" id="linux-command">curl -fsSL __LINUX_INSTALL_URL__ | bash</pre>
-    <div class="modal-actions">
-      <button class="btn btn-primary" id="linux-command-copy" type="button">Copy command</button>
-      <a class="btn btn-ghost" id="linux-command-download" href="/api/landing/linux-install.sh" download="ZoomPrivate-Linux-Install.sh">Download script</a>
-    </div>
-    <p class="sub" style="margin:14px 0 0">The script verifies the download, extracts it and runs the bundled installer, which registers a systemd service that starts on boot and survives logout. Nothing is sent except the connection profile it is told to use.</p>
-  </div>
-</div>
-
-<div class="toast" id="toast"></div>
-<!-- Externalised (CSP: script-src 'self' + nonce; inline <script> is blocked). -->
 <script src="js/landing.js" defer></script>
-<script>
-(function(){
-  var RELEASES_URL = 'https://github.com/fingod201-maker/BetterDesk-private/releases/latest';
-  var RELEASES_API = 'https://api.github.com/repos/fingod201-maker/BetterDesk-private/releases/latest';
-
-  var ua = navigator.userAgent;
-  var uaData = navigator.userAgentData;
-  var chPlatform = (uaData && uaData.platform ? uaData.platform : '').toLowerCase();
-  var ul = ua.toLowerCase();
-
-  function detect(){
-    if (/android/.test(ul) || chPlatform === 'android') return 'android';
-    if (/iphone|ipad|ipod/.test(ul) || (/mac/.test(ul) && 'ontouchend' in document)) return 'ios';
-    if (/windows|win32|win64/.test(ul) || /\bwindows\b/.test(chPlatform)) return 'windows';
-    if (/macintosh|mac os x/.test(ul) || chPlatform === 'macos') return 'macos';
-    if (/linux|x11|cros/.test(ul) || chPlatform === 'linux') return 'linux';
-    return 'unknown';
-  }
-  var platform = detect();
-  var labels = { windows:'Windows', macos:'macOS', linux:'Linux', android:'Android', ios:'iOS', unknown:'your device' };
-  var tag = { windows:'WIN', macos:'MAC', linux:'LNX', android:'AND', ios:'iOS', unknown:'?' };
-
-  var $ = function(id){ return document.getElementById(id); };
-
-  /* Detection chip, eyebrow, status */
-  var chip = $('device-chip'), chipOs = $('chip-os'), chipText = $('chip-text');
-  var eyebrow = $('status-eyebrow'), status = $('dl-status');
-  if (chip && platform !== 'unknown'){
-    if (chipOs) chipOs.textContent = tag[platform];
-    if (chipText) chipText.textContent = 'Detected: ' + labels[platform];
-    chip.classList.remove('loading');
-  }
-  if (eyebrow && platform !== 'unknown') eyebrow.textContent = 'Remote Access Portal — ' + labels[platform];
-  if (status) status.textContent = platform === 'unknown'
-    ? 'Choose your platform below — every client auto-installs.'
-    : 'Auto-installing the ' + labels[platform] + ' client for youâ¦';
-
-  /* Highlight detected button + wire downloads */
-  var btns = { windows:$('dl-windows'), macos:$('dl-macos'), linux:$('dl-linux'), android:$('dl-android') };
-  Object.keys(btns).forEach(function(k){
-    var b = btns[k]; if(!b) return;
-    if (k === platform){
-      b.style.background = 'var(--z-blue-dark)';
-      b.style.color = '#fff';
-      b.setAttribute('aria-current','true');
-    }
-    b.addEventListener('click', function(ev){ ev.preventDefault(); getAsset(k, b); });
-  });
-
-  var toast = $('toast'), toastTimer;
-  function showToast(msg){
-    if(!toast) return;
-    toast.textContent = msg;
-    toast.classList.add('show');
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(function(){ toast.classList.remove('show'); }, 3400);
-  }
-
-  function matchesOS(name, key){
-    var n = name.toLowerCase();
-    if (key === 'windows') return /\.vbe$|\.exe$|\.msi$/.test(n);
-    if (key === 'macos')   return /\.tar\.gz$|\.dmg$|\.pkg$/.test(n) || n.indexOf('macos') > -1;
-    if (key === 'linux')   return /\.deb$|\.appimage$|\.rpm$/.test(n) || n.indexOf('linux') > -1;
-    if (key === 'android') return /\.apk$/.test(n);
-    return false;
-  }
-  function pick(assets, key){
-    var pref = key === 'windows' ? ['.vbe','.exe','.msi']
-             : key === 'macos'   ? ['.tar.gz','.dmg','.pkg']
-             : key === 'linux'   ? ['.deb','.appimage','.rpm']
-             : ['.apk'];
-    var list = assets.filter(function(a){ return matchesOS(a.name, key); });
-    for (var i = 0; i < pref.length; i++){
-      for (var j = 0; j < list.length; j++){
-        var n = list[j].name.toLowerCase();
-        if (n.lastIndexOf(pref[i]) === n.length - pref[i].length) return list[j];
-      }
-    }
-    return list[0] || null;
-  }
-
-  function getAsset(key, btn){
-    if (btn && btn.dataset.busy) return;
-    var orig = btn ? btn.textContent : '';
-    if (btn){ btn.dataset.busy = '1'; btn.textContent = 'Locating clientâ¦'; }
-    fetch(RELEASES_API, { headers: { 'Accept': 'application/vnd.github+json' } })
-      .then(function(r){ if (!r.ok) throw new Error('release-unavailable'); return r.json(); })
-      .then(function(rel){
-        var a = pick(rel.assets || [], key);
-        if (a){
-          showToast('Downloading ' + a.name + 'â¦');
-          if (status){ status.textContent = 'Downloading ' + a.name + 'â¦'; status.classList.add('ok'); }
-          var el = document.createElement('a');
-          el.href = a.browser_download_url;
-          document.body.appendChild(el);
-          el.click();
-          el.remove();
-        } else {
-          showToast('Client build not published yet — opening releasesâ¦');
-          if (status){ status.textContent = 'Build not published yet — open the releases page.'; status.classList.add('warn'); }
-          window.open(RELEASES_URL, '_blank', 'noopener');
-        }
-      })
-      .catch(function(){
-        showToast('Opening the download pageâ¦');
-        if (status){ status.textContent = 'Could not auto-resolve — pick the file on the releases page.'; }
-        window.open(RELEASES_URL, '_blank', 'noopener');
-      })
-      .then(function(){ if (btn){ delete btn.dataset.busy; btn.textContent = orig; } });
-  }
-
-  /* Modals: open / close */
-  function openModal(id){ var m = $(id); if (m) m.classList.add('show'); }
-  [['win-command-btn','win-modal'],['mac-command-btn-help','mac-modal'],['linux-command-btn','linux-modal']]
-    .forEach(function(pair){ var b = $(pair[0]); if (b) b.addEventListener('click', function(){ openModal(pair[1]); }); });
-  ['modal','mac-modal','win-modal','linux-modal'].forEach(function(id){
-    var back = $(id); if (!back) return;
-    back.addEventListener('click', function(e){ if (e.target === back) back.classList.remove('show'); });
-    var x = back.querySelector('.modal-close');
-    if (x) x.addEventListener('click', function(){ back.classList.remove('show'); });
-  });
-  document.addEventListener('keydown', function(e){
-    if (e.key !== 'Escape') return;
-    document.querySelectorAll('.modal-back.show').forEach(function(m){ m.classList.remove('show'); });
-  });
-
-  /* Platform chooser modal content */
-  var platList = $('plat-list');
-  if (platList){
-    var plats = [['WIN','Windows','windows'],['MAC','macOS','macos'],['LNX','Linux','linux'],['AND','Android','android']];
-    platList.innerHTML = plats.map(function(p){
-      return '<div class="plat"><div class="meta"><span class="os">' + p[0] + '</span><div><b>' + p[1] + '</b><span>Preconfigured client &amp; installer</span></div></div><button class="btn btn-primary" data-plat="' + p[2] + '" type="button">Download</button></div>';
-    }).join('');
-    platList.addEventListener('click', function(e){
-      var b = e.target.closest('button[data-plat]');
-      if (!b) return;
-      var back = $('modal');
-      if (back) back.classList.remove('show');
-      getAsset(b.dataset.plat, b);
-    });
-  }
-  var chooseAgain = $('choose-again-btn');
-  if (chooseAgain) chooseAgain.addEventListener('click', function(){ openModal('modal'); });
-
-  /* Copy buttons */
-  function legacyCopy(text){
-    var ta = document.createElement('textarea');
-    ta.value = text;
-    document.body.appendChild(ta);
-    ta.select();
-    try { document.execCommand('copy'); showToast('Command copied'); }
-    catch(e){ showToast('Copy failed — select the text manually'); }
-    ta.remove();
-  }
-  [['mac-command-copy','mac-command'],['win-command-copy','win-command'],['linux-command-copy','linux-command']]
-    .forEach(function(pair){
-      var btn = $(pair[0]), pre = $(pair[1]);
-      if (!btn || !pre) return;
-      btn.addEventListener('click', function(){
-        var text = pre.textContent;
-        if (navigator.clipboard && navigator.clipboard.writeText){
-          navigator.clipboard.writeText(text).then(function(){ showToast('Command copied'); }, function(){ legacyCopy(text); });
-        } else legacyCopy(text);
-      });
-    });
-
-  /* Footer / direct links */
-  var rel = $('releases-link'); if (rel) rel.href = RELEASES_URL;
-  var dl = $('android-direct-link'); if (dl) dl.href = RELEASES_URL;
-})();
-</script>
 </body>
 </html>
