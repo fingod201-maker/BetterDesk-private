@@ -290,7 +290,7 @@
       windows: { exe: 120, msi: 110, zip: 80, iso: 70 },
       macos: { dmg: 120, pkg: 115, targz: 90, zip: 80 },
       linux: { appimage: 120, deb: 110, rpm: 105, targz: 90, zip: 80 },
-      android: { apk: 120 }
+      android: { apk: 22200000 }
     };
     var score = (formats[platform] && formats[platform][asset.format]) || 10;
 

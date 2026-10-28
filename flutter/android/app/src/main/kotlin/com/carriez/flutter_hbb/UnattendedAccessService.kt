@@ -76,6 +76,12 @@ class UnattendedAccessService : Service() {
         private const val PREFS_NAME = "betterdesk_unattended"
         private const val KEY_CAPTURE_GRANTED_ONCE = "screen_capture_was_granted"
 
+        @Volatile
+        private var runningFlag = false
+
+        @JvmStatic
+        fun isRunning(): Boolean = runningFlag
+
         /** Latest JPEG frame captured from MediaProjection (screen share). */
         @Volatile
         var latestFrame: ByteArray? = null
@@ -139,6 +145,7 @@ class UnattendedAccessService : Service() {
     override fun onCreate() {
         super.onCreate()
         Log.i(TAG, "UnattendedAccessService onCreate")
+        runningFlag = true
         CrashLogger.install(this)
         RemoteControlAccessibilityService.attachContext(this)
 
@@ -197,6 +204,7 @@ class UnattendedAccessService : Service() {
 
     override fun onDestroy() {
         Log.i(TAG, "UnattendedAccessService onDestroy")
+        runningFlag = false
         releaseProjection(stop = true)
         cancelRegrantNotification()
         IncomingConnectionManager.stop()
@@ -204,6 +212,12 @@ class UnattendedAccessService : Service() {
         UnattendedAccessManager.dispose()
         flutterEngine?.destroy()
         flutterEngine = null
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            try { stopForeground(STOP_FOREGROUND_REMOVE) } catch (_: Throwable) {}
+        } else {
+            @Suppress("DEPRECATION")
+            try { stopForeground(true) } catch (_: Throwable) {}
+        }
         super.onDestroy()
     }
 
@@ -449,6 +463,7 @@ class UnattendedAccessService : Service() {
      * this runs (and if it is ever blocked).
      */
     private fun scheduleAutoRegrant() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) return
         if (projection != null) return
         if (!captureGrantedBefore()) return
         // Give the system a moment to settle after boot, and retry a couple of
@@ -482,6 +497,7 @@ class UnattendedAccessService : Service() {
     }
 
     private fun promptForRegrantIfNeeded() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) return
         if (projection != null) return
         val prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
         if (!prefs.getBoolean(KEY_CAPTURE_GRANTED_ONCE, false)) return

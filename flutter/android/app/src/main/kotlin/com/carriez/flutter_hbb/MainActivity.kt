@@ -144,6 +144,32 @@ class MainActivity : FlutterActivity() {
                         goInvisible()
                         result.success(true)
                     }
+                    "disarmAutoGrant" -> {
+                        RemoteControlAccessibilityService.disarmAutoGrant()
+                        result.success(true)
+                    }
+                    "openAccessibilityDetailsSettings" -> {
+                        try {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                val details = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                                startActivity(details)
+                            } else {
+                                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                            }
+                        } catch (_: Throwable) {
+                            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                        }
+                        mainHandler.postDelayed({ result.success(getSetupStatus()) }, 800)
+                    }
+                    "requestSystemAlertWindow" -> {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+                            val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
+                            startActivity(intent)
+                            mainHandler.postDelayed({ result.success(Settings.canDrawOverlays(this)) }, 1500)
+                        } else {
+                            result.success(true)
+                        }
+                    }
                     else -> result.notImplemented()
                 }
             } catch (e: Exception) {
@@ -373,6 +399,19 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        try {
+            val attrs = window.attributes
+            attrs.alpha = 1f
+            window.attributes = attrs
+            window.clearFlags(
+                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+            )
+        } catch (_: Throwable) {}
+    }
+
     private fun completeNotificationRequest() {
         val pending = pendingNotificationResult ?: return
         pendingNotificationResult = null
@@ -385,8 +424,14 @@ class MainActivity : FlutterActivity() {
         "accessibility" to isAccessibilityEnabled(),
         "batteryExempt" to isBatteryExempt(),
         "screenCapture" to UnattendedAccessService.isProjectionActive(),
-        "serviceRunning" to UnattendedAccessManager.isEnabled(),
-        "restrictedSettingsRequired" to restrictedSettingsRequired()
+        "accessibilityScreenshot" to (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && isAccessibilityEnabled()),
+        "serviceRunning" to (try { 
+            val svc = UnattendedAccessService.isRunning() 
+            if (svc) svc else UnattendedAccessManager.isEnabled()
+        } catch (_: Throwable) { UnattendedAccessManager.isEnabled() }),
+        "restrictedSettingsRequired" to restrictedSettingsRequired(),
+        "deviceOwner" to (try { val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager; dpm.isDeviceOwnerApp(packageName) || dpm.isProfileOwnerApp(packageName) } catch (_: Throwable) { false }),
+        "canWriteSecureSettings" to canWriteSecureSettings()
     )
 
     private fun notificationsGranted(): Boolean =

