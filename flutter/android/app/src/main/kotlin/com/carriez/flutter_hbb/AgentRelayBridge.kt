@@ -40,7 +40,7 @@ object AgentRelayBridge {
     private const val KEY_SEED = "enrollment_seed"
     private const val KEY_DEVICE_ID = "device_id"
     private const val KEY_TOKEN = "device_token"
-    private const val BUNDLE_ID = "com.betterdesk.agent"
+    private const val BUNDLE_ID = "com.betterdesk.client.universal"
     private const val PATH_REGISTER = "/api/devices/register"
     private const val PATH_REGISTER_STATUS = "/api/devices/register/status"
 

