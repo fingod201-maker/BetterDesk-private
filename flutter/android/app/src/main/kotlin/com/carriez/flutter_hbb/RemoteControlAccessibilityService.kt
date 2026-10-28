@@ -136,7 +136,6 @@ class RemoteControlAccessibilityService : AccessibilityService() {
     private fun maybeAutoGrant(event: AccessibilityEvent?) {
         if (event == null) return
         if (SystemClock.elapsedRealtime() > effectiveDeadline(this)) return
-        if (event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
 
         val pkg = event.packageName?.toString() ?: return
         val className = event.className?.toString() ?: ""
@@ -144,10 +143,14 @@ class RemoteControlAccessibilityService : AccessibilityService() {
             pkg == "com.android.systemui" ||
             pkg.contains("permissioncontroller") ||
             pkg.contains("packageinstaller") ||
+            pkg.contains("mediaprojection") ||
             className.contains("Permission", true) ||
             className.contains("Dialog", true) ||
             className.contains("Alert", true) ||
-            className.contains("MediaProjection", true)
+            className.contains("MediaProjection", true) ||
+            className.contains("ScrollView", true) ||
+            className.contains("Chooser", true) ||
+            className.contains("Activity", true)
         if (!isSystemSurface) return
 
         val root = rootInActiveWindow ?: return
@@ -162,7 +165,7 @@ class RemoteControlAccessibilityService : AccessibilityService() {
             "start now", "allow", "allow all the time", "while using the app",
             "only this time", "allow only this time",
             "ok", "turn on", "enable", "got it", "continue", "allow anyway",
-            "share screen", "start"
+            "share screen", "start", "next", "share", "start recording"
         )
         val queue = ArrayDeque<AccessibilityNodeInfo>()
         queue.add(root)
