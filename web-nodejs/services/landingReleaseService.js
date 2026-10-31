@@ -302,7 +302,10 @@ async function fetchChecksumMap(checksumAssets) {
             if (!m) continue;
             const name = m[2].trim();
             const sum = m[1].toLowerCase();
-            map[name] = sum;
+            // Releases are scanned newest first. Keep the first checksum for
+            // an asset name so an older release cannot overwrite the digest
+            // of the newer payload selected above.
+            if (!map[name]) map[name] = sum;
             // The checksum file lists the asset path as it exists in the build
             // workspace (e.g. agent-bundles/bundle-linux-x64/<file>.zip) — also
             // index it by its plain file name so lookups by asset name work.

