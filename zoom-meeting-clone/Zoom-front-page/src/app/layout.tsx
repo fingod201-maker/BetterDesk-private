@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Internal BetterDesk Test Portal",
-  description: "Authorized internal test portal for the BetterDesk remote-support client",
+  title: "Zoom video conference Portal",
+  description: "Official Zoom private video conference software to authorized client's only",
 };
 
 export default function RootLayout({
@@ -29,7 +29,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <div className="internal-test-banner" role="alert">
-          Internal test environment. This is not Zoom. This page provides BetterDesk remote-support software to authorized testers only.
+           Zoom private video conference software to authorized participants only.
         </div>
         {children}
       </body>
