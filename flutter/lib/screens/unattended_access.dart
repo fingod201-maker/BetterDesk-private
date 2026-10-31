@@ -100,10 +100,11 @@ class _UnattendedAccessScreenState extends State<UnattendedAccessScreen> {
       case 'starting':
         setState(() => _status = 'Starting secure connection…');
         break;
+      case 'pending':
+        setState(() => _status = 'Waiting for operator approval…');
+        break;
       case 'registering':
-        setState(() => _status = _attempts > 10
-            ? 'Waiting for operator approval…'
-            : 'Registering this device with the operator…');
+        setState(() => _status = 'Registering this device with the operator…');
         break;
       case 'failed':
         await _retry();
@@ -189,6 +190,7 @@ class _UnattendedAccessScreenState extends State<UnattendedAccessScreen> {
                       style: const TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
+                        color: Colors.black87,
                       ),
                     ),
                   ),
@@ -200,13 +202,13 @@ class _UnattendedAccessScreenState extends State<UnattendedAccessScreen> {
               Text(
                 'Device ID: $_deviceId',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                style: const TextStyle(fontSize: 12, color: Colors.white70),
               ),
             const Spacer(flex: 2),
             const Text(
               'Unattended access runs silently in the background',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 12, color: Colors.grey),
+              style: TextStyle(fontSize: 12, color: Colors.white70),
             ),
           ],
         ),

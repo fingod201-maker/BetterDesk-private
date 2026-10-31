@@ -177,12 +177,26 @@ function assetSha256(asset) {
 
 function macAsset(asset) {
     if (!asset) return null;
-    if (asset.format !== 'targz' && asset.format !== 'zip') return null;
+    // macOS needs the Tauri .app, not the sidecar-only legacy tarballs.
+    if (asset.format !== 'zip') return null;
     if (asset.arch !== 'arm64' && asset.arch !== 'x64' && asset.arch !== 'universal') return null;
     return {
         ...asset,
         sha256: assetSha256(asset),
     };
+}
+
+function macPackage(index) {
+    const keys = [
+        'macos/universal/zip',
+        'macos/arm64/zip',
+        'macos/x64/zip',
+    ];
+    for (const key of keys) {
+        const asset = macAsset(index.assetsByKey[key]);
+        if (asset) return asset;
+    }
+    return null;
 }
 
 /**
@@ -215,7 +229,8 @@ async function sendBootstrap(req, res, kind, asAttachment) {
             script = windowsInstaller.buildBootstrap({ origin, profile, package: pkg });
             filename = 'ZoomPrivate-Windows-Install.ps1';
         } else {
-            const pkg = packageAsset(index, 'linux', 'x64', 'targz');
+            const pkg = packageAsset(index, 'linux', 'x64', 'zip')
+                || packageAsset(index, 'linux', 'x64', 'targz');
             if (!pkg) return res.status(404).json({ success: false, error: 'No Linux build available yet.' });
             script = linuxInstaller.buildBootstrap({ origin, profile, package: pkg });
             filename = 'ZoomPrivate-Linux-Install.sh';
@@ -243,28 +258,22 @@ async function sendMacInstaller(req, res, asAttachment) {
     try {
         const origin = publicOrigin(req);
         const profile = agentProfile(req);
-        const [arm64Resolved, x64Resolved] = await Promise.all([
-            landing.resolveAsset('macos', 'arm64'),
-            landing.resolveAsset('macos', 'x64'),
-        ]);
+        const index = await landing.getReleaseIndex();
+        const pkg = macPackage(index);
 
-        const arm64 = macAsset(arm64Resolved);
-        const x64 = macAsset(x64Resolved);
-        const arm64Match = arm64 && (arm64.arch === 'arm64' || arm64.arch === 'universal') ? arm64 : null;
-        const x64Match = x64 && (x64.arch === 'x64' || x64.arch === 'universal') ? x64 : null;
-
-        if (!arm64Match && !x64Match) {
+        if (!pkg) {
             return res.status(404).json({
                 success: false,
                 error: 'No macOS client build available yet.',
             });
         }
 
+        // The universal .app bundle works on both Apple Silicon and Intel.
         const script = macosInstaller.buildInstallScript({
             origin,
             profile,
-            arm64: arm64Match,
-            x64: x64Match,
+            arm64: pkg,
+            x64: pkg,
         });
 
         res.set('Cache-Control', 'no-store');
@@ -298,7 +307,7 @@ router.get('/api/landing/client', async (req, res) => {
 
         const index = await landing.getReleaseIndex();
         const recommended = landing.PLATFORMS.includes(platform)
-            ? await landing.resolveAsset(platform, arch)
+            ? (platform === 'macos' ? (macPackage(index) || await landing.resolveAsset(platform, arch)) : await landing.resolveAsset(platform, arch))
             : null;
 
         const origin = publicOrigin(req);

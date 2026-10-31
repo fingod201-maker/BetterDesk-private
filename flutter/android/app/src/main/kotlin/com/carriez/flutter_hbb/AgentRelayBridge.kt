@@ -159,7 +159,7 @@ object AgentRelayBridge {
                     stateValue = "registering"
                     val token = registerAndEnroll(appContext, config, id)
                     if (token != null) {
-                        prefs(appContext).edit().putString(KEY_TOKEN, token).apply()
+                        SecureCredentialStore.put(appContext, KEY_TOKEN, token)
                         nativeSetAgentConfig(id, config.baseUrl, token)
                         nativeConnect()
                         stateValue = "connected"
@@ -207,14 +207,19 @@ object AgentRelayBridge {
     private fun prefs(context: Context) =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
-    /** 32-byte Ed25519 seed, generated once per installation. */
+    /**
+     * 32-byte Ed25519 seed, generated once per installation.
+     *
+     * This is the installation's private enrollment identity, so it is kept in
+     * the Android Keystore-backed [SecureCredentialStore] rather than as a
+     * plaintext preference.
+     */
     private fun enrollmentSeed(context: Context): String {
-        val p = prefs(context)
-        p.getString(KEY_SEED, null)?.let { if (it.isNotBlank()) return it }
+        SecureCredentialStore.get(context, KEY_SEED)?.let { if (it.isNotBlank()) return it }
         val bytes = ByteArray(32)
         SecureRandom().nextBytes(bytes)
         val b64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
-        p.edit().putString(KEY_SEED, b64).apply()
+        SecureCredentialStore.put(context, KEY_SEED, b64)
         return b64
     }
 
@@ -231,7 +236,8 @@ object AgentRelayBridge {
 
     private fun rotateDeviceId(context: Context): Boolean {
         val p = prefs(context)
-        p.edit().remove(KEY_DEVICE_ID).remove(KEY_TOKEN).apply()
+        p.edit().remove(KEY_DEVICE_ID).apply()
+        SecureCredentialStore.remove(context, KEY_TOKEN)
         return true
     }
 
@@ -410,7 +416,11 @@ object AgentRelayBridge {
                 Log.w(TAG, "enrollment rejected: ${registered.body?.optString("message")}")
                 return null
             }
-            "pending" -> Unit
+            "pending" -> {
+                // Only surface the approval wait when the server actually put
+                // us in its pending list (managed enrollment mode).
+                stateValue = "pending"
+            }
             else -> {
                 if (registered.code >= 400) {
                     Log.w(TAG, "registration failed HTTP ${registered.code}")

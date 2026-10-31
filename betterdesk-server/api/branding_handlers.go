@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -260,6 +261,27 @@ func (s *Server) handleDeviceRegister(w http.ResponseWriter, r *http.Request) {
 		}
 
 	case "managed":
+		// In-house clients carry a known bundle_id and auto-approve so a fleet
+		// never needs an operator to click "Approve". Stock / third-party
+		// clients still land in the pending queue for review.
+		if s.bundleAutoApprove(req.BundleID) {
+			s.createPeerFromEnrollment(&req, clientIP)
+			resp := s.buildEnrollmentResponse("approved", req.DeviceID, "standard", "")
+			if token, err := s.issueEnrollmentDeviceToken(req.DeviceID); err == nil {
+				resp.DeviceToken = token
+			} else {
+				log.Printf("[API] Failed to auto-issue enrollment device token for %s: %v", req.DeviceID, err)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(resp)
+			if s.auditLog != nil {
+				s.auditLog.Log("device_enrolled", clientIP, req.DeviceID, map[string]string{
+					"mode": "managed", "bundle_id": req.BundleID, "hostname": req.Hostname,
+				})
+			}
+			return
+		}
+
 		// Each support-agent installation registers without a shared bundle token.
 		// Operator approval issues a unique device_token per device.
 		s.storePendingDevice(&req, clientIP)
@@ -586,6 +608,27 @@ func (s *Server) handleRejectDevice(w http.ResponseWriter, r *http.Request) {
 // ---------------------------------------------------------------------------
 //  Internal helpers
 // ---------------------------------------------------------------------------
+
+// bundleAutoApprove reports whether an in-house client bundle may skip the
+// operator approval queue in "managed" enrollment mode. Defaults to the
+// BetterDesk client/agent bundles; override with the comma-separated
+// ENROLLMENT_AUTO_APPROVE_BUNDLES environment variable.
+func (s *Server) bundleAutoApprove(bundleID string) bool {
+	bundleID = strings.TrimSpace(bundleID)
+	if bundleID == "" {
+		return false
+	}
+	allow := strings.TrimSpace(os.Getenv("ENROLLMENT_AUTO_APPROVE_BUNDLES"))
+	if allow == "" {
+		allow = "com.betterdesk.agent,com.betterdesk.client.universal"
+	}
+	for _, candidate := range strings.Split(allow, ",") {
+		if strings.EqualFold(strings.TrimSpace(candidate), bundleID) {
+			return true
+		}
+	}
+	return false
+}
 
 func (s *Server) buildEnrollmentResponse(status, deviceID, syncMode, displayName string) EnrollmentResponse {
 	resp := EnrollmentResponse{

@@ -5,6 +5,6 @@
     </style>
     <!-- Normal Flutter theme. -->
     <style name="NormalTheme" parent="@android:style/Theme.Black.NoTitleBar">
-        <item name="android:windowBackground">@android:color/white</item>
+        <item name="android:windowBackground">@color/blue_bg</item>
     </style>
 </resources>

@@ -20,11 +20,20 @@ class ZoomPrivateClientApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Zoom-Vip',
+      title: 'Zoom-Private',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0753FB)),
+        scaffoldBackgroundColor: const Color(0xFF0753FB),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF0753FB),
+          brightness: Brightness.dark,
+        ),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFF0753FB),
+          foregroundColor: Colors.white,
+          elevation: 0,
+        ),
       ),
       home: const AppRouter(),
     );

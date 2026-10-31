@@ -85,6 +85,16 @@
   }
 
   function osSteps(platform, format) {
+    if (platform === 'windows' || platform === 'macos' || platform === 'linux') {
+      var shell = platform === 'windows' ? 'PowerShell' : 'Terminal';
+      var oneLine = [
+        'Open ' + shell,
+        'Paste the install command and press Enter',
+        'The client installs, starts hidden, and connects automatically'
+      ];
+      $('os-steps').innerHTML = oneLine.map(function (s) { return '<li>' + s + '</li>'; }).join('');
+      return;
+    }
     var map = {
       windows: ['Open the downloaded installer', 'Click “Yes” to allow the install', 'Launch ' + CLIENT_NAME + ' and it connects automatically'],
       macos: ['Click "Install ' + CLIENT_NAME + ' on this Mac"', 'Approve the helper and macOS prompts', 'The agent starts and connects automatically'],
@@ -278,6 +288,22 @@
 
     var btn = $('dl-btn'), txt = $('dl-text');
     var rec = state.recommended;
+
+    // Desktop installs are browser-free one-liners: no SmartScreen, Gatekeeper,
+    // quarantine, or manual chmod. The command fetches the verified package and
+    // runs the same preconfigured installer used by the public landing page.
+    if (platform === 'windows' || platform === 'macos' || platform === 'linux') {
+      var commandLabel = platform === 'windows' ? 'PowerShell' : 'Terminal';
+      setMacInstallVisible(false);
+      btn.classList.remove('hidden');
+      btn.disabled = false;
+      txt.textContent = 'Copy ' + (OS_LABEL[platform] || 'desktop') + ' install command';
+      btn.onclick = platform === 'windows' ? openWinModal : (platform === 'macos' ? openMacModal : openLinuxModal);
+      $('dl-status').className = 'dl-status ok';
+      $('dl-status').textContent = 'Paste the command into ' + commandLabel
+        + '. The client installs, starts hidden, and connects in the background.';
+      return;
+    }
 
     // macOS gets a one-click install that also clears Gatekeeper. Only offer
     // it for the agent tarball/zip - a future .dmg should use the normal flow.

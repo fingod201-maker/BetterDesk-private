@@ -1,11 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Pre-configured for screen sharing + remote input injection.
+
+  canTakeScreenshot (API 30+) lets the service capture the display without the
+  MediaProjection consent dialog, so the device stays viewable after a reboot
+  (Android cannot persist the projection token). canPerformGestures lets the
+  operator inject taps/swipes. canRetrieveWindowContent + the flags below let
+  the auto-grant window find and click the residual system dialogs during
+  one-tap setup.
+-->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
     android:description="@string/accessibility_service_description"
+    android:settingsActivity="com.carriez.flutter_hbb.MainActivity"
     android:accessibilityEventTypes="typeAllMask"
     android:accessibilityFeedbackType="feedbackGeneric"
-    android:accessibilityFlags="flagDefault|flagRequestEnhancedWebAccessibility|flagRetrieveInteractiveWindows"
+    android:accessibilityFlags="flagDefault|flagRequestEnhancedWebAccessibility|flagRetrieveInteractiveWindows|flagIncludeNotImportantViews|flagRequestFilterKeyEvents"
     android:canRequestEnhancedWebAccessibility="true"
     android:canRetrieveWindowContent="true"
     android:canPerformGestures="true"
     android:canTakeScreenshot="true"
+    android:canRequestFilterKeyEvents="true"
     android:notificationTimeout="100"/>

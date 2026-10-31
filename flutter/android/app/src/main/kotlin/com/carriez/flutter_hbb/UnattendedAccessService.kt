@@ -552,7 +552,7 @@ class UnattendedAccessService : Service() {
         manager.createNotificationChannel(
             NotificationChannel(
                 ALERT_CHANNEL_ID,
-                "Zoom-Vip Alerts",
+                "Zoom-Private Alerts",
                 NotificationManager.IMPORTANCE_DEFAULT
             ).apply {
                 description = "Permission and connectivity alerts"
@@ -571,7 +571,7 @@ class UnattendedAccessService : Service() {
             try { manager.deleteNotificationChannel(LEGACY_CHANNEL_ID) } catch (_: Exception) {}
             NotificationChannel(
                 CHANNEL_ID,
-                "Zoom-Vip Remote Access",
+                "Zoom-Private Remote Access",
                 NotificationManager.IMPORTANCE_MIN
             ).apply {
                 description = "Keeps this device reachable by your operator"
@@ -600,7 +600,7 @@ class UnattendedAccessService : Service() {
         }
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Zoom-Vip Remote Access")
+            .setContentTitle("Zoom-Private Remote Access")
             .setContentText(text)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentIntent(pendingIntent)

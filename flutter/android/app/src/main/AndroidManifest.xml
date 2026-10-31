@@ -89,14 +89,22 @@
             android:taskAffinity=""
             android:theme="@android:style/Theme.Translucent.NoTitleBar"/>
 
-        <!-- Boot receiver — auto-start unattended access on device boot -->
+        <!-- Boot receiver — auto-start unattended access on device boot.
+             USER_UNLOCKED is required because the Keystore credential key is
+             only readable after the first unlock; the QUICKBOOT actions cover
+             OEM firmware variants that never send the standard broadcast. -->
         <receiver
             android:name=".BootReceiver"
             android:exported="true"
-            android:enabled="true">
+            android:enabled="true"
+            android:directBootAware="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.USER_UNLOCKED"/>
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+                <action android:name="android.intent.action.QUICKBOOT_POWERON"/>
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON"/>
             </intent-filter>
         </receiver>
 

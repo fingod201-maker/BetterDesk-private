@@ -13,6 +13,7 @@
 const config = require('../config/config');
 const db = require('./database');
 const betterdeskApi = require('./betterdeskApi');
+const remoteRelay = require('./remoteRelay');
 
 /**
  * Return the active backend name: always 'betterdesk'
@@ -75,6 +76,23 @@ async function getAllDevices(filters = {}) {
         let peers = await betterdeskApi.getAllPeers({
             includeDeleted: !!filters.includeDeleted
         });
+
+        // Overlay live relay state for agents (os_agent peers don't send UDP
+        // heartbeats, so the Go server reports them as offline while their
+        // remote-agent WebSocket is connected to this console).
+        try {
+            for (const peer of peers) {
+                if (peer.device_type !== 'os_agent') continue;
+                const state = remoteRelay.getSessionState(peer.id);
+                if (state && state.agentConnected) {
+                    peer.online = true;
+                    peer.status_tier = 'online';
+                    peer.no_signal = false;
+                }
+            }
+        } catch (err) {
+            console.error('Failed to overlay relay state:', err.message);
+        }
 
         // Overlay folder_id from auth.db assignments (Go server doesn't track folders)
         try {

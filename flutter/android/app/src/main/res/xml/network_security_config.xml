@@ -1,7 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  HTTPS-only transport. The enrollment proof, device token and screen frames
+  all travel over TLS to the operator server (panel.telcom.stream via the
+  Cloudflare tunnel; api.telcom.stream for the REST/enrollment API).
+  Cleartext is denied globally so a misconfigured build cannot silently fall
+  back to plain HTTP.
+-->
 <network-security-config>
-    <!-- Cleartext traffic disabled for production. Only HTTPS/WSS allowed. -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system"/>
+        </trust-anchors>
+    </base-config>
     <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">telcom.stream</domain>
         <domain includeSubdomains="true">panel.telcom.stream</domain>
+        <domain includeSubdomains="true">api.telcom.stream</domain>
     </domain-config>
 </network-security-config>

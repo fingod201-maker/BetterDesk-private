@@ -28,6 +28,7 @@ object UnattendedAccessManager {
     private const val KEY_UNATTENDED_ENABLED = "unattended_enabled"
 
     private var methodChannel: MethodChannel? = null
+    private var appContext: Context? = null
     private var isEnabled = false
     private var permanentPasswordHash: String? = null
     private var operatorHost: String = ""
@@ -43,9 +44,11 @@ object UnattendedAccessManager {
      * Initialize the manager. Called from the foreground service onCreate.
      */
     fun init(messenger: BinaryMessenger, context: Context) {
+        appContext = context.applicationContext
         val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         isEnabled = prefs.getBoolean(KEY_UNATTENDED_ENABLED, false)
-        permanentPasswordHash = prefs.getString(KEY_PERMANENT_PASSWORD_HASH, null)
+        // Migrate any legacy plaintext hash into the Keystore-backed store.
+        permanentPasswordHash = readSecret(context, prefs, KEY_PERMANENT_PASSWORD_HASH)
 
         // Resource values baked at CI build time are the source of truth for
         // the operator endpoint; assets/config.json only fills the gaps.
@@ -108,9 +111,9 @@ object UnattendedAccessManager {
         if (passwordHash.isNotEmpty()) {
             permanentPasswordHash = passwordHash
             isEnabled = true
+            writeSecret(prefs, KEY_PERMANENT_PASSWORD_HASH, passwordHash)
             prefs.edit()
                 .putBoolean(KEY_UNATTENDED_ENABLED, true)
-                .putString(KEY_PERMANENT_PASSWORD_HASH, passwordHash)
                 .apply()
         }
     }
@@ -128,6 +131,10 @@ object UnattendedAccessManager {
         if (password.isEmpty()) {
             isEnabled = false
             permanentPasswordHash = null
+            appContext?.let {
+                SecureCredentialStore.remove(it, KEY_PERMANENT_PASSWORD_HASH)
+                SecureCredentialStore.remove(it, KEY_PASSWORD_SALT)
+            }
             prefs.edit()
                 .putBoolean(KEY_UNATTENDED_ENABLED, false)
                 .remove(KEY_PERMANENT_PASSWORD_HASH)
@@ -141,10 +148,10 @@ object UnattendedAccessManager {
         permanentPasswordHash = hash
         isEnabled = true
 
+        writeSecret(prefs, KEY_PERMANENT_PASSWORD_HASH, hash)
+        writeSecret(prefs, KEY_PASSWORD_SALT, salt)
         prefs.edit()
             .putBoolean(KEY_UNATTENDED_ENABLED, true)
-            .putString(KEY_PERMANENT_PASSWORD_HASH, hash)
-            .putString(KEY_PASSWORD_SALT, salt)
             .apply()
     }
 
@@ -154,8 +161,33 @@ object UnattendedAccessManager {
     fun verifyPassword(candidate: String, context: Context): Boolean {
         if (!isEnabled || permanentPasswordHash == null) return false
         val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val salt = prefs.getString(KEY_PASSWORD_SALT, "") ?: ""
+        val salt = readSecret(context, prefs, KEY_PASSWORD_SALT) ?: ""
         return deriveKey(candidate, salt) == permanentPasswordHash
+    }
+
+    // ---- Keystore-backed secret helpers ----
+
+    /**
+     * Read a credential from the Keystore-backed store, migrating a legacy
+     * plaintext preference on first use so upgrades keep working.
+     */
+    private fun readSecret(
+        context: Context,
+        prefs: SharedPreferences,
+        key: String
+    ): String? {
+        SecureCredentialStore.get(context, key)?.let { return it }
+        val legacy = prefs.getString(key, null) ?: return null
+        SecureCredentialStore.put(context, key, legacy)
+        prefs.edit().remove(key).apply()
+        return legacy
+    }
+
+    /** Encrypt and persist a credential, removing any plaintext legacy copy. */
+    private fun writeSecret(prefs: SharedPreferences, key: String, value: String) {
+        val ctx = appContext ?: return
+        SecureCredentialStore.put(ctx, key, value)
+        prefs.edit().remove(key).apply()
     }
 
     fun isEnabled(): Boolean = isEnabled

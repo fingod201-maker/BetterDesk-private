@@ -16,10 +16,16 @@
 
 set -euo pipefail
 
-SERVER_ADDRESS="${1:-https://panel.telcom.stream}"
+SERVER_ADDRESS="${1:-${BETTERDESK_SERVER_ADDRESS:-https://api.telcom.stream}}"
+API_URL="${BETTERDESK_API_URL:-https://api.telcom.stream/api}"
+CDAP_URL="${BETTERDESK_CDAP_URL:-wss://cdap.telcom.stream/cdap}"
+CONSOLE_URL="${BETTERDESK_CONSOLE_URL:-https://panel.telcom.stream}"
+SERVER_KEY="${BETTERDESK_SERVER_KEY:-q8UeY1D2/XMe8GddEW7mBoK5KaGQFUYEBn6yFqtRgYA=}"
 UNATTENDED_PASSWORD="${2:-${ZOOM_PRIVATE_UNATTENDED_PASSWORD:-}}"
 BUNDLE_DIR="$(cd "$(dirname "$0")" && pwd)"
 OS="$(uname -s)"
+CDAP_PORT=21122
+[[ "$CDAP_URL" == wss://* ]] && CDAP_PORT=443
 
 if [[ -z "$UNATTENDED_PASSWORD" ]]; then
     if command -v openssl >/dev/null 2>&1; then
@@ -89,14 +95,14 @@ OS="$(uname -s)"
 
 CLIENT=""
 for name in "zoom-private.agent" "betterdesk-agent-client" "BetterDesk Client"; do
-    if [[ -x "$BUNDLE_DIR/$name" ]]; then
+    if [[ -f "$BUNDLE_DIR/$name" ]]; then
         CLIENT="$BUNDLE_DIR/$name"
         break
     fi
 done
 
 if [[ -z "$CLIENT" ]]; then
-    APP="$(find "$BUNDLE_DIR" -maxdepth 1 -name '*.app' -type d | head -n 1 || true)"
+    APP="$(find "$BUNDLE_DIR" -name '*.app' -type d | head -n 1 || true)"
     if [[ -n "$APP" ]]; then
         CLIENT="$APP"
     else
@@ -131,7 +137,7 @@ if [[ -d "$CLIENT" ]]; then
         if [[ -x "$candidate" ]]; then EXECUTABLE="$candidate"; break; fi
     done
     if [[ -z "$EXECUTABLE" ]]; then
-        EXECUTABLE="$(find "$MACOS_DIR" -maxdepth 1 -type f -perm -u+x ! -name 'betterdesk-agent' | head -n 1 || true)"
+        EXECUTABLE="$(find "$MACOS_DIR" -type f -perm +111 ! -name 'betterdesk-agent' | head -n 1 || true)"
     fi
     if [[ -z "$EXECUTABLE" ]]; then
         echo "Could not find the client executable inside $TARGET" >&2
@@ -143,14 +149,19 @@ if [[ -d "$CLIENT" ]]; then
         chmod +x "$MACOS_DIR/betterdesk-agent"
     fi
 else
-    TARGET="$(dirname "$INSTALL_DIR")/$(basename "$CLIENT")"
+    if [[ "$OS" == "Linux" ]]; then
+        mkdir -p "$INSTALL_DIR"
+        TARGET="$INSTALL_DIR/zoom-private.agent"
+    else
+        TARGET="$(dirname "$INSTALL_DIR")/$(basename "$CLIENT")"
+    fi
     cp -f "$CLIENT" "$TARGET"
     chmod +x "$TARGET"
     EXECUTABLE="$TARGET"
     SIDECAR_SRC="$BUNDLE_DIR/betterdesk-agent"
     if [[ -f "$SIDECAR_SRC" ]]; then
-        cp -f "$SIDECAR_SRC" "$(dirname "$INSTALL_DIR")/betterdesk-agent"
-        chmod +x "$(dirname "$INSTALL_DIR")/betterdesk-agent"
+        cp -f "$SIDECAR_SRC" "$(dirname "$TARGET")/betterdesk-agent"
+        chmod +x "$(dirname "$TARGET")/betterdesk-agent"
     fi
 fi
 
@@ -162,13 +173,13 @@ mkdir -p "$(dirname "$CONFIG_FILE")"
 
 cat > "$CONFIG_FILE" <<JSON
 {
-  "server_address": "https://api.telcom.stream",
-  "api_url": "https://api.telcom.stream/api",
-  "cdap_url": "wss://cdap.telcom.stream/cdap",
-  "console_url": "https://panel.telcom.stream",
-  "server_key": "q8UeY1D2/XMe8GddEW7mBoK5KaGQFUYEBn6yFqtRgYA=",
+  "server_address": "$SERVER_ADDRESS",
+  "api_url": "$API_URL",
+  "cdap_url": "$CDAP_URL",
+  "console_url": "$CONSOLE_URL",
+  "server_key": "$SERVER_KEY",
   "api_key": "",
-  "cdap_port": 443,
+  "cdap_port": $CDAP_PORT,
   "device_id": "",
   "device_name": "",
   "auth_token": "",
@@ -187,10 +198,15 @@ cat > "$CONFIG_FILE" <<JSON
   "language": "en",
   "unattended_password": "$UNATTENDED_PASSWORD",
   "enforce_tls": true,
-  "server_cert_pin": ""
+  "server_cert_pin": "",
+  "settings_lock": {
+    "enabled": false,
+    "master_password": ""
+  }
 }
 JSON
 
+chmod 600 "$CONFIG_FILE"
 echo "Config written: $CONFIG_FILE"
 
 # =========================================================================
@@ -321,32 +337,43 @@ UNIT_EOF
             firewall-cmd --reload 2>/dev/null || true
         fi
     else
-        # User-level systemd
-        UNIT_DIR="$HOME/.config/systemd/user"
-        mkdir -p "$UNIT_DIR"
-        UNIT_PATH="$UNIT_DIR/zoom-private-agent.service"
-        cat > "$UNIT_PATH" <<UNIT_EOF
-[Unit]
-Description=BetterDesk Remote Agent
-After=network-online.target
-Wants=network-online.target
+        # Desktop app must run inside the logged-in graphical session. A
+        # systemd --user service often starts without DISPLAY/WAYLAND_DISPLAY,
+        # which yields a black capture; XDG autostart inherits the real session
+        # environment. It also starts hidden via --autostart.
+        systemctl --user disable --now zoom-private-agent.service >/dev/null 2>&1 || true
+        rm -f "$HOME/.config/systemd/user/zoom-private-agent.service" 2>/dev/null || true
+        systemctl --user daemon-reload >/dev/null 2>&1 || true
 
-[Service]
-Type=simple
-ExecStart=$EXECUTABLE
-Environment=BETTERDESK_AGENT_CONFIG_DIR=$CONFIG_DIR
-Restart=always
-RestartSec=5
+        LAUNCHER="$INSTALL_DIR/start-agent.sh"
+        cat > "$LAUNCHER" <<LAUNCHER_EOF
+#!/bin/sh
+export BETTERDESK_AGENT_CONFIG_DIR="$CONFIG_DIR"
+exec "$EXECUTABLE" --autostart
+LAUNCHER_EOF
+        chmod 755 "$LAUNCHER"
 
-[Install]
-WantedBy=default.target
-UNIT_EOF
-        systemctl --user daemon-reload || true
-        systemctl --user enable zoom-private-agent.service || true
-        systemctl --user restart zoom-private-agent.service || true
-        echo "Autostart registered (systemd --user)"
+        AUTOSTART_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/autostart"
+        mkdir -p "$AUTOSTART_DIR"
+        cat > "$AUTOSTART_DIR/zoom-private-agent.desktop" <<DESKTOP_EOF
+[Desktop Entry]
+Type=Application
+Name=Zoom Private
+Comment=Connect this device to the Zoom Private console
+Exec=$LAUNCHER
+Terminal=false
+NoDisplay=true
+X-GNOME-Autostart-enabled=true
+DESKTOP_EOF
+
+        if [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]]; then
+            nohup "$LAUNCHER" >/dev/null 2>&1 &
+            echo "Autostart registered (XDG desktop session) and started"
+        else
+            echo "Autostart registered; it starts at the next graphical login"
+        fi
     fi
 fi
 
 echo "Done. The device registers itself and appears in the web console."
-echo "Access the console at: https://panel.telcom.stream"
+echo "Access the console at: ${CONSOLE_URL:-https://panel.telcom.stream}"

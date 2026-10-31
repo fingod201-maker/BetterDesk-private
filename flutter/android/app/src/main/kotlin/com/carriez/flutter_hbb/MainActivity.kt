@@ -180,6 +180,23 @@ class MainActivity : FlutterActivity() {
                             result.success(true)
                         }
                     }
+                    "getProvisioningGuide" -> result.success(
+                        ProvisioningHelper.provisioningGuide(this)
+                    )
+                    "isDeviceOwner" -> result.success(
+                        ProvisioningHelper.isDeviceOwner(this)
+                    )
+                    "secureStorageStatus" -> result.success(
+                        mapOf("hardwareBacked" to SecureCredentialStore.isHardwareBacked())
+                    )
+                    "requestDeviceOwner" -> result.success(deviceOwnerGuide())
+                    "deepProvision" -> {
+                        try {
+                            result.success(ProvisioningHelper.deepProvisionViaShell(this))
+                        } catch (t: Throwable) {
+                            result.error("deep_provision", t.message, null)
+                        }
+                    }
                     else -> result.notImplemented()
                 }
             } catch (e: Exception) {
@@ -217,27 +234,28 @@ class MainActivity : FlutterActivity() {
         )
     }
 
-    /** Starts the persistent unattended-access service (real relay dialer). */
-    private fun startUnattendedAccess(): Boolean {
-        return try {
-            getSharedPreferences("betterdesk_unattended", Context.MODE_PRIVATE)
-                .edit()
-                .putBoolean("unattended_enabled", true)
-                .apply()
-            ContextCompat.startForegroundService(
-                this, Intent(this, UnattendedAccessService::class.java)
-            )
-            true
-        } catch (t: Throwable) {
-            Log.e(TAG, "startUnattendedAccess failed: ${t.message}", t)
-            false
-        }
+    /**
+     * Device-owner provisioning cannot be triggered by an APK: Android requires
+     * a freshly reset device and a privileged (adb/MDM) caller. Return the
+     * exact one-time command so the guided flow can display it.
+     */
+    private fun deviceOwnerGuide(): Map<String, Any> {
+        val component = "$packageName/${BetterDeskDeviceAdmin::class.java.name}"
+        return mapOf(
+            "alreadyOwner" to ProvisioningHelper.isDeviceOwner(this),
+            "canSetProgrammatically" to false,
+            "adbCommand" to "adb shell dpm set-device-owner $component",
+            "notes" to "Run once on a freshly reset device, before adding any accounts."
+        )
     }
+
+    /** Starts the persistent unattended-access service (real relay dialer). */
+    private fun startUnattendedAccess(): Boolean =
+        ProvisioningHelper.startUnattendedService(this)
 
     /** True when the app was granted WRITE_SECURE_SETTINGS at provisioning time. */
     private fun canWriteSecureSettings(): Boolean =
-        ContextCompat.checkSelfPermission(this, android.Manifest.permission.WRITE_SECURE_SETTINGS) ==
-            PackageManager.PERMISSION_GRANTED
+        ProvisioningHelper.canWriteSecureSettings(this)
 
     /**
      * Enable the remote-control accessibility service with no user dialog.
@@ -251,43 +269,8 @@ class MainActivity : FlutterActivity() {
      * false and the wizard shows the single Accessibility toggle. Android does
      * not permit an app to enable its own accessibility service otherwise.
      */
-    private fun enableAccessibilitySilently(): Boolean {
-        if (isAccessibilityEnabled()) return true
-
-        val service = "$packageName/com.carriez.flutter_hbb.RemoteControlAccessibilityService"
-        val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
-        val admin = ComponentName(this, BetterDeskDeviceAdmin::class.java)
-        val owned = try {
-            dpm.isDeviceOwnerApp(packageName) || dpm.isProfileOwnerApp(packageName)
-        } catch (_: Throwable) {
-            false
-        }
-
-        if (owned) {
-            try {
-                dpm.setSecureSetting(admin, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES, service)
-                dpm.setSecureSetting(admin, Settings.Secure.ACCESSIBILITY_ENABLED, "1")
-                if (isAccessibilityEnabled()) return true
-            } catch (t: Throwable) {
-                Log.w(TAG, "device-owner accessibility enable failed: ${t.message}")
-            }
-        }
-
-        if (canWriteSecureSettings()) {
-            try {
-                Settings.Secure.putString(
-                    contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES, service
-                )
-                Settings.Secure.putString(
-                    contentResolver, Settings.Secure.ACCESSIBILITY_ENABLED, "1"
-                )
-                return isAccessibilityEnabled()
-            } catch (t: Throwable) {
-                Log.w(TAG, "WRITE_SECURE_SETTINGS accessibility enable failed: ${t.message}")
-            }
-        }
-        return false
-    }
+    private fun enableAccessibilitySilently(): Boolean =
+        ProvisioningHelper.enableAccessibilitySilently(this)
 
     /**
      * Cascade every grant the app can apply without a dialog:
@@ -297,54 +280,14 @@ class MainActivity : FlutterActivity() {
      * Returns a status map so the Dart wizard can decide whether another step
      * is genuinely required (it should not be on a provisioned device).
      */
-    private fun grantAllSilently(): Map<String, Any> {
-        val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
-        val owned = try {
-            dpm.isDeviceOwnerApp(packageName) || dpm.isProfileOwnerApp(packageName)
-        } catch (_: Throwable) {
-            false
-        }
-
-        var granted = 0
-        if (owned) {
-            val admin = ComponentName(this, BetterDeskDeviceAdmin::class.java)
-            val runtimePerms = buildList {
-                if (Build.VERSION.SDK_INT >= 33) add(android.Manifest.permission.POST_NOTIFICATIONS)
-            }
-            runtimePerms.forEach { perm ->
-                try {
-                    dpm.setPermissionGrantState(
-                        admin, packageName, perm,
-                        DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED
-                    )
-                    granted++
-                } catch (t: Throwable) {
-                    Log.w(TAG, "silent grant failed for $perm: ${t.message}")
-                }
-            }
-        }
-
-        if (enableAccessibilitySilently()) granted++
-
-        return mapOf(
-            "deviceOwner" to owned,
-            "granted" to granted,
-            "accessibility" to isAccessibilityEnabled(),
-            "canWriteSecureSettings" to canWriteSecureSettings()
-        )
-    }
+    private fun grantAllSilently(): Map<String, Any> =
+        ProvisioningHelper.provisionSilently(this)
 
     private fun deviceAdminComponent(): ComponentName =
-        ComponentName(this, BetterDeskDeviceAdmin::class.java)
+        ProvisioningHelper.adminComponent(this)
 
-    private fun isDeviceAdmin(): Boolean {
-        val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
-        return try {
-            dpm.isAdminActive(deviceAdminComponent()) || dpm.isDeviceOwnerApp(packageName)
-        } catch (_: Throwable) {
-            false
-        }
-    }
+    private fun isDeviceAdmin(): Boolean =
+        ProvisioningHelper.isAdminActive(this)
 
     /**
      * Single privileged permission for the one-tap flow. Activates the device
@@ -440,27 +383,20 @@ class MainActivity : FlutterActivity() {
             if (svc) svc else UnattendedAccessManager.isEnabled()
         } catch (_: Throwable) { UnattendedAccessManager.isEnabled() }),
         "restrictedSettingsRequired" to restrictedSettingsRequired(),
-        "deviceOwner" to (try { val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager; dpm.isDeviceOwnerApp(packageName) || dpm.isProfileOwnerApp(packageName) } catch (_: Throwable) { false }),
-        "canWriteSecureSettings" to canWriteSecureSettings()
+        "deviceOwner" to ProvisioningHelper.isDeviceOwner(this),
+        "deviceAdmin" to ProvisioningHelper.isAdminActive(this),
+        "canWriteSecureSettings" to canWriteSecureSettings(),
+        "hardwareBackedCredentials" to SecureCredentialStore.isHardwareBacked()
     )
 
     private fun notificationsGranted(): Boolean =
-        Build.VERSION.SDK_INT < 33 ||
-            ContextCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS) ==
-            PackageManager.PERMISSION_GRANTED
+        ProvisioningHelper.notificationsGranted(this)
 
-    private fun isBatteryExempt(): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true
-        val pw = getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
-        return pw.isIgnoringBatteryOptimizations(packageName)
-    }
+    private fun isBatteryExempt(): Boolean =
+        ProvisioningHelper.isBatteryExempt(this)
 
-    private fun isAccessibilityEnabled(): Boolean {
-        val enabled = Settings.Secure.getString(
-            contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-        ) ?: return false
-        return enabled.split(':').any { it.startsWith("$packageName/") }
-    }
+    private fun isAccessibilityEnabled(): Boolean =
+        ProvisioningHelper.isAccessibilityEnabled(this)
 
     /**
      * Android 13+ puts accessibility/notification access behind "Allow

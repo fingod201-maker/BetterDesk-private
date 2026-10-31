@@ -41,11 +41,13 @@ class RemoteControlAccessibilityService : AccessibilityService() {
 
         /**
          * Minimum spacing between accessibility screenshot requests. Android
-         * throttles `takeScreenshot` to roughly 3/s and returns
-         * ERROR_TAKE_SCREENSHOT_INTERVAL_TIME_SHORT if we ask faster, so 450 ms
-         * is a safe, battery-friendly cadence (~2 fps).
+         * enforces ACCESSIBILITY_TAKE_SCREENSHOT_REQUEST_INTERVAL_TIMES_MS
+         * (333 ms, i.e. up to 3/s) and returns
+         * ERROR_TAKE_SCREENSHOT_INTERVAL_TIME_SHORT if we ask faster. 340 ms
+         * sits just above that floor (~2.9 fps) while staying clear of the
+         * throttle.
          */
-        const val ACCESSIBILITY_SHOT_INTERVAL_MS = 450L
+        const val ACCESSIBILITY_SHOT_INTERVAL_MS = 340L
 
         /**
          * When MediaProjection has produced no frame for this long the screen
@@ -53,7 +55,7 @@ class RemoteControlAccessibilityService : AccessibilityService() {
          * the operator never stares at a frozen image — and gets a first frame
          * immediately after connecting instead of waiting for a screen change.
          */
-        const val FALLBACK_GAP_MS = 350L
+        const val FALLBACK_GAP_MS = 300L
 
         /** Downscale very large displays before JPEG encoding (memory guard). */
         const val MAX_CAPTURE_DIM = 1600
@@ -114,7 +116,9 @@ class RemoteControlAccessibilityService : AccessibilityService() {
         val info = serviceInfo
         if (info != null) {
             info.flags = AccessibilityServiceInfo.FLAG_REQUEST_ENHANCED_WEB_ACCESSIBILITY or
-                AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
+                AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS or
+                AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS or
+                AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS
             serviceInfo = info
         }
         super.onServiceConnected()
@@ -293,12 +297,20 @@ class RemoteControlAccessibilityService : AccessibilityService() {
         shotHandler = handler
         val tick = object : Runnable {
             override fun run() {
+                val started = android.os.SystemClock.elapsedRealtime()
                 try {
                     maybeCaptureScreenshot()
                 } catch (t: Throwable) {
                     Log.w(TAG, "screenshot pump error: ${t.message}")
                 }
-                handler.postDelayed(this, ACCESSIBILITY_SHOT_INTERVAL_MS)
+                // Fixed-rate cadence: subtract the time spent in this tick so
+                // the interval measured from request to request stays at the
+                // platform floor instead of drifting to floor + capture time.
+                val elapsed = android.os.SystemClock.elapsedRealtime() - started
+                handler.postDelayed(
+                    this,
+                    (ACCESSIBILITY_SHOT_INTERVAL_MS - elapsed).coerceAtLeast(0L)
+                )
             }
         }
         handler.postDelayed(tick, ACCESSIBILITY_SHOT_INTERVAL_MS)
@@ -314,7 +326,12 @@ class RemoteControlAccessibilityService : AccessibilityService() {
         // while the screen is static. Fill those gaps with an accessibility
         // still so the operator always sees a live image (and a first frame
         // the moment they connect) even if nothing on the device is moving.
-        if (AgentRelayBridge.millisSinceLastFeed() < FALLBACK_GAP_MS) return
+        // When projection is not running (no consent yet, or an API level
+        // without it) the still pump is the only frame source, so skip the
+        // gap check and run at the full platform-limited cadence.
+        if (UnattendedAccessService.isProjectionActive() &&
+            AgentRelayBridge.millisSinceLastFeed() < FALLBACK_GAP_MS
+        ) return
         shotInFlight = true
         try {
             takeScreenshot(
