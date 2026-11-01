@@ -123,7 +123,7 @@ function inferPlatformFromName(name) {
     const n = String(name || '').toLowerCase();
     if (/android/.test(n)) return 'android';
     if (/windows|win64|win32|win-x64|msi|nsis/.test(n)) return 'windows';
-    if (/macos|mac-os|osx|darwin|apple|mac_x64|mac-arm/.test(n)) return 'macos';
+    if (/macos|mac-os|osx|darwin|apple|mac_x64|mac-arm|dmg/.test(n)) return 'macos';
     if (/linux|ubuntu|debian|fedora|centos|appimage|apt/.test(n)) return 'linux';
     return null;
 }

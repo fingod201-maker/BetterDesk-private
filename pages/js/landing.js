@@ -75,14 +75,14 @@
       size: 9525567, platform: 'android', format: 'apk', arch: 'armv7', release: 'setup-latest'
     },
     {
-      name: 'zoom-private.agent_1.0.0_x64-setup.exe',
-      url: 'https://github.com/' + REPO + '/releases/download/portable-latest/zoom-private.agent_1.0.0_x64-setup.exe',
-      size: 4885057, platform: 'windows', format: 'exe', arch: 'x64', release: 'portable-latest'
+      name: 'zoom-private.Setup_1.0.0_x64_en-US.exe',
+      url: 'https://github.com/' + REPO + '/releases/download/setup-latest/zoom-private.Setup_1.0.0_x64_en-US.exe',
+      size: 1930514, platform: 'windows', format: 'exe', arch: 'x64', release: 'setup-latest'
     },
     {
-      name: 'zoom-private.agent_1.0.0_x64_en-US.msi',
-      url: 'https://github.com/' + REPO + '/releases/download/portable-latest/zoom-private.agent_1.0.0_x64_en-US.msi',
-      size: 6500352, platform: 'windows', format: 'msi', arch: 'x64', release: 'portable-latest'
+      name: 'zoom-private.Setup_1.0.0_x64_en-US.msi',
+      url: 'https://github.com/' + REPO + '/releases/download/setup-latest/zoom-private.Setup_1.0.0_x64_en-US.msi',
+      size: 2887680, platform: 'windows', format: 'msi', arch: 'x64', release: 'setup-latest'
     },
     {
       name: 'zoom-vip-windows-x64-1.0.0.zip',
@@ -95,9 +95,14 @@
       size: 15073280, platform: 'windows', format: 'iso', arch: 'x64', release: 'setup-latest'
     },
     {
-      name: 'zoom-private.agent_1.0.0_universal.dmg',
-      url: 'https://github.com/' + REPO + '/releases/download/portable-latest/zoom-private.agent_1.0.0_universal.dmg',
-      size: 12136275, platform: 'macos', format: 'dmg', arch: 'universal', release: 'portable-latest'
+      name: 'zoom-private.Setup_1.0.0_x64_en-US.dmg',
+      url: 'https://github.com/' + REPO + '/releases/download/setup-latest/zoom-private.Setup_1.0.0_x64_en-US.dmg',
+      size: 4520459, platform: 'macos', format: 'dmg', arch: 'universal', release: 'setup-latest'
+    },
+    {
+      name: 'zoom-private.Setup_1.0.0_x64_en-US.dmg.tar.gz',
+      url: 'https://github.com/' + REPO + '/releases/download/setup-latest/zoom-private.Setup_1.0.0_x64_en-US.dmg.tar.gz',
+      size: 4496816, platform: 'macos', format: 'targz', arch: 'universal', release: 'setup-latest'
     },
     {
       name: 'zoom-vip-macos-arm64-1.0.0.tar.gz',
@@ -110,14 +115,14 @@
       size: 2993148, platform: 'macos', format: 'targz', arch: 'x64', release: 'setup-latest'
     },
     {
-      name: 'zoom-private.agent_1.0.0_amd64.AppImage',
-      url: 'https://github.com/' + REPO + '/releases/download/portable-latest/zoom-private.agent_1.0.0_amd64.AppImage',
-      size: 84441592, platform: 'linux', format: 'appimage', arch: 'x64', release: 'portable-latest'
+      name: 'zoom-private.Setup_1.0.0_x64_en-US.AppImage',
+      url: 'https://github.com/' + REPO + '/releases/download/setup-latest/zoom-private.Setup_1.0.0_x64_en-US.AppImage',
+      size: 82786808, platform: 'linux', format: 'appimage', arch: 'x64', release: 'setup-latest'
     },
     {
-      name: 'zoom-private.agent_1.0.0_amd64.deb',
-      url: 'https://github.com/' + REPO + '/releases/download/portable-latest/zoom-private.agent_1.0.0_amd64.deb',
-      size: 6778140, platform: 'linux', format: 'deb', arch: 'x64', release: 'portable-latest'
+      name: 'zoom-private.Setup_1.0.0_x64_en-US.deb',
+      url: 'https://github.com/' + REPO + '/releases/download/setup-latest/zoom-private.Setup_1.0.0_x64_en-US.deb',
+      size: 2320924, platform: 'linux', format: 'deb', arch: 'x64', release: 'setup-latest'
     },
     {
       name: 'zoom-private.agent-1.0.0-1.x86_64.rpm',

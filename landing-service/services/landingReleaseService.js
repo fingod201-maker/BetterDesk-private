@@ -123,7 +123,7 @@ function inferPlatformFromName(name) {
     const n = String(name || '').toLowerCase();
     if (/android/.test(n)) return 'android';
     if (/windows|win64|win32|win-x64|msi|nsis/.test(n)) return 'windows';
-    if (/macos|mac-os|osx|darwin|apple|mac_x64|mac-arm/.test(n)) return 'macos';
+    if (/macos|mac-os|osx|darwin|apple|mac_x64|mac-arm|dmg/.test(n)) return 'macos';
     if (/linux|ubuntu|debian|fedora|centos|appimage|apt/.test(n)) return 'linux';
     return null;
 }
@@ -191,7 +191,7 @@ function nameScore(name) {
     const n = String(name || '').toLowerCase();
     let s = 0;
     if (/zoom-private/.test(n)) s += 4;   // branded public bundle
-    if (/zoom-vip/.test(n)) s += 4;       // current client container naming
+    if (/zoom-vip/.test(n)) s += 5;       // current client container naming
     if (/setup|installer/.test(n)) s += 4;
     if (/\bclient\b/.test(n)) s += 3;
     if (/bundle/.test(n)) s += 2;
@@ -312,7 +312,9 @@ async function fetchChecksumMap(checksumAssets) {
             const base = name.split('/').pop();
             if (base && !map[base]) map[base] = sum;
         }
-        if (Object.keys(map).length) break;
+        // Keep scanning: a release can carry more than one checksum sidecar
+        // (CHECKSUMS.sha256 for the portable bundles, CONTAINER-CHECKSUMS.sha256
+        // for the zoom-vip containers) and both must be indexed.
     }
     return map;
 }
