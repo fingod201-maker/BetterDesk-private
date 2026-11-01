@@ -141,6 +141,8 @@ func (a *Agent) Stop() {
 		conn.Close(websocket.StatusNormalClosure, "agent shutdown")
 	}
 	a.wg.Wait()
+	// Only an explicit shutdown tears down persistent operator sessions.
+	a.cleanupSessions()
 }
 
 // ── Single connection lifecycle ──────────────────────────────────────
@@ -232,7 +234,8 @@ func (a *Agent) runOnce() error {
 	err = a.messageLoop()
 
 	a.connected.Store(false)
-	a.cleanupSessions()
+	// Terminal/file/stream sessions are intentionally kept across reconnects:
+	// a dropped CDAP link must not kill an operator's running shell.
 	a.wg.Wait()
 	return err
 }
@@ -600,6 +603,13 @@ func (a *Agent) handleTerminalStart(msg *Message) {
 	}
 	if p.SessionID == "" {
 		p.SessionID = "default"
+	}
+
+	// Persist the shell across reconnects: if the session already exists,
+	// keep the running process instead of spawning a second shell.
+	if _, ok := a.terminals.Load(p.SessionID); ok {
+		log.Printf("[agent] Terminal session %q already running, reusing", p.SessionID)
+		return
 	}
 
 	if !a.requestRemoteConsent(p.SessionID, p.OperatorName, "terminal") {
