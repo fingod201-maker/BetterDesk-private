@@ -234,8 +234,9 @@ func (a *Agent) runOnce() error {
 	err = a.messageLoop()
 
 	a.connected.Store(false)
-	// Terminal/file/stream sessions are intentionally kept across reconnects:
-	// a dropped CDAP link must not kill an operator's running shell.
+	// Lost link: stop transfers/streams but keep terminal shells alive so the
+	// operator can reattach to the same session after reconnecting.
+	a.cleanupTransientSessions()
 	a.wg.Wait()
 	return err
 }
@@ -838,12 +839,10 @@ func (a *Agent) handleClipboardGet(msg *Message) {
 
 // ── Session Cleanup ──────────────────────────────────────────────────
 
-func (a *Agent) cleanupSessions() {
-	a.terminals.Range(func(key, value any) bool {
-		value.(*TerminalSession).Close()
-		a.terminals.Delete(key)
-		return true
-	})
+// cleanupTransientSessions drops transfers and screen streams that are bound to
+// the dead CDAP link. Terminal shells are deliberately left running so an
+// operator can reconnect to the same session.
+func (a *Agent) cleanupTransientSessions() {
 	a.fileHandlers.Range(func(key, value any) bool {
 		if cancel, ok := value.(context.CancelFunc); ok {
 			cancel()
@@ -856,6 +855,16 @@ func (a *Agent) cleanupSessions() {
 		a.desktopStreams.Delete(key)
 		return true
 	})
+}
+
+// cleanupSessions is the full teardown used only on explicit agent shutdown.
+func (a *Agent) cleanupSessions() {
+	a.terminals.Range(func(key, value any) bool {
+		value.(*TerminalSession).Close()
+		a.terminals.Delete(key)
+		return true
+	})
+	a.cleanupTransientSessions()
 }
 
 // ── Wire I/O ─────────────────────────────────────────────────────────
