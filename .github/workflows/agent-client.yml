@@ -250,7 +250,8 @@ jobs:
           MACOS_NOTARY_ISSUER: ${{ secrets.MACOS_NOTARY_ISSUER }}
         run: |
           VERSION=$(node -p "require('./src-tauri/tauri.conf.json').version")
-          APP="src-tauri/target/universal-apple-darwin/release/bundle/macos/zoom-private.agent.app"
+          APP=$(ls -d src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app | head -n 1)
+          test -n "$APP"
           OUT="src-tauri/target/universal-apple-darwin/release/bundle/dmg/zoom-private.agent_${VERSION}_universal.dmg"
           chmod +x "$GITHUB_WORKSPACE/.github/scripts/sign-macos-agent.sh"
           "$GITHUB_WORKSPACE/.github/scripts/sign-macos-agent.sh" "$APP" "$OUT"
@@ -260,11 +261,16 @@ jobs:
         run: |
           VERSION=$(node -p "require('./src-tauri/tauri.conf.json').version")
           TARGET="src-tauri/target/universal-apple-darwin/release/bundle/dmg/zoom-private.agent_${VERSION}_universal.dmg"
-          for f in src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg; do
-            [ -e "$f" ] || continue
-            [ "$f" = "$TARGET" ] && continue
-            mv "$f" "$TARGET"
-          done
+          # The signing script already wrote the final DMG when secrets exist.
+          # Only rename the Tauri-generated DMG when it did not.
+          if [ ! -f "$TARGET" ]; then
+            for f in src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg; do
+              [ -e "$f" ] || continue
+              [ "$f" = "$TARGET" ] && continue
+              mv "$f" "$TARGET"
+              break
+            done
+          fi
 
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v4

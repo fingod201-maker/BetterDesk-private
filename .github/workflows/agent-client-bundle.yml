@@ -237,9 +237,11 @@ jobs:
       - name: Package macOS zip
         run: |
           chmod +x scripts/package/package-client-zip.sh
+          APP=$(ls -d "$GITHUB_WORKSPACE/${{ env.AGENT_DIR }}/src-tauri/target/universal-apple-darwin/release/bundle/macos/"*.app | head -n 1)
+          test -n "$APP"
+          echo "Packaging $APP"
           SIDECAR_BIN="$GITHUB_WORKSPACE/${{ env.AGENT_DIR }}/src-tauri/binaries/betterdesk-agent-universal-apple-darwin" \
-          scripts/package/package-client-zip.sh macos universal \
-            "$GITHUB_WORKSPACE/${{ env.AGENT_DIR }}/src-tauri/target/universal-apple-darwin/release/bundle/macos/zoom-private.agent.app" \
+          scripts/package/package-client-zip.sh macos universal "$APP" \
             "$GITHUB_WORKSPACE/dist/bundles"
 
       - name: Upload macOS bundle
