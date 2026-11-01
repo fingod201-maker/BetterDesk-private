@@ -10,6 +10,7 @@
 //! hidden on boot and only the tray icon is shown.
 
 use log::{info, warn};
+#[cfg(windows)]
 use std::process::Command;
 
 #[allow(dead_code)]
