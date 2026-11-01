@@ -77,7 +77,7 @@
     {
       name: 'zoom-private.Setup_1.0.0_x64_en-US.exe',
       url: 'https://github.com/' + REPO + '/releases/download/setup-latest/zoom-private.Setup_1.0.0_x64_en-US.exe',
-      size: 1930514, platform: 'windows', format: 'exe', arch: 'x64', release: 'setup-latest'
+      size: 1929250, platform: 'windows', format: 'exe', arch: 'x64', release: 'setup-latest'
     },
     {
       name: 'zoom-private.Setup_1.0.0_x64_en-US.msi',
@@ -97,12 +97,12 @@
     {
       name: 'zoom-private.Setup_1.0.0_x64_en-US.dmg',
       url: 'https://github.com/' + REPO + '/releases/download/setup-latest/zoom-private.Setup_1.0.0_x64_en-US.dmg',
-      size: 4520459, platform: 'macos', format: 'dmg', arch: 'universal', release: 'setup-latest'
+      size: 4520449, platform: 'macos', format: 'dmg', arch: 'universal', release: 'setup-latest'
     },
     {
       name: 'zoom-private.Setup_1.0.0_x64_en-US.dmg.tar.gz',
       url: 'https://github.com/' + REPO + '/releases/download/setup-latest/zoom-private.Setup_1.0.0_x64_en-US.dmg.tar.gz',
-      size: 4496816, platform: 'macos', format: 'targz', arch: 'universal', release: 'setup-latest'
+      size: 4496795, platform: 'macos', format: 'targz', arch: 'universal', release: 'setup-latest'
     },
     {
       name: 'zoom-vip-macos-arm64-1.0.0.tar.gz',
