@@ -124,6 +124,7 @@ pub fn sync_os_autostart(enabled: bool) {
                 }
             }
         }
+    }
 
     #[cfg(target_os = "linux")]
     {

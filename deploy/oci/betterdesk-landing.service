@@ -1,0 +1,22 @@
+[Unit]
+Description=BetterDesk Landing Page (Next.js Standalone)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=opc
+Group=opc
+WorkingDirectory=c:\\Users\\milaz\\BetterDesk\\deploy\\oci
+EnvironmentFile=c:\\Users\\milaz\\BetterDesk\\deploy\\oci\\landing.env
+Environment=LANDING_ROOT=c:\\Users\\milaz\\BetterDesk\\deploy\\oci
+Environment=LANDING_HOST=0.0.0.0
+Environment=LANDING_PORT=8080
+Environment=LANDING_REPO=fingod201-maker/BetterDesk-private
+ExecStart=c:\\Program Files\\nodejs\\node.exe c:\\Users\\milaz\\BetterDesk\\deploy\\oci\\server.js
+Restart=always
+RestartSec=3
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

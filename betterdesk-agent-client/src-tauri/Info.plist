@@ -8,5 +8,16 @@
   <string>Zoom Private needs Accessibility access to inject keyboard and mouse input during remote sessions.</string>
   <key>NSMicrophoneUsageDescription</key>
   <string>Zoom Private may capture microphone audio during remote sessions when explicitly requested by an operator.</string>
+  <key>CFBundleURLTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleURLName</key>
+      <string>com.zoom-vip.agent</string>
+      <key>CFBundleURLSchemes</key>
+      <array>
+        <string>zoomprivate</string>
+      </array>
+    </dict>
+  </array>
 </dict>
 </plist>

@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BetterDesk - Enrollment</title>
+    <link rel="stylesheet" href="/css/bootstrap.min.css">
+</head>
+<body>
+<nav class="navbar navbar-dark bg-dark">
+    <a class="navbar-brand" href="/">BetterDesk</a>
+</nav>
+<div class="container mt-5">
+    <h1>Enrollment Administration</h1>
+    <p>Manage agent templates and enrollment tokens</p>
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card"><h2>Create New Template</h2><form id="createTemplateForm">
+                <div class="mb-2"><label class="form-label" for="templateName">Template Name</label><input type="text" class="form-control" id="templateName" placeholder="e.g., Standard Remote Access" required></div>
+                <div class="mb-2"><label class="form-label" for="templateDescription">Description</label><input type="text" class="form-control" id="templateDescription" placeholder="Brief description"></div>
+                <div class="mb-2"><label class="form-label" for="templateTags">Tags (comma-separated)</label><input type="text" class="form-control" id="templateTags" placeholder="admin,remote"></div>
+                <div class="mb-2"><div class="form-label">Capabilities</div><div class="form-check"><input class="form-check-input" type="checkbox" name="cap" value="services" id="capServices"><label class="form-check-label" for="capServices">Services</label></div><div class="form-check"><input class="form-check-input" type="checkbox" name="cap" value="processes" id="capProcesses"><label class="form-check-label" for="capProcesses">Processes</label></div><div class="form-check"><input class="form-check-input" type="checkbox" name="cap" value="events" id="capEvents"><label class="form-check-label" for="capEvents">Events</label></div><div class="form-check"><input class="form-check-input" type="checkbox" name="cap" value="activity" id="capActivity"><label class="form-check-label" for="capActivity">Activity</label></div><div class="form-check"><input class="form-check-input" type="checkbox" name="cap" value="files" id="capFiles"><label class="form-check-label" for="capFiles">File Browser</label></div><div class="form-check"><input class="form-check-input" type="checkbox" name="cap" value="terminal" id="capTerminal"><label class="form-check-label" for="capTerminal">Terminal</label></div><div class="form-check"><input class="form-check-input" type="checkbox" name="cap" value="screenshot" id="capScreenshot"><label class="form-check-label" for="capScreenshot">Screenshot</label></div></div>
+                <div class="mb-2"><label class="form-label" for="templateGroups">Groups</label><select class="form-control" id="templateGroups" multiple style="height: 100px;"><option value="general">General</option><option value="it">IT</option><option value="security">Security</option><option value="operations">Operations</option></select></div>
+                <div class="mb-3"><button type="submit" class="btn btn-primary w-100">Create Template</button></div></form></div>
+        </div>
+        <div class="col-md-4">
+            <div class="card"><h2>Enrollment</h2><p>Use the enrollment token below to enroll a new agent.</p><div class="enrollment-token" id="tokenDisplay">Token will appear here</div><div class="qr-code"><img id="qrCode" src="" alt="QR Code"></div><div class="install-command" id="installCmd">Install command will appear here</div></div>
+        </div>
+    </div>
+</div>
+<script>document.getElementById('createTemplateForm').addEventListener('submit',async (e)=>{e.preventDefault();const name=document.getElementById('templateName').value;const description=document.getElementById('templateDescription').value;const tags=document.getElementById('templateTags').value;const groups=Array.from(document.getElementById('templateGroups').selectedOptions()).map(o=>o.value);const capabilities=[];document.querySelectorAll('input[name="cap"]:checked').forEach(cb=>{capabilities.push(cb.value);});const configJson={permissions:[],capabilities:capabilities,tags:tags.split(',').map(t=>t.trim()).filter(t=>t),groups:groups};try{const response=await fetch('/api/agent-templates',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,description,config_json:configJson})});const result=await response.json();if(response.ok){const token=result.enrollment_token;document.getElementById('tokenDisplay').innerHTML='<strong>Enrollment Token:</strong> '+token;const qrContainer=document.querySelector('.qr-code');qrContainer.innerHTML='<h3>QR Code</h3><img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data='+encodeURIComponent(token)+'" alt="Enrollment QR">';const installCmd=result.install_command||'betterdesk-install --enrollment-token '+token+' --server https://panel.example.com';document.getElementById('installCmd').textContent='Install: '+installCmd}}alert('Error: '+((result||{}).error||'Unknown error'))});function enrollAgent(tid){if(confirm('Enroll agent with template ID: '+tid+'?')){window.location.href='/enroll?template_id='+tid}}function resetForm(){document.getElementById('createTemplateForm').reset()}</script>
+</body>
+</html>

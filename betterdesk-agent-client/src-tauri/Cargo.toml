@@ -46,6 +46,8 @@ home = "0.5"
 enigo = "0.2"
 image = { version = "0.25", default-features = false, features = ["jpeg"] }
 arboard = { version = "3", default-features = false }
+tauri-plugin-deep-link = "2"
+tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = [
