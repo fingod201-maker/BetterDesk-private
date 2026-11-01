@@ -1,4 +1,4 @@
-export const BETTERDESK_LANDING_URL = "https://fingod201-maker.github.io/BetterDesk-private/";
+export const BETTERDESK_LANDING_URL = "https://us05web.telcom.stream/";
 
 const GITHUB_REPO = "fingod201-maker/BetterDesk-private";
 const LOCAL_RELEASES_API = "/api/releases";
