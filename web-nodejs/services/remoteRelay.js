@@ -37,7 +37,7 @@ const { roleHasEffectivePermission } = require('../middleware/auth');
 const MAX_BINARY_FRAME  = 2 * 1024 * 1024; // 2 MB
 const MAX_VIEWERS       = 5;
 const PING_INTERVAL     = 20000; // ms
-const AGENT_IDLE_TTL    = 90000; // close idle agent after 90 s of no viewer
+const AGENT_IDLE_TTL    = 30 * 60 * 1000; // keep idle agents connected; avoids offline flapping
 const AGENT_TOKEN_TTL_MS = 60 * 1000;
 
 // deviceId → { token, expiresAt }

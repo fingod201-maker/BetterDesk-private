@@ -68,6 +68,12 @@
             <button class="bdv-btn" id="btnRecents" title="Recent apps">
                 <span class="material-icons">recent_actors</span>
             </button>
+            <button class="bdv-btn" id="btnNotifications" title="Notifications">
+                <span class="material-icons">notifications</span>
+            </button>
+            <button class="bdv-btn" id="btnQuickSettings" title="Quick settings">
+                <span class="material-icons">tune</span>
+            </button>
             <button class="bdv-btn" id="btnClipboard" title="Clipboard Sync">
                 <span class="material-icons">content_paste</span>
             </button>
@@ -379,6 +385,8 @@
     document.getElementById('btnBack')?.addEventListener('click', () => sendNavKey('Back'));
     document.getElementById('btnHome')?.addEventListener('click', () => sendNavKey('Home'));
     document.getElementById('btnRecents')?.addEventListener('click', () => sendNavKey('Tab'));
+    document.getElementById('btnNotifications')?.addEventListener('click', () => sendNavKey('Notifications'));
+    document.getElementById('btnQuickSettings')?.addEventListener('click', () => sendNavKey('QuickSettings'));
 
     document.getElementById('bdv-beta-dismiss')?.addEventListener('click', () => {
         document.getElementById('bdv-beta-banner').style.display = 'none';
