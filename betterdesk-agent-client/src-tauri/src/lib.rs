@@ -480,13 +480,14 @@ pub fn run() {
                 }
             }
 
-            // On first run (device not registered yet): show the window so the
-            // SetupWizard is immediately visible without requiring the user to
-            // click the tray icon.
-            if !is_registered && !is_autostart {
-                if let Some(window) = app.get_webview_window("main") {
-                    let _ = window.unminimize();
-                    let _ = window.show();
+            // The desktop client is a visible app: show the main window on
+            // every launch, including --autostart, so the user can see that
+            // the agent is running. Closing the window still hides it to the
+            // tray (handled in on_window_event below).
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.unminimize();
+                let _ = window.show();
+                if !is_autostart {
                     let _ = window.set_focus();
                 }
             }
@@ -502,13 +503,6 @@ pub fn run() {
                         log::warn!("[enroll] auto enrollment failed: {}", e);
                     }
                 });
-            }
-
-            // Hide main window on startup if autostart mode.
-            if is_autostart {
-                if let Some(window) = app.get_webview_window("main") {
-                    let _ = window.hide();
-                }
             }
 
             // Auto-start the managed Go CDAP sidecar if device is registered and setting is on.

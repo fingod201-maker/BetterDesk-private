@@ -526,6 +526,16 @@ impl CdapClient {
             session_id, cols, rows
         );
 
+        // Reconnects may replay terminal_start for a session that is still
+        // alive. Reuse the existing PTY instead of spawning a duplicate shell.
+        if self.0.terminals.lock().unwrap().contains_key(&session_id) {
+            info!(
+                "[cdap] Terminal session {} already running, reusing",
+                session_id
+            );
+            return Ok(());
+        }
+
         let client = self.clone();
         let sid = session_id.clone();
 
