@@ -253,6 +253,9 @@ function handleViewerConnection(ws, deviceId, operatorName) {
                 if (session.agentWs && session.agentWs.readyState === WebSocket.OPEN) {
                     const agentEvent = { ...frame, type: frame.event_type || frame.kind || 'unknown' };
                     delete agentEvent.event_type;
+                    if (agentEvent.type === 'mouse_down' || agentEvent.type === 'mouse_up' || agentEvent.type === 'mouse_click') {
+                        log.info(`Input ${deviceId}: ${agentEvent.type} x=${agentEvent.x} y=${agentEvent.y} button=${agentEvent.button}`);
+                    }
                     sendJson(session.agentWs, agentEvent);
                 }
                 break;

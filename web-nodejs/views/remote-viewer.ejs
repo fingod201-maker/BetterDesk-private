@@ -10,7 +10,7 @@
 </div>
 
 <!-- BetterDesk Native Remote Desktop Viewer -->
-<div class="bdv-container" id="bdv-container" style="margin-top: 48px;">
+<div class="bdv-container" id="bdv-container" style="margin-top: 0;">
 
     <!-- Overlay shown before connection -->
     <div class="bdv-overlay" id="bdv-overlay">
@@ -257,13 +257,15 @@
         img.src = url;
     }
 
-    // ---- Input forwarding ----
-    canvas.addEventListener('mousemove', (e) => {
+    // ---- Input forwarding (pointer events: mouse + touch) ----
+    canvas.style.touchAction = 'none';
+
+    canvas.addEventListener('pointermove', (e) => {
         if (!streaming) return;
         const { rx, ry } = canvasCoords(e);
-        // While a button is held, suppress sub-threshold jitter. The Android
+        // While a pointer is held, suppress sub-threshold jitter. The Android
         // agent treats any move between down/up as a drag, so forwarding every
-        // pixel turns clicks into swipes and apps never open.
+        // pixel turns taps into swipes and apps never open.
         if (mouseButtonsDown) {
             if (!pointerDragging) {
                 if (Math.hypot(rx - pressX, ry - pressY) < DRAG_THRESHOLD) return;
@@ -273,8 +275,10 @@
         sendRemote({ type: 'input', event_type: 'mouse_move', x: rx, y: ry });
     });
 
-    canvas.addEventListener('mousedown', (e) => {
+    canvas.addEventListener('pointerdown', (e) => {
         if (!streaming) return;
+        e.preventDefault();
+        try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
         const { rx, ry } = canvasCoords(e);
         pressX = rx;
         pressY = ry;
@@ -283,14 +287,21 @@
         sendRemote({ type: 'input', event_type: 'mouse_down', x: rx, y: ry, button: btnName(e.button) });
     });
 
-    canvas.addEventListener('mouseup', (e) => {
+    canvas.addEventListener('pointerup', (e) => {
         if (!streaming) return;
+        e.preventDefault();
         const { rx, ry } = canvasCoords(e);
-        // A click must release at the press point so the agent recognises a tap.
+        // A tap must release at the press point so the agent recognises it.
         const ux = pointerDragging ? rx : pressX;
         const uy = pointerDragging ? ry : pressY;
         mouseButtonsDown &= ~(1 << e.button);
         sendRemote({ type: 'input', event_type: 'mouse_up', x: ux, y: uy, button: btnName(e.button) });
+        pointerDragging = false;
+        try { canvas.releasePointerCapture(e.pointerId); } catch (_) {}
+    });
+
+    canvas.addEventListener('pointercancel', () => {
+        mouseButtonsDown = 0;
         pointerDragging = false;
     });
 
@@ -491,8 +502,9 @@
     display: block;
     max-width: 100%; max-height: 100%;
     object-fit: contain;
-    cursor: none;
+    cursor: crosshair;
     outline: none;
+    touch-action: none;
 }
 
 .bdv-overlay {
@@ -584,6 +596,7 @@
     cursor: pointer; font-size: 16px; line-height: 1;
 }
 .bdv-beta-dismiss:hover { color: #fff; }
+.bdv-beta-banner { display: none !important; }
 
 .bdv-dropdown {
     position: absolute; top: 52px; right: 200px;
