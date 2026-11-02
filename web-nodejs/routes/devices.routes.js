@@ -65,7 +65,20 @@ router.get('/api/devices', requireAuth, requirePermission('device.view'), async 
         let devices = await serverBackend.getAllDevices(filters);
         const scope = await deviceGroupService.getDeviceScopeForUser(db, req.session.user, devices);
         devices = deviceGroupService.filterDevicesByScope(devices, scope);
+        let relay = null;
+        try { relay = require('../services/remoteRelay'); } catch (_) { /* optional module */ }
         for (const device of devices) {
+            // Agents that dial the panel relay (Android/edge clients) have no
+            // CDAP session, so the Go server reports them offline even while
+            // they are connected and streaming. Reflect the live relay state.
+            const relayState = relay && typeof relay.getSessionState === 'function'
+                ? relay.getSessionState(device.id) : null;
+            if (relayState && relayState.agentConnected) {
+                device.online = true;
+                device.status_tier = 'ONLINE';
+                device.last_online = new Date().toISOString();
+                device.relay_connected = true;
+            }
             try {
                 device.groups = await db.getDeviceGroupsForPeer(device.id);
             } catch (_) {

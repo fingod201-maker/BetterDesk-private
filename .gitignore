@@ -250,3 +250,10 @@ t
 k-server
 
 docs/security/PROJECT_SECURITY_ANALYSIS_2026-05-19.md
+
+# --- Local build/runtime artifacts (never commit) ---
+/flutter/
+/cloudflared/
+/dropper
+/Here is the token for bot*
+

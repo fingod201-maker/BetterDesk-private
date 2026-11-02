@@ -1,0 +1,23 @@
+{
+  "server": "wss://cdap.telcom.stream/cdap",
+  "auth_method": "device_token",
+  "device_token": "PASTE_DEVICE_TOKEN_FROM_PANEL",
+  "device_type": "os_agent",
+  "tags": [
+    "windows",
+    "user-session"
+  ],
+  "terminal": true,
+  "file_browser": true,
+  "clipboard": true,
+  "screenshot": true,
+  "require_consent": false,
+  "file_root": "C:\\",
+  "heartbeat_sec": 15,
+  "reconnect_sec": 5,
+  "max_reconnect": 300,
+  "log_level": "info",
+  "video_codec": "auto",
+  "hw_accel": "auto",
+  "enforce_tls": true
+}

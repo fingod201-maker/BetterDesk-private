@@ -724,11 +724,12 @@ func (s *Server) handleCDAPDesktop(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Dead-man switch (Phase 3.5): every browser read has a hard deadline.
-	// The web client emits `presence_ping` every 15s; missing two pings in a
-	// row terminates the session so a crashed/frozen operator browser does
-	// not leave the agent capturing forever. The deadline resets on every
-	// successful read, including pings.
-	const desktopBrowserPresenceTimeout = 30 * time.Second
+	// The web client emits `presence_ping` every 15s. The timeout must stay
+	// above the browser's background-tab timer throttle (Chrome clamps
+	// setInterval to ~60s for hidden tabs), otherwise an operator who
+	// switches tabs for a moment returns to a dead session. A crashed/frozen
+	// browser is still detected within two minutes.
+	const desktopBrowserPresenceTimeout = 120 * time.Second
 
 	for {
 		readCtx, readCancel := context.WithTimeout(ctx, desktopBrowserPresenceTimeout)

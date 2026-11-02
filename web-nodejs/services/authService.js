@@ -609,8 +609,22 @@ async function authenticate(username, password) {
         return null;
     }
 
+    username = username.trim();
     const ssoStatus = await getGoSSOStatus();
     let user = await db.getUserByUsername(username);
+    if (!user) {
+        // Mobile keyboards auto-capitalise the first letter ("Admin"). Retry
+        // once with the canonical lowercase form so a correct password is not
+        // rejected purely because of input capitalisation.
+        const lowered = username.toLowerCase();
+        if (lowered !== username) {
+            const ciUser = await db.getUserByUsername(lowered);
+            if (ciUser) {
+                user = ciUser;
+                username = ciUser.username;
+            }
+        }
+    }
 
     if (user) {
         const provider = normalizeAuthProvider(user.auth_provider);
