@@ -143,6 +143,9 @@
     let lastFpsTick = performance.now();
     let chatOpen   = false;
     let mouseButtonsDown = 0;
+    let pressX = 0, pressY = 0;
+    let pointerDragging = false;
+    const DRAG_THRESHOLD = 6;
 
     // ---- FPS Counter ----
     setInterval(() => {
@@ -258,21 +261,37 @@
     canvas.addEventListener('mousemove', (e) => {
         if (!streaming) return;
         const { rx, ry } = canvasCoords(e);
+        // While a button is held, suppress sub-threshold jitter. The Android
+        // agent treats any move between down/up as a drag, so forwarding every
+        // pixel turns clicks into swipes and apps never open.
+        if (mouseButtonsDown) {
+            if (!pointerDragging) {
+                if (Math.hypot(rx - pressX, ry - pressY) < DRAG_THRESHOLD) return;
+                pointerDragging = true;
+            }
+        }
         sendRemote({ type: 'input', event_type: 'mouse_move', x: rx, y: ry });
     });
 
     canvas.addEventListener('mousedown', (e) => {
         if (!streaming) return;
-        mouseButtonsDown |= (1 << e.button);
         const { rx, ry } = canvasCoords(e);
+        pressX = rx;
+        pressY = ry;
+        pointerDragging = false;
+        mouseButtonsDown |= (1 << e.button);
         sendRemote({ type: 'input', event_type: 'mouse_down', x: rx, y: ry, button: btnName(e.button) });
     });
 
     canvas.addEventListener('mouseup', (e) => {
         if (!streaming) return;
-        mouseButtonsDown &= ~(1 << e.button);
         const { rx, ry } = canvasCoords(e);
-        sendRemote({ type: 'input', event_type: 'mouse_up', x: rx, y: ry, button: btnName(e.button) });
+        // A click must release at the press point so the agent recognises a tap.
+        const ux = pointerDragging ? rx : pressX;
+        const uy = pointerDragging ? ry : pressY;
+        mouseButtonsDown &= ~(1 << e.button);
+        sendRemote({ type: 'input', event_type: 'mouse_up', x: ux, y: uy, button: btnName(e.button) });
+        pointerDragging = false;
     });
 
     canvas.addEventListener('wheel', (e) => {
