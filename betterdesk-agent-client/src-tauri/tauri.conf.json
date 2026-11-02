@@ -27,8 +27,8 @@
         "fullscreen": false,
         "center": true,
         "decorations": false,
-        "visible": true,
-        "skipTaskbar": false
+        "visible": false,
+        "skipTaskbar": true
       }
     ],
     "security": {
