@@ -48,7 +48,13 @@ func (a *Agent) handleDesktopInput(msg *Message) {
 		log.Printf("[input] Parse error: %v", err)
 		return
 	}
+	if a.cfg.LogLevel == "debug" {
+		log.Printf("[input] %s session=%s x=%d y=%d button=%d", evt.Type, evt.SessionID, evt.X, evt.Y, evt.Button)
+	}
 	if !a.hasActiveDesktopStream(evt.SessionID) {
+		if a.cfg.LogLevel == "debug" {
+			log.Printf("[input] ignored: no active desktop stream for %q", evt.SessionID)
+		}
 		return
 	}
 
@@ -61,6 +67,8 @@ func (a *Agent) handleDesktopInput(msg *Message) {
 				"message":    err.Error(),
 			})
 		}
+	} else if a.cfg.LogLevel == "debug" {
+		log.Printf("[input] injected %s", evt.Type)
 	}
 }
 
