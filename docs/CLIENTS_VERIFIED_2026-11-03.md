@@ -1,33 +1,41 @@
-# BetterDesk client verification - 2026-11-03
+# BetterDesk / Zoom-Private client verification - 2026-11-03
 
 Branch: `operational-v2-ALLclient-working`
 
-## Production paths
+## Client matrix
 
-| Client | Binary | Launch / install script | Build | Live stream | Remote mouse |
-|---|---|---|---|---|---|
-| Windows x64 | `distro/clients/windows/betterdesk-agent.exe` | `Setup-BetterDesk.vbs` (or `install-agent-task.ps1`) | PASS (windows/amd64, windows/arm64) | Not re-run: no configured cloud Windows host; local PC is reserved as control host | `SendInput` absolute move/click/scroll implemented; toolbar L/M/R exposed |
-| macOS arm64 | `distro/clients/macos/betterdesk-agent` | `install.sh` -> `install-betterdesk-support.sh`; `build-pkg.sh` for `.pkg` | PASS (darwin/arm64, darwin/amd64) | PASS on GitHub macOS runner (1920x1080 MJPEG) | PASS - click opened Finder |
-| Linux x86_64 | `distro/clients/linux/betterdesk-agent` | `install.sh` -> `install-betterdesk-support.sh` | PASS (linux/amd64, linux/arm64) | PASS in Oracle Cloud Podman + Xvfb (1920x1080 MJPEG) | PASS - mouse click + keyboard text verified; removed blocking `xdotool --sync` |
-| Android universal | `distro/clients/android/zoom-private-universal-release.apk` | `adb install -r ...` | Prebuilt Flutter/RustDesk 1.5.0 APK; package `com.betterdesk.client.universal` | Blocked: this APK is a RustDesk viewer, while the PC support agent is CDAP; no RustDesk target is configured in the Oracle environment | N/A (viewer) |
+| OS / client | Build formats | Install / run scripts | Live stream | Remote mouse |
+|---|---|---|---|---|
+| Windows x64 | `betterdesk-agent.exe`, `betterdesk-agent-client.exe`, `BetterDesk-Agent-Setup-x64.exe`, `BetterDesk-Agent-x64.msi` | `Install-ZoomPrivate.vbs`, `Install-ZoomPrivate.cmd`, `Setup-BetterDesk.vbs`, `Start-ZoomPrivate.cmd`, `Stop-ZoomPrivate.cmd`; user-session task runs `%APPDATA%\betterdesk\agent\start-agent.vbs` + `agent-launch.cmd` | Build PASS (windows/amd64, windows/arm64); live requires a Windows cloud host (not this PC) | `SendInput` absolute move/click/scroll; virtual mouse in web console |
+| macOS arm64 / amd64 | `.app`, `.dmg`, `.pkg`, `.zip`, `.tar.gz`, standalone `betterdesk-agent` | `Install-ZoomPrivate.command`, `install-zoom-private.sh`, `install.sh`, `start-zoom-private.sh`, `stop-zoom-private.sh` | PASS on GitHub macOS cloud runner (1920x1080 MJPEG) | PASS - virtual mouse click opened Finder; macOS input uses cliclick/osascript |
+| Linux x86_64 | `.AppImage`, standalone `betterdesk-agent` | `install-zoom-private.sh`, `install.sh`, `start-zoom-private.sh`, `stop-zoom-private.sh`; systemd user unit + XDG autostart | PASS in Oracle Cloud Podman + Xvfb (1920x1080 MJPEG) | PASS - mouse down/up + keyboard text verified; blocking `xdotool --sync` removed |
+| Android universal | `BetterDesk-Client-universal-release.apk`, `BetterDesk-Client-arm64-v8a-release.apk`, `zoom-private-universal-release.apk` | `adb install -r <apk>`; open Zoom-Private app | App starts and auto-connect UI appears; Oracle peer `BD-05F3BBD051CC` is currently OFFLINE, so Android stream is not visible in the Oracle console | N/A (mobile target) |
 
-## Remote web console mouse controls
+## Paths
 
-`web-nodejs/views/remote.ejs` + `web-nodejs/public/js/remote.js`:
+| OS | Directory |
+|---|---|
+| Windows | `distro/clients/windows/` |
+| macOS | `distro/clients/macos/` |
+| Linux | `distro/clients/linux/` |
+| Android | `distro/clients/android/` |
 
-- toolbar auto-expands for CDAP sessions
-- Terminal, Keyboard, and L/M/R buttons are visible
-- pointer release is forwarded when the pointer leaves the canvas
-- optional billing hooks are type-checked so an older panel script cannot abort startup
+## Remote web console mouse
 
-`web-nodejs/public/js/rdclient/cdap-adapter.js` sends move/click/down/up and
-releases buttons on document mouseup/blur.
+`web-nodejs/views/remote.ejs`, `web-nodejs/public/js/remote.js`,
+`web-nodejs/public/js/rdclient/cdap-adapter.js`:
 
-## Windows / Android limitation
+- CDAP toolbar auto-expands; Terminal, Keyboard, virtual mouse, L/M/R visible
+- visible virtual pointer follows mouse/touch and sends absolute coordinates
+- click = left click; toolbar L/M/R = other buttons; wheel supported
+- pointer release is forwarded on canvas/document mouseup and blur
+- works for Windows, macOS and Linux agents through the same CDAP input path
 
-The control PC was not used as a client or server. Windows live verification
-requires a configured Windows cloud host or a GitHub Actions runner with an
-interactive desktop; the GitHub Windows runner cannot provide a real
-interactive session for `SendInput`/desktop capture. The Android APK is a
-RustDesk client and cannot consume the CDAP support-agent stream without a
-RustDesk target.
+## Cloud hosting note
+
+- Linux client is hosted on Oracle Cloud and kept online.
+- macOS client runs on GitHub Actions cloud runners.
+- Windows and Android 24/7 live testing require configured cloud hosts:
+  Windows VM/runner with an interactive desktop and an Android cloud device
+  with MediaProjection permission. The local PC is not used as a server or
+  Windows/macOS/Linux client.

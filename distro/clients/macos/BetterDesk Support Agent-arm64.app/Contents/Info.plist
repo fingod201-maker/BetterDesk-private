@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>CFBundleName</key><string>BetterDesk Support Agent</string>
+  <key>CFBundleDisplayName</key><string>BetterDesk Support Agent</string>
+  <key>CFBundleIdentifier</key><string>com.unitronix.betterdesk-support-agent</string>
+  <key>CFBundleVersion</key><string>3.5.200</string>
+  <key>CFBundleShortVersionString</key><string>3.5.200</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleExecutable</key><string>betterdesk-agent</string>
+  <key>LSUIElement</key><true/>
+  <key>LSBackgroundOnly</key><true/>
+</dict></plist>
