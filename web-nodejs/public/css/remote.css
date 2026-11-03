@@ -3135,3 +3135,21 @@
         height: 46vh;
     }
 }
+
+/* Virtual mouse: visible absolute pointer overlay for CDAP sessions. */
+.bd-virtual-mouse {
+    position: absolute;
+    z-index: 70;
+    width: 26px;
+    height: 26px;
+    pointer-events: none;
+    transform: translate(-3px, -2px);
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .9));
+}
+.bd-virtual-mouse[hidden] {
+    display: none !important;
+}
+.session-panel.virtual-mouse-active .session-canvas {
+    cursor: none;
+    touch-action: none;
+}

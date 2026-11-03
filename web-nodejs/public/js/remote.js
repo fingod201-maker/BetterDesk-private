@@ -242,6 +242,12 @@
             this.autoReconnectTimer = null;
             this.autoReconnectAttempts = 0;
             this.userDisconnected = false;
+            this.virtualMouseEnabled = getTransportName() === 'cdap';
+            this.virtualMouse = null;
+            this.virtualMousePos = null;
+            this._vmPressedButton = null;
+            this._vmLastSentAt = 0;
+            this._vmCanvasBound = false;
         }
     }
 
@@ -730,6 +736,11 @@
         wireSessionEvents(session);
         wireSessionDomEvents(session);
         attachMobileTouch(session);
+        bindVirtualMouseCanvas(session);
+        if (session.client && typeof session.client.setVirtualMouseEnabled === 'function') {
+            session.client.setVirtualMouseEnabled(session.virtualMouseEnabled);
+        }
+        syncVirtualMouseUI(session);
     }
 
     function switchSession(deviceId) {
@@ -766,6 +777,7 @@
         }
 
         syncSessionMediaCapture();
+        syncVirtualMouseUI(session);
 
         if (session.state === 'streaming' && session.client) {
             session.client.setAudioMuted(session.audioMuted);
@@ -1197,10 +1209,12 @@
             attachMobileTouch(session);
             syncMobileTouchForActive();
             if (isActive(session)) syncToolbarChrome(session);
+            syncVirtualMouseUI(session);
             break;
         case 'disconnected':
         case 'error':
             session.panel.classList.remove('streaming');
+            syncVirtualMouseUI(session);
             session.connectionOverlay.style.display = 'flex';
             setSessionStatus(session, state === 'error' ? 'error' : 'info',
                 state === 'error' ? _('remote.error') : _('remote.disconnected'));
@@ -1514,9 +1528,184 @@
         showToast(t('remote.keyboard_capture', 'Keyboard capture active - click the screen and type'), 'info');
     });
 
+    document.getElementById('btn-virtual-mouse')?.addEventListener('click', () => {
+        const session = getActiveSession();
+        if (!session) return;
+        setVirtualMouseEnabled(session, !session.virtualMouseEnabled);
+    });
+
+    // ---- Virtual mouse ----------------------------------------------------
+    // A visible pointer that follows the physical mouse/touch drag and sends
+    // absolute coordinates to the agent. This works on Windows, macOS and
+    // Linux because every CDAP input backend accepts absolute positions.
+
+    function virtualCanvasPoint(session, clientX, clientY) {
+        const rect = session.canvas.getBoundingClientRect();
+        if (!rect.width || !rect.height) return null;
+        const x = Math.max(0, Math.min(session.canvas.width,
+            Math.round((clientX - rect.left) / rect.width * session.canvas.width)));
+        const y = Math.max(0, Math.min(session.canvas.height,
+            Math.round((clientY - rect.top) / rect.height * session.canvas.height)));
+        return { x, y };
+    }
+
+    function ensureVirtualMouse(session) {
+        if (session.virtualMouse) return session.virtualMouse;
+        const el = document.createElement('div');
+        el.className = 'bd-virtual-mouse';
+        el.setAttribute('aria-hidden', 'true');
+        el.innerHTML = '<svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">' +
+            '<path d="M4 2l15 9-6.2 1.6L9.5 20z" fill="#fff" stroke="#000" stroke-width="1.3" stroke-linejoin="round"/>' +
+            '</svg>';
+        el.hidden = true;
+        session.panel.appendChild(el);
+        session.virtualMouse = el;
+        return el;
+    }
+
+    function renderVirtualMouse(session) {
+        if (!session.virtualMouse || !session.virtualMousePos) return;
+        const rect = session.canvas.getBoundingClientRect();
+        const panelRect = session.panel.getBoundingClientRect();
+        if (!rect.width || !rect.height) return;
+        const p = session.virtualMousePos;
+        session.virtualMouse.style.left = (rect.left - panelRect.left + (p.x / session.canvas.width) * rect.width) + 'px';
+        session.virtualMouse.style.top = (rect.top - panelRect.top + (p.y / session.canvas.height) * rect.height) + 'px';
+    }
+
+    function syncVirtualMouseUI(session) {
+        if (!session) return;
+        ensureVirtualMouse(session);
+        const enabled = !!session.virtualMouseEnabled &&
+            getTransportName() === 'cdap' &&
+            session.state === 'streaming';
+        session.virtualMouse.hidden = !enabled;
+        session.panel.classList.toggle('virtual-mouse-active', enabled);
+        const btn = document.getElementById('btn-virtual-mouse');
+        if (btn) {
+            btn.classList.toggle('active', !!session.virtualMouseEnabled);
+            btn.disabled = getTransportName() !== 'cdap';
+            btn.style.display = getTransportName() === 'cdap' ? '' : 'none';
+        }
+        if (enabled) {
+            if (!session.virtualMousePos) {
+                session.virtualMousePos = {
+                    x: Math.round(session.canvas.width / 2),
+                    y: Math.round(session.canvas.height / 2),
+                };
+            }
+            renderVirtualMouse(session);
+        }
+    }
+
+    function setVirtualMouseEnabled(session, enabled) {
+        if (!session) return;
+        session.virtualMouseEnabled = !!enabled && getTransportName() === 'cdap';
+        if (!session.virtualMouseEnabled) session._vmPressedButton = null;
+        if (session.client && typeof session.client.setVirtualMouseEnabled === 'function') {
+            session.client.setVirtualMouseEnabled(session.virtualMouseEnabled);
+        }
+        syncVirtualMouseUI(session);
+        if (session.virtualMouseEnabled) {
+            showToast(t('remote.virtual_mouse_on', 'Virtual mouse: move/drag the pointer, click to left-click, use L/M/R for other buttons'), 'info');
+        }
+    }
+
+    function bindVirtualMouseCanvas(session) {
+        if (session._vmCanvasBound || !session.canvas) return;
+        session._vmCanvasBound = true;
+        const canvas = session.canvas;
+        let lastMoveSent = 0;
+
+        const updateFromEvent = (e) => {
+            const p = virtualCanvasPoint(session, e.clientX, e.clientY);
+            if (!p) return null;
+            session.virtualMousePos = p;
+            session.lastPointer = { clientX: e.clientX, clientY: e.clientY };
+            renderVirtualMouse(session);
+            return p;
+        };
+
+        canvas.addEventListener('pointermove', (e) => {
+            if (!session.virtualMouseEnabled || session.state !== 'streaming') return;
+            const p = updateFromEvent(e);
+            if (!p || !session.client || typeof session.client.virtualMouseMove !== 'function') return;
+            const now = performance.now();
+            if (now - lastMoveSent >= 32) {
+                lastMoveSent = now;
+                session.client.virtualMouseMove(p.x, p.y);
+            }
+        }, { passive: true });
+
+        canvas.addEventListener('pointerdown', (e) => {
+            if (!session.virtualMouseEnabled || session.state !== 'streaming') return;
+            const p = updateFromEvent(e);
+            if (!p) return;
+            e.preventDefault();
+            e.stopPropagation();
+            try { canvas.setPointerCapture(e.pointerId); } catch (_) { /* ignore */ }
+            try { canvas.focus(); } catch (_) { /* ignore */ }
+            session._vmPressedButton = e.button === 2 ? 'right' : e.button === 1 ? 'middle' : 'left';
+            if (session.client && typeof session.client.virtualMouseDown === 'function') {
+                session.client.virtualMouseDown(p.x, p.y, session._vmPressedButton);
+            }
+        });
+
+        const releasePointer = (e) => {
+            if (session._vmPressedButton == null) return;
+            const p = updateFromEvent(e) || session.virtualMousePos;
+            if (p && session.client && typeof session.client.virtualMouseUp === 'function') {
+                session.client.virtualMouseUp(p.x, p.y, session._vmPressedButton);
+            }
+            session._vmPressedButton = null;
+            try { canvas.releasePointerCapture(e.pointerId); } catch (_) { /* ignore */ }
+        };
+        canvas.addEventListener('pointerup', releasePointer);
+        canvas.addEventListener('pointercancel', releasePointer);
+
+        canvas.addEventListener('contextmenu', (e) => {
+            if (!session.virtualMouseEnabled) return;
+            e.preventDefault();
+            const p = virtualCanvasPoint(session, e.clientX, e.clientY);
+            if (p && session.virtualMousePos) {
+                session.virtualMousePos = p;
+                renderVirtualMouse(session);
+            }
+        });
+
+        canvas.addEventListener('wheel', (e) => {
+            if (!session.virtualMouseEnabled || session.state !== 'streaming') return;
+            const p = updateFromEvent(e);
+            if (!p) return;
+            e.preventDefault();
+            let dx = e.deltaX;
+            let dy = e.deltaY;
+            if (e.shiftKey && dy !== 0 && dx === 0) { dx = dy; dy = 0; }
+            const sx = dx === 0 ? 0 : (dx > 0 ? -1 : 1);
+            const sy = dy === 0 ? 0 : (dy > 0 ? -1 : 1);
+            if (sx || sy) {
+                session.client?.virtualMouseWheel?.(p.x, p.y, sx, sy);
+            }
+        }, { passive: false });
+    }
+
     function virtualMouseClick(session, buttonName) {
         if (!session || !session.canvas) return;
         const button = buttonName === 'right' ? 2 : buttonName === 'middle' ? 1 : 0;
+        if (session.virtualMouseEnabled &&
+            session.client && typeof session.client.virtualMouseClick === 'function') {
+            const rect = session.canvas.getBoundingClientRect();
+            const p = session.virtualMousePos || {
+                x: Math.round(session.canvas.width / 2),
+                y: Math.round(session.canvas.height / 2),
+            };
+            session.lastPointer = {
+                clientX: rect.left + (p.x / session.canvas.width) * rect.width,
+                clientY: rect.top + (p.y / session.canvas.height) * rect.height,
+            };
+            session.client.virtualMouseClick(p.x, p.y, buttonName);
+            return;
+        }
         const rect = session.canvas.getBoundingClientRect();
         const point = session.lastPointer || {
             clientX: rect.left + rect.width / 2,
@@ -2084,6 +2273,7 @@
     window.addEventListener('resize', () => {
         const session = getActiveSession();
         if (session && session.client && session.client.renderer) session.client.renderer.resize();
+        if (session && session.virtualMouse) renderVirtualMouse(session);
     });
 
     // ---- Session picker (address book) ----
@@ -2464,4 +2654,5 @@
         bootViewer();
     }
 })();
+
 

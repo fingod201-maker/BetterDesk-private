@@ -13,8 +13,9 @@ for _ in $(seq 1 40); do
     sleep 0.25
 done
 
-xterm -fa Monospace -fs 18 -geometry 100x30 \
-    -e "bash -lc 'echo BetterDesk Linux live test; sleep 999999'" \
+xsetroot -solid '#20242c' 2>/dev/null || true
+
+xterm -fa Monospace -fs 20 -geometry 160x50+20+20 \
     >/tmp/xterm.log 2>&1 &
 
 exec /usr/local/bin/betterdesk-agent -config /etc/betterdesk-agent.json

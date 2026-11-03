@@ -229,6 +229,7 @@
             this._audioMuted = true;
             this._blockInput = false;
             this._clipboardDisabled = false;
+            this._virtualMouseEnabled = false;
 
             this._ws = null;
             this._connected = false;
@@ -455,6 +456,66 @@
         setBlockInput(b) {
             this._blockInput = !!b;
             this._send({ type: 'block_input', enabled: !!b });
+        }
+        setVirtualMouseEnabled(enabled) {
+            this._virtualMouseEnabled = !!enabled;
+            if (this._virtualMouseEnabled) {
+                this._mouseDownButton = null;
+                this._releaseAllKeys(false);
+            }
+        }
+        virtualMouseMove(x, y) {
+            if (!this._connected) return;
+            this._lastMouse = { x, y };
+            this._send({ type: 'input', input_type: 'mouse', x, y, button: MOUSE_TYPE_MOVE });
+        }
+        virtualMouseDown(x, y, buttonName) {
+            if (!this._connected) return;
+            this._lastMouse = { x, y };
+            this._mouseDownButton = this._virtualButton(buttonName);
+            this._send({
+                type: 'input', input_type: 'mouse', x, y,
+                button: MOUSE_TYPE_DOWN | (this._mouseDownButton << 3),
+            });
+        }
+        virtualMouseUp(x, y, buttonName) {
+            if (!this._connected) return;
+            this._lastMouse = { x, y };
+            const btn = this._mouseDownButton != null
+                ? this._mouseDownButton
+                : this._virtualButton(buttonName);
+            this._send({
+                type: 'input', input_type: 'mouse', x, y,
+                button: MOUSE_TYPE_UP | (btn << 3),
+            });
+            this._mouseDownButton = null;
+        }
+        virtualMouseClick(x, y, buttonName) {
+            if (!this._connected) return;
+            const btn = this._virtualButton(buttonName);
+            this._lastMouse = { x, y };
+            this._send({
+                type: 'input', input_type: 'mouse', x, y,
+                button: MOUSE_TYPE_DOWN | (btn << 3),
+            });
+            this._send({
+                type: 'input', input_type: 'mouse', x, y,
+                button: MOUSE_TYPE_UP | (btn << 3),
+            });
+        }
+        virtualMouseWheel(x, y, dx, dy) {
+            if (!this._connected || (!dx && !dy)) return;
+            this._lastMouse = { x, y };
+            this._send({
+                type: 'input', input_type: 'mouse', x, y,
+                deltaX: dx, deltaY: dy,
+                button: MOUSE_TYPE_WHEEL,
+            });
+        }
+        _virtualButton(buttonName) {
+            if (buttonName === 'right') return MOUSE_BUTTON_RIGHT;
+            if (buttonName === 'middle') return MOUSE_BUTTON_MIDDLE;
+            return MOUSE_BUTTON_LEFT;
         }
         setAudioMuted(muted) {
             this._audioMuted = !!muted;
@@ -1227,7 +1288,7 @@
         }
 
         _handleMouseDown(e) {
-            if (!this._connected) return;
+            if (!this._connected || this._virtualMouseEnabled) return;
             const { x, y } = this._coords(e);
             this._mouseDownButton = this._mouseButton(e);
             this._lastMouse = { x, y };
@@ -1236,6 +1297,7 @@
             this.canvas.focus();
         }
         _handleMouseUp(e) {
+            if (this._virtualMouseEnabled) return;
             if (!this._connected) {
                 this._mouseDownButton = null;
                 return;
@@ -1248,6 +1310,7 @@
             e.preventDefault();
         }
         _handleDocumentMouseUp(e) {
+            if (this._virtualMouseEnabled) return;
             // Fallback for releases that happen outside the canvas (over the
             // toolbar, another tab, or the page edge). The canvas handler
             // clears _mouseDownButton first, so this never double-sends.
@@ -1265,13 +1328,13 @@
             this._mouseDownButton = null;
         }
         _handleMouseMove(e) {
-            if (!this._connected) return;
+            if (!this._connected || this._virtualMouseEnabled) return;
             const { x, y } = this._coords(e);
             this._lastMouse = { x, y };
             this._send({ type: 'input', input_type: 'mouse', x, y, button: MOUSE_TYPE_MOVE });
         }
         _handleWheel(e) {
-            if (!this._connected) return;
+            if (!this._connected || this._virtualMouseEnabled) return;
             const { x, y } = this._coords(e);
             const delta = normalizeWheelDelta(e);
             if (!delta) return;
@@ -1435,5 +1498,7 @@
 
     window.CDAPSession = CDAPSession;
 })();
+
+
 
 
