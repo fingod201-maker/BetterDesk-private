@@ -280,6 +280,9 @@
             this._onPaste = this._handlePaste.bind(this);
             this._onWindowBlur = this._handleWindowBlur.bind(this);
             this._onVisibilityChange = this._handleVisibilityChange.bind(this);
+            this._onDocumentMouseUp = this._handleDocumentMouseUp.bind(this);
+            this._mouseDownButton = null;
+            this._lastMouse = null;
         }
 
         resetKeyboard() {
@@ -1116,6 +1119,10 @@
             c.addEventListener('paste',       this._onPaste);
             document.addEventListener('keydown', this._onKeyDown);
             document.addEventListener('keyup',   this._onKeyUp);
+            // Release the remote button even when the pointer leaves the
+            // canvas before mouseup. Without this a click could leave the
+            // agent stuck in a drag (mouse_down without mouse_up).
+            document.addEventListener('mouseup', this._onDocumentMouseUp);
             window.addEventListener('blur', this._onWindowBlur);
             document.addEventListener('visibilitychange', this._onVisibilityChange);
             c.tabIndex = 0;
@@ -1135,6 +1142,7 @@
             c.removeEventListener('paste',       this._onPaste);
             document.removeEventListener('keydown', this._onKeyDown);
             document.removeEventListener('keyup',   this._onKeyUp);
+            document.removeEventListener('mouseup', this._onDocumentMouseUp);
             window.removeEventListener('blur', this._onWindowBlur);
             document.removeEventListener('visibilitychange', this._onVisibilityChange);
             this._inputBound = false;
@@ -1142,6 +1150,14 @@
 
         _handleWindowBlur() {
             if (this._inputBound && this._connected) {
+                if (this._mouseDownButton != null && this._lastMouse) {
+                    this._send({
+                        type: 'input', input_type: 'mouse',
+                        x: this._lastMouse.x, y: this._lastMouse.y,
+                        button: MOUSE_TYPE_UP | (this._mouseDownButton << 3),
+                    });
+                }
+                this._mouseDownButton = null;
                 this._releaseAllKeys(false);
             }
         }
@@ -1213,21 +1229,45 @@
         _handleMouseDown(e) {
             if (!this._connected) return;
             const { x, y } = this._coords(e);
-            const btn = this._mouseButton(e);
-            this._send({ type: 'input', input_type: 'mouse', x, y, button: MOUSE_TYPE_DOWN | (btn << 3) });
+            this._mouseDownButton = this._mouseButton(e);
+            this._lastMouse = { x, y };
+            this._send({ type: 'input', input_type: 'mouse', x, y, button: MOUSE_TYPE_DOWN | (this._mouseDownButton << 3) });
             e.preventDefault();
             this.canvas.focus();
         }
         _handleMouseUp(e) {
-            if (!this._connected) return;
+            if (!this._connected) {
+                this._mouseDownButton = null;
+                return;
+            }
             const { x, y } = this._coords(e);
-            const btn = this._mouseButton(e);
+            this._lastMouse = { x, y };
+            const btn = this._mouseDownButton != null ? this._mouseDownButton : this._mouseButton(e);
             this._send({ type: 'input', input_type: 'mouse', x, y, button: MOUSE_TYPE_UP | (btn << 3) });
+            this._mouseDownButton = null;
             e.preventDefault();
+        }
+        _handleDocumentMouseUp(e) {
+            // Fallback for releases that happen outside the canvas (over the
+            // toolbar, another tab, or the page edge). The canvas handler
+            // clears _mouseDownButton first, so this never double-sends.
+            if (!this._connected || this._mouseDownButton == null) return;
+            const point = this._lastMouse;
+            if (!point) {
+                this._mouseDownButton = null;
+                return;
+            }
+            this._send({
+                type: 'input', input_type: 'mouse',
+                x: point.x, y: point.y,
+                button: MOUSE_TYPE_UP | (this._mouseDownButton << 3),
+            });
+            this._mouseDownButton = null;
         }
         _handleMouseMove(e) {
             if (!this._connected) return;
             const { x, y } = this._coords(e);
+            this._lastMouse = { x, y };
             this._send({ type: 'input', input_type: 'mouse', x, y, button: MOUSE_TYPE_MOVE });
         }
         _handleWheel(e) {
@@ -1395,4 +1435,5 @@
 
     window.CDAPSession = CDAPSession;
 })();
+
 

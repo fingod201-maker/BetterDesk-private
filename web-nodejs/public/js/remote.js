@@ -451,6 +451,13 @@
             return;
         }
         setToolbarChromeVisible(true);
+        // CDAP sessions have no separate native toolbar. Keep the operational
+        // controls (terminal, L/M/R clicks, keyboard, etc.) expanded so they
+        // are discoverable instead of hiding behind the tiny notch handle.
+        if (getTransportName() === 'cdap') {
+            expandToolbar();
+            return;
+        }
         if (!toolbarPinned) collapseToolbar();
     }
 
@@ -765,7 +772,7 @@
         }
         syncMobileTouchForActive();
 
-        if (typeof window.BillingReport !== 'undefined') {
+        if (window.BillingReport && typeof window.BillingReport.refreshToolbarPackage === 'function') {
             window.BillingReport.refreshToolbarPackage(deviceId).catch(() => {});
         }
     }
@@ -823,7 +830,7 @@
         session.passwordOverlay.style.display = 'none';
         session.overlayActions.style.display = 'none';
         if (session.cdapFallbackBtn) session.cdapFallbackBtn.style.display = 'none';
-        if (typeof window.BillingReport !== 'undefined' && window.BillingReport.hideBillingPane) {
+        if (window.BillingReport && typeof window.BillingReport.hideBillingPane === 'function') {
             window.BillingReport.hideBillingPane(session.panel);
         }
         const autoplay = session.panel.querySelector('.autoplay-overlay');
@@ -882,7 +889,7 @@
             if (isActive(session)) setToolbarChromeVisible(false);
             const autoplay = session.panel.querySelector('.autoplay-overlay');
             if (autoplay) autoplay.style.display = 'none';
-            if (typeof window.BillingReport !== 'undefined') {
+            if (window.BillingReport && typeof window.BillingReport.promptAfterSession === 'function') {
                 window.BillingReport.promptAfterSession(session.deviceId, session.deviceName)
                     .then((submitted) => {
                         if (submitted) showToast(t('commercialization.report.saved', 'Work report saved'), 'success');
@@ -1399,7 +1406,7 @@
     // Billing work-report intent (during session → disconnect overlay)
     document.getElementById('btn-billing-report')?.addEventListener('click', () => {
         const session = getActiveSession();
-        if (!session || typeof window.BillingReport === 'undefined') return;
+        if (!session || !window.BillingReport || typeof window.BillingReport.markReportIntent !== 'function') return;
         window.BillingReport.markReportIntent(session.deviceId);
         showToast(
             t('commercialization.report.intent_hint', 'Report form will open when the session ends'),
@@ -1491,6 +1498,21 @@
 
     document.getElementById('btn-terminal')?.addEventListener('click', openTerminalForActive);
     document.getElementById('rd-terminal-close')?.addEventListener('click', () => closeActiveTerminal());
+
+    // Explicit keyboard-capture button. Keys are already captured while the
+    // canvas has focus, but operators need a visible control (and a way to
+    // recover focus after clicking the toolbar or another tab).
+    document.getElementById('btn-keyboard')?.addEventListener('click', () => {
+        const session = getActiveSession();
+        if (!session) return;
+        if (session.client && session.client.input && typeof session.client.input.start === 'function') {
+            try { session.client.input.start(); } catch (_) { /* ignore */ }
+        }
+        try { session.canvas.focus(); } catch (_) { /* ignore */ }
+        document.getElementById('btn-keyboard')?.classList.add('active');
+        setTimeout(() => document.getElementById('btn-keyboard')?.classList.remove('active'), 1200);
+        showToast(t('remote.keyboard_capture', 'Keyboard capture active - click the screen and type'), 'info');
+    });
 
     function virtualMouseClick(session, buttonName) {
         if (!session || !session.canvas) return;
@@ -2442,3 +2464,4 @@
         bootViewer();
     }
 })();
+
