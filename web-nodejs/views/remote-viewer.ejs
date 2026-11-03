@@ -287,10 +287,10 @@
                 break;
             case 'terminal_output':
                 if (frame.session_id === TERMINAL_SESSION) {
-                    termOutput.textContent += (frame.output || '') + '\n';
+                    termOutput.textContent += (frame.output || '') + '\\n';
                     termOutput.scrollTop = termOutput.scrollHeight;
                 } else if (frame.session_id === APPS_SESSION) {
-                    appEntries = String(frame.output || '').split('\n').map((line) => {
+                    appEntries = String(frame.output || '').split('\\n').map((line) => {
                         const i = line.indexOf('\t');
                         return i > 0 ? { label: line.slice(0, i), pkg: line.slice(i + 1) } : null;
                     }).filter(Boolean);
@@ -595,7 +595,7 @@
         e.preventDefault();
         const cmd = termInput.value.trim();
         if (!cmd) return;
-        termOutput.textContent += '$ ' + cmd + '\n';
+        termOutput.textContent += '$ ' + cmd + '\\n';
         termOutput.scrollTop = termOutput.scrollHeight;
         sendTerminal(cmd, TERMINAL_SESSION);
         termInput.value = '';
@@ -942,6 +942,7 @@
 
 `
 }) %>
+
 
 
 
