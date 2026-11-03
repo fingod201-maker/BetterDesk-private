@@ -1,0 +1,28 @@
+name: macOS Capture Test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    runs-on: macos-14
+    steps:
+      - name: Screen capture and input tools
+        run: |
+          set -x
+          screencapture -x /tmp/shot.png || echo "SCREENCAPTURE_FAILED=$?"
+          file /tmp/shot.png || true
+          sips -g pixelWidth -g pixelHeight /tmp/shot.png || true
+          brew install ffmpeg cliclick || true
+          command -v ffmpeg || true
+          command -v cliclick || true
+          cliclick -V || true
+          osascript -e 'tell application "System Events" to key code 53' || echo "OSASCRIPT_FAILED=$?"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-capture
+          path: /tmp/shot.png
+          if-no-files-found: warn
