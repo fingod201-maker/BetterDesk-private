@@ -5,6 +5,8 @@
 - **Client entry points:** Windows ships a complete `Setup-BetterDesk.vbs`, macOS/Linux ship executable `install.sh` wrappers (mode 0755 in git), and macOS includes `build-pkg.sh` for a `.pkg` build. The panel generator now emits these alongside the installers.
 - **macOS payload detection:** the installer now finds the real `betterdesk-agent-amd64` / `betterdesk-agent-arm64` binaries from the portable tarball instead of requiring an exact `betterdesk-agent` name.
 - **Linux session environment:** the user unit now captures the actual `DISPLAY`, `WAYLAND_DISPLAY` and `XDG_SESSION_TYPE` at install time instead of hardcoding `:0`/Wayland.
+- **Linux screen capture dependency:** installers resolve `ffmpeg` (plus common local paths) into `agent-env.sh` and warn when it is missing, preventing silent blank streams.
+- **Agent terminal protocol:** accept the gateway's `terminal_input` message (previously only `terminal_data`), close PTYs on `terminal_end`, and treat `registered`/`ping`/`pong` as benign keepalives.
 - **Remote console:** the unified viewer top bar now exposes a terminal/shell button and left/middle/right mouse buttons for PC clients; live streams auto-reconnect with exponential backoff, and the support viewer does the same.
 - **macOS agent input:** fixed left/right mouse down/up handling and switched special keys to AppleScript virtual key codes.
 

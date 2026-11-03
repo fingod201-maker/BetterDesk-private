@@ -447,10 +447,12 @@ func (a *Agent) dispatch(msg *Message) {
 	// ── Terminal ──
 	case "terminal_start":
 		a.handleTerminalStart(msg)
-	case "terminal_data":
+	case "terminal_data", "terminal_input":
 		a.handleTerminalInput(msg)
 	case "terminal_resize":
 		a.handleTerminalResize(msg)
+	case "terminal_end":
+		a.handleTerminalStop(msg)
 
 	// ── File Browser ──
 	case "file_start":
@@ -498,8 +500,8 @@ func (a *Agent) dispatch(msg *Message) {
 	case "keyframe_request", "key_exchange", "quality_adjust":
 		// Acknowledged — no real-time media to adjust
 
-	case "ping", "pong":
-		// Gateway keepalive; the agent has its own heartbeat loop.
+	case "ping", "pong", "registered":
+		// Gateway keepalive / registration ack; no action required.
 	// ── Errors ──
 	case "error":
 		var ep struct {
@@ -665,6 +667,19 @@ func (a *Agent) handleTerminalResize(msg *Message) {
 	}
 	if ts, ok := a.terminals.Load(p.SessionID); ok {
 		ts.(*TerminalSession).Resize(p.Cols, p.Rows)
+	}
+}
+
+func (a *Agent) handleTerminalStop(msg *Message) {
+	var p struct {
+		SessionID string `json:"session_id"`
+	}
+	if err := json.Unmarshal(msg.Payload, &p); err != nil {
+		return
+	}
+	if ts, ok := a.terminals.Load(p.SessionID); ok {
+		_ = ts.(*TerminalSession).Close()
+		a.terminals.Delete(p.SessionID)
 	}
 }
 

@@ -83,11 +83,28 @@ if [ -f "$SOURCE_DIR/agent-config.json" ] && [ ! -f "$CONFIG_FILE" ]; then
     chmod 600 "$CONFIG_FILE"
 fi
 
+# Resolve ffmpeg once at install time so the launcher does not depend on
+# the desktop shell's PATH (common cause of blank streams).
+FFMPEG_BIN=$(command -v ffmpeg 2>/dev/null || true)
+for cand in "$HOME/.local/bin/ffmpeg" /opt/homebrew/bin/ffmpeg /usr/local/bin/ffmpeg /usr/bin/ffmpeg /snap/bin/ffmpeg; do
+    [ -n "$FFMPEG_BIN" ] || { [ -x "$cand" ] && FFMPEG_BIN="$cand"; }
+done
+FFMPEG_DIR=""
+[ -n "$FFMPEG_BIN" ] && FFMPEG_DIR=$(dirname "$FFMPEG_BIN")
+[ -n "$FFMPEG_BIN" ] || echo "WARNING: ffmpeg not found - install ffmpeg (or scrot/grim/ImageMagick) for screen streaming" >&2
+if [ -n "$FFMPEG_DIR" ]; then
+    AGENT_PATH="$FFMPEG_DIR:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
+else
+    AGENT_PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
+fi
+
 cat >"$APP_DIR/agent-env.sh" <<ENV_EOF
 APP_DIR="$APP_DIR"
 AGENT="$AGENT_BIN"
 CONFIG="$CONFIG_FILE"
 LOG="$LOG_FILE"
+PATH="$AGENT_PATH"
+export PATH
 ENV_EOF
 chmod 600 "$APP_DIR/agent-env.sh"
 
