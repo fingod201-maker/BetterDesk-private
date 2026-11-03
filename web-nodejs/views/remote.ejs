@@ -1,6 +1,6 @@
 <%- include('layouts/viewer', {
     title: title || _('remote.title'),
-    pageScripts: ['billing-report', 'remote'],
+    pageScripts: ['billing-report', 'cdap-terminal', 'rdclient/mesh-terminal', 'remote'],
     body: `
 
 <!-- RdClient phone gate -->
@@ -172,6 +172,12 @@
                     <button class="toolbar-btn" id="btn-audio" title="${_('remote.toggle_audio')}">
                         <span class="material-icons">volume_up</span>
                     </button>
+                    <button class="toolbar-btn" id="btn-terminal" title="Terminal / shell">
+                        <span class="material-icons">terminal</span>
+                    </button>
+                    <button class="toolbar-btn toolbar-btn-label" id="btn-mouse-left" title="Left click">L</button>
+                    <button class="toolbar-btn toolbar-btn-label" id="btn-mouse-middle" title="Middle click">M</button>
+                    <button class="toolbar-btn toolbar-btn-label" id="btn-mouse-right" title="Right click">R</button>
                     <div class="toolbar-dropdown">
                         <button class="toolbar-btn" id="btn-monitors" title="${_('remote.monitors') || 'Monitors'}" style="display:none">
                             <span class="material-icons">desktop_windows</span>
@@ -325,6 +331,17 @@
 
 <!-- Main Viewer Container (session panels are inserted here) -->
 <div class="viewer-container" id="viewer-container"></div>
+
+<!-- Interactive device shell (CDAP / Mesh) -->
+<div class="rd-terminal-panel" id="rd-terminal-panel" hidden data-widget-id="">
+    <div class="rd-terminal-head">
+        <span><span class="material-icons">terminal</span> Terminal / shell</span>
+        <button type="button" class="rd-terminal-close" id="rd-terminal-close" title="${_('actions.close')}">
+            <span class="material-icons">close</span>
+        </button>
+    </div>
+    <div class="cdap-terminal rd-terminal-body" id="rd-terminal-body"></div>
+</div>
 
 </div><!-- /#rd-viewer-shell -->
 <nav class="rd-mobile-toolbar" id="rd-mobile-toolbar" aria-label="${_('remote.mobile_toolbar') || 'Remote controls'}">

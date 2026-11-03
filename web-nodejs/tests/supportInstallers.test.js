@@ -5,23 +5,23 @@ const {
 } = require('../services/windowsSupportInstaller');
 
 describe('Support Agent installers', () => {
-    test('Windows installer honors disabled service and autostart profile', () => {
+    test('Windows installer honors disabled task and autostart profile', () => {
         const script = buildWindowsSupportInstallerScript({
             installService: false,
             autostart: false,
         });
-        expect(script).toContain('$profileInstallsService = $false');
+        expect(script).toContain('$profileInstallsTask = $false');
         expect(script).toContain('$profileAutostarts = $false');
-        expect(script).toContain('installed without service or autostart');
+        expect(script).toContain('installed without autostart');
     });
 
-    test('Windows installer enables the requested service profile', () => {
+    test('Windows installer enables the user-session task profile', () => {
         const script = buildWindowsSupportInstallerScript({
             installService: true,
             autostart: true,
         });
-        expect(script).toContain('$profileInstallsService = $true');
+        expect(script).toContain('$profileInstallsTask = $true');
         expect(script).toContain('$profileAutostarts = $true');
-        expect(script).toContain('--install-service');
+        expect(script).toContain('Register-ScheduledTask');
     });
 });

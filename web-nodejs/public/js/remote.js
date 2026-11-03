@@ -239,6 +239,9 @@
             this.viewerPrefs = cloneViewerPrefs();
             this.mediaRecorder = null;
             this.recordedChunks = [];
+            this.autoReconnectTimer = null;
+            this.autoReconnectAttempts = 0;
+            this.userDisconnected = false;
         }
     }
 
@@ -726,6 +729,9 @@
         if (!sessions.has(deviceId)) return;
         activeSessionId = deviceId;
         const session = sessions.get(deviceId);
+        if (typeof closeActiveTerminal === 'function') {
+            closeActiveTerminal();
+        }
 
         // Hide all, show active
         viewerContainer.querySelectorAll('.session-panel').forEach(p => {
@@ -774,6 +780,9 @@
         }
 
         try { if (session.client) session.client.disconnect(); } catch { /* ignore */ }
+        session.userDisconnected = true;
+        clearAutoReconnect(session);
+        closeActiveTerminal(deviceId);
         if (window.__fileTransferModal?.isOpen() &&
             window.__fileTransferModal._session?.deviceId === deviceId) {
             window.__fileTransferModal.close();
@@ -806,6 +815,9 @@
     }
 
     function reconnectSession(session) {
+        if (!session) return;
+        clearAutoReconnect(session);
+        session.userDisconnected = false;
         if (session.client) session.client.disconnect();
         session.connectionOverlay.style.display = 'flex';
         session.passwordOverlay.style.display = 'none';
@@ -1077,6 +1089,12 @@
     }
 
     function wireSessionDomEvents(session) {
+        // Remember the last pointer position so the toolbar mouse buttons can
+        // click at the cursor without moving it first.
+        session.canvas?.addEventListener('mousemove', (e) => {
+            session.lastPointer = { clientX: e.clientX, clientY: e.clientY };
+        });
+
         session.panel.querySelector('.session-btn-reconnect')
             ?.addEventListener('click', () => reconnectSession(session));
 
@@ -1166,6 +1184,8 @@
             session.connectionOverlay.style.display = 'none';
             session.passwordOverlay.style.display = 'none';
             session.panel.classList.add('streaming');
+            clearAutoReconnect(session);
+            session.autoReconnectAttempts = 0;
             syncSessionMediaCapture();
             attachMobileTouch(session);
             syncMobileTouchForActive();
@@ -1179,8 +1199,45 @@
                 state === 'error' ? _('remote.error') : _('remote.disconnected'));
             showSessionActions(session);
             if (isActive(session)) setToolbarChromeVisible(false);
+            scheduleAutoReconnect(session);
             break;
         }
+    }
+
+    // ---- Live stream auto-reconnect ---------------------------------------
+    // Keeps the operator stream alive across transient network / relay drops.
+    // Manual disconnect and authentication prompts opt out.
+    function clearAutoReconnect(session) {
+        if (session && session.autoReconnectTimer) {
+            clearTimeout(session.autoReconnectTimer);
+            session.autoReconnectTimer = null;
+        }
+    }
+
+    function scheduleAutoReconnect(session) {
+        if (!session || session.userDisconnected) return;
+        if (session.passwordOverlay && session.passwordOverlay.style.display === 'flex') return;
+        if (session.tfaOverlay && session.tfaOverlay.style.display === 'flex') return;
+        if (session.autoReconnectTimer) return;
+
+        const attempts = session.autoReconnectAttempts || 0;
+        const MAX_ATTEMPTS = 8;
+        if (attempts >= MAX_ATTEMPTS) {
+            showToast(t('remote.reconnect_exhausted', 'Live stream lost — reconnect manually'), 'warning');
+            return;
+        }
+        const delay = Math.min(30000, 1500 * Math.pow(2, attempts));
+        session.autoReconnectAttempts = attempts + 1;
+        if (isActive(session)) {
+            setSessionStatus(session, 'loading', t('remote.reconnecting', 'Reconnecting…'));
+            showToast(t('remote.reconnecting', 'Reconnecting…'), 'info');
+        }
+        session.autoReconnectTimer = setTimeout(() => {
+            session.autoReconnectTimer = null;
+            if (session.userDisconnected) return;
+            if (session.state === 'streaming') return;
+            reconnectSession(session);
+        }, delay);
     }
 
     function setSessionStatus(session, type, text) {
@@ -1331,6 +1388,11 @@
 
     // Disconnect
     document.getElementById('btn-disconnect')?.addEventListener('click', () => {
+        const session = getActiveSession();
+        if (session) {
+            session.userDisconnected = true;
+            clearAutoReconnect(session);
+        }
         withClient(c => c.disconnect());
     });
 
@@ -1354,6 +1416,117 @@
         this.querySelector('.material-icons').textContent =
             session.audioMuted ? 'volume_off' : 'volume_up';
     });
+
+    // ---- Terminal / shell + virtual mouse buttons -------------------------
+    let terminalDeviceId = null;
+    let terminalWidgetId = null;
+
+    function getTerminalPanel() {
+        return document.getElementById('rd-terminal-panel');
+    }
+
+    function closeActiveTerminal(deviceId) {
+        const panel = getTerminalPanel();
+        if (!panel || !terminalDeviceId) return;
+        if (deviceId && deviceId !== terminalDeviceId) return;
+        try {
+            if (window.CDAPTerminal && terminalWidgetId) {
+                window.CDAPTerminal.close(terminalDeviceId, terminalWidgetId);
+            }
+        } catch { /* ignore */ }
+        try {
+            if (window.closeMeshTerminal) window.closeMeshTerminal();
+        } catch { /* ignore */ }
+        panel.hidden = true;
+        panel.dataset.widgetId = '';
+        const body = document.getElementById('rd-terminal-body');
+        if (body) body.textContent = '';
+        terminalDeviceId = null;
+        terminalWidgetId = null;
+        document.getElementById('btn-terminal')?.classList.remove('active');
+    }
+
+    function openTerminalForActive() {
+        const session = getActiveSession();
+        if (!session) return;
+        const transport = getTransportName();
+        const panel = getTerminalPanel();
+        if (!panel) return;
+
+        if (panel.hidden === false && terminalDeviceId === session.deviceId) {
+            closeActiveTerminal(session.deviceId);
+            return;
+        }
+        closeActiveTerminal();
+
+        if (transport === 'mesh') {
+            if (typeof window.openMeshTerminal !== 'function') {
+                showToast(t('remote.terminal_unavailable', 'Terminal is not available for this device'), 'warning');
+                return;
+            }
+            window.openMeshTerminal(session.deviceId);
+            terminalDeviceId = session.deviceId;
+            terminalWidgetId = null;
+            document.getElementById('btn-terminal')?.classList.add('active');
+            return;
+        }
+        if (transport !== 'cdap') {
+            showToast(t('remote.terminal_unavailable', 'Terminal is available for BetterDesk CDAP agents'), 'warning');
+            return;
+        }
+        if (typeof window.CDAPTerminal === 'undefined') {
+            showToast(t('remote.terminal_unavailable', 'Terminal module is still loading — try again'), 'warning');
+            return;
+        }
+
+        terminalDeviceId = session.deviceId;
+        terminalWidgetId = 'term-' + session.deviceId;
+        panel.dataset.widgetId = terminalWidgetId;
+        panel.hidden = false;
+        const body = document.getElementById('rd-terminal-body');
+        if (body) body.textContent = '';
+        window.CDAPTerminal.open(session.deviceId, terminalWidgetId);
+        document.getElementById('btn-terminal')?.classList.add('active');
+    }
+
+    document.getElementById('btn-terminal')?.addEventListener('click', openTerminalForActive);
+    document.getElementById('rd-terminal-close')?.addEventListener('click', () => closeActiveTerminal());
+
+    function virtualMouseClick(session, buttonName) {
+        if (!session || !session.canvas) return;
+        const button = buttonName === 'right' ? 2 : buttonName === 'middle' ? 1 : 0;
+        const rect = session.canvas.getBoundingClientRect();
+        const point = session.lastPointer || {
+            clientX: rect.left + rect.width / 2,
+            clientY: rect.top + rect.height / 2,
+        };
+        const opts = {
+            bubbles: true,
+            cancelable: true,
+            view: window,
+            button,
+            buttons: button === 0 ? 1 : button === 1 ? 4 : 2,
+            clientX: point.clientX,
+            clientY: point.clientY,
+        };
+        session.canvas.dispatchEvent(new MouseEvent('mousedown', opts));
+        session.canvas.dispatchEvent(new MouseEvent('mouseup', { ...opts, buttons: 0 }));
+    }
+
+    function bindVirtualMouseButton(id, buttonName) {
+        document.getElementById(id)?.addEventListener('click', () => {
+            const session = getActiveSession();
+            if (!session || session.state !== 'streaming') return;
+            if (session.client && session.client.viewOnly) {
+                showToast(_('remote.view_only') || 'View only mode', 'warning');
+                return;
+            }
+            virtualMouseClick(session, buttonName);
+        });
+    }
+    bindVirtualMouseButton('btn-mouse-left', 'left');
+    bindVirtualMouseButton('btn-mouse-right', 'right');
+    bindVirtualMouseButton('btn-mouse-middle', 'middle');
 
     // Ctrl+Alt+Del
     document.getElementById('btn-cad')?.addEventListener('click', () => {

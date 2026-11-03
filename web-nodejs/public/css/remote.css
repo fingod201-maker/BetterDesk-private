@@ -3061,3 +3061,77 @@
         display: none;
     }
 }
+
+/* ---- Terminal / shell panel + virtual mouse buttons (PC clients) ---- */
+.toolbar-btn-label {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    min-width: 26px;
+    justify-content: center;
+}
+
+.toolbar-btn.active,
+.toolbar-btn-label:active {
+    background: rgba(88, 166, 255, 0.22);
+    color: #79b8ff;
+}
+
+.rd-terminal-panel {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    width: min(680px, calc(100vw - 32px));
+    height: min(360px, 55vh);
+    display: flex;
+    flex-direction: column;
+    z-index: 80;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 12px;
+    overflow: hidden;
+    background: #0d1117;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
+}
+
+.rd-terminal-panel[hidden] { display: none; }
+
+.rd-terminal-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: #151525;
+    color: #e6edf3;
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+
+.rd-terminal-head span { display: inline-flex; align-items: center; gap: 6px; }
+.rd-terminal-head .material-icons { font-size: 18px; color: #58a6ff; }
+
+.rd-terminal-close {
+    border: 0;
+    background: transparent;
+    color: #c9d1d9;
+    cursor: pointer;
+    display: inline-flex;
+    padding: 2px;
+    border-radius: 6px;
+}
+.rd-terminal-close:hover { background: rgba(255, 255, 255, 0.1); }
+
+.rd-terminal-body {
+    flex: 1;
+    min-height: 0;
+    padding: 6px 8px;
+    background: #0b0b12;
+}
+
+@media (max-width: 700px) {
+    .rd-terminal-panel {
+        right: 8px;
+        bottom: 8px;
+        width: calc(100vw - 16px);
+        height: 46vh;
+    }
+}

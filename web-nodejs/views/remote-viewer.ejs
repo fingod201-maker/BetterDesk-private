@@ -67,7 +67,7 @@
                 <span class="material-icons">home</span>
             </button>
             <button class="bdv-btn" id="btnRecents" title="Recent apps">
-                <span class="material-icons">recent_actors</span>
+                <span class="material-icons">history</span>
             </button>
             <button class="bdv-btn" id="btnNotifications" title="Notifications">
                 <span class="material-icons">notifications</span>
@@ -78,6 +78,9 @@
             <button class="bdv-btn" id="btnClipboard" title="Clipboard Sync">
                 <span class="material-icons">content_paste</span>
             </button>
+            <button class="bdv-btn bdv-mouse-btn" id="btnMouseLeft" title="Left click">L</button>
+            <button class="bdv-btn bdv-mouse-btn" id="btnMouseMiddle" title="Middle click">M</button>
+            <button class="bdv-btn bdv-mouse-btn" id="btnMouseRight" title="Right click">R</button>
             <button class="bdv-btn" id="btnSpecialKeys" title="Special Keys">
                 <span class="material-icons">keyboard</span>
             </button>
@@ -205,6 +208,10 @@
     let mouseButtonsDown = 0;
     let pressX = 0, pressY = 0;
     let pointerDragging = false;
+    let lastMouseX = -1, lastMouseY = -1;
+    let manualClose = false;
+    let reconnectAttempts = 0;
+    let reconnectTimer = null;
     const DRAG_THRESHOLD = 6;
 
     // ---- FPS Counter ----
@@ -219,6 +226,7 @@
 
     // ---- Remote WebSocket ----
     function connectRemote() {
+        if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
         setStatus('Connecting to server…');
         remoteWs = new WebSocket(REMOTE_URL);
         remoteWs.binaryType = 'arraybuffer';
@@ -231,6 +239,7 @@
             streaming = false;
             setStatus('Disconnected — ' + (ev.reason || 'connection closed'));
             showActions();
+            scheduleReconnect();
         };
 
         remoteWs.onmessage = (ev) => {
@@ -248,6 +257,24 @@
         };
     }
 
+    // Keep the live stream connected across relay/agent blips. Manual stop
+    // opts out; authentication errors still surface without tight loops.
+    function scheduleReconnect() {
+        if (manualClose || reconnectTimer) return;
+        if (reconnectAttempts >= 8) {
+            setStatus('Disconnected — reconnect manually');
+            return;
+        }
+        const delay = Math.min(30000, 1500 * Math.pow(2, reconnectAttempts));
+        reconnectAttempts++;
+        setStatus('Reconnecting in ' + Math.round(delay / 1000) + 's…');
+        reconnectTimer = setTimeout(() => {
+            reconnectTimer = null;
+            if (manualClose) return;
+            connectRemote();
+        }, delay);
+    }
+
     function handleJsonFrame(frame) {
         switch (frame.type) {
             case 'session-info':
@@ -263,6 +290,7 @@
                 break;
             case 'stream-started':
                 streaming = true;
+                reconnectAttempts = 0;
                 overlay.style.display = 'none';
                 canvas.focus();
                 fitCanvas();
@@ -351,6 +379,8 @@
     canvas.addEventListener('pointermove', (e) => {
         if (!streaming) return;
         const { rx, ry } = canvasCoords(e);
+        lastMouseX = rx;
+        lastMouseY = ry;
         // While a pointer is held, suppress sub-threshold jitter. The Android
         // agent treats any move between down/up as a drag, so forwarding every
         // pixel turns taps into swipes and apps never open.
@@ -453,11 +483,15 @@
 
     document.getElementById('btnReconnect').onclick = () => {
         actions.style.display = 'none';
+        manualClose = false;
+        reconnectAttempts = 0;
         if (remoteWs) remoteWs.close();
         setTimeout(connectRemote, 200);
     };
 
     document.getElementById('btnStop').onclick = () => {
+        manualClose = true;
+        if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
         sendRemote({ type: 'stop' });
         if (remoteWs) remoteWs.close();
     };
@@ -522,6 +556,20 @@
             } catch { /* Clipboard API not available */ }
         }
     };
+
+    // ---- Virtual mouse buttons ----
+    function clickMouse(button) {
+        if (!streaming) return;
+        const x = lastMouseX >= 0 ? lastMouseX : Math.round(canvas.width / 2);
+        const y = lastMouseY >= 0 ? lastMouseY : Math.round(canvas.height / 2);
+        sendRemote({ type: 'input', event_type: 'mouse_down', x, y, button });
+        setTimeout(() => {
+            sendRemote({ type: 'input', event_type: 'mouse_up', x, y, button });
+        }, 60);
+    }
+    document.getElementById('btnMouseLeft')?.addEventListener('click', () => clickMouse('left'));
+    document.getElementById('btnMouseMiddle')?.addEventListener('click', () => clickMouse('middle'));
+    document.getElementById('btnMouseRight')?.addEventListener('click', () => clickMouse('right'));
 
     // Toolbar auto-hide
     let hideTimer;
@@ -808,6 +856,7 @@
 }
 .bdv-btn:hover { background: rgba(255,255,255,.15); }
 .bdv-btn--danger:hover { background: rgba(239,68,68,.3); }
+.bdv-mouse-btn { font-size: 12px; font-weight: 700; min-width: 26px; justify-content: center; }
 
 /* Apps search / launcher */
 .bdv-app-search {
@@ -942,7 +991,3 @@
 
 `
 }) %>
-
-
-
-

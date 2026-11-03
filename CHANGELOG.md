@@ -1,7 +1,9 @@
 ## [Unreleased]
 
 ### Changed
-- _(none yet)_
+- **Support clients (Windows/macOS/Linux):** installers now run in the logged-in user session instead of a session-0 service. Windows uses the hidden `start-agent.vbs` + `agent-launch.cmd` scheduled task; macOS uses a per-user `LaunchAgent` in `~/Library/LaunchAgents`; Linux uses a user systemd unit + XDG autostart. All are non-interactive, auto-restart and log to the user profile.
+- **Remote console:** the unified viewer top bar now exposes a terminal/shell button and left/middle/right mouse buttons for PC clients; live streams auto-reconnect with exponential backoff, and the support viewer does the same.
+- **macOS agent input:** fixed left/right mouse down/up handling and switched special keys to AppleScript virtual key codes.
 
 ---
 
