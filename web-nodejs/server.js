@@ -291,7 +291,7 @@ app.use((req, res, next) => {
 // desktop clients receive the CSRF token via `csrfTokenProvider` and must
 // echo it back in the `X-CSRF-Token` header (csrf-csrf double-submit).
 app.use((req, res, next) => {
-    if (req.path.startsWith('/api/bd/')) {
+    if (req.path.startsWith('/api/bd/') || req.path === '/api/devices/terminal/output') {
         return next();
     }
     doubleCsrfProtection(req, res, next);
@@ -980,3 +980,4 @@ function printStartupBanner(protocol, port) {
 startServer();
 
 module.exports = app;
+

@@ -81,6 +81,12 @@ function broadcast(viewers, data, isBinary = false) {
     });
 }
 
+function broadcastTerminal(deviceId, payload) {
+    const session = sessions.get(deviceId);
+    if (!session) return;
+    broadcast(session.viewers, JSON.stringify(payload));
+}
+
 function setupPing(ws) {
     const t = setInterval(() => {
         if (ws.readyState === WebSocket.OPEN) ws.ping();
@@ -213,8 +219,10 @@ function handleAgentConnection(ws, deviceId) {
 //  Viewer connection handler (/ws/remote-viewer/:device_id)
 // ---------------------------------------------------------------------------
 
-function handleViewerConnection(ws, deviceId, operatorName) {
+function handleViewerConnection(ws, deviceId, operatorName, operatorRole = '') {
     const session = getSession(deviceId);
+    const adminRoles = new Set(['admin', 'super_admin', 'global_admin', 'server_admin']);
+    ws._bdCanTerminal = adminRoles.has(String(operatorRole || '').toLowerCase());
 
     if (session.viewers.size >= MAX_VIEWERS) {
         ws.close(1008, 'Max viewers reached');
@@ -253,6 +261,10 @@ function handleViewerConnection(ws, deviceId, operatorName) {
                 if (session.agentWs && session.agentWs.readyState === WebSocket.OPEN) {
                     const agentEvent = { ...frame, type: frame.event_type || frame.kind || 'unknown' };
                     delete agentEvent.event_type;
+                    if ((agentEvent.type === 'terminal' || agentEvent.terminal_cmd || (agentEvent.key && String(agentEvent.key).startsWith('__term__'))) && !ws._bdCanTerminal) {
+                        sendJson(ws, { type: 'terminal_output', session_id: agentEvent.session_id || '', output: 'Terminal requires an admin account.' });
+                        break;
+                    }
                     if (agentEvent.type === 'mouse_down' || agentEvent.type === 'mouse_up' || agentEvent.type === 'mouse_click') {
                         log.info(`Input ${deviceId}: ${agentEvent.type} x=${agentEvent.x} y=${agentEvent.y} button=${agentEvent.button}`);
                     }
@@ -352,7 +364,8 @@ function initRemoteRelay(server, sessionMiddleware) {
                     }
                     wss.handleUpgrade(req, socket, head, (ws) => {
                         const opName = req.session.username || 'operator';
-                        handleViewerConnection(ws, viewerMatch[1], opName);
+                        const opRole = req.session.user?.role || req.session.role || '';
+                        handleViewerConnection(ws, viewerMatch[1], opName, opRole);
                     });
                 });
             }
@@ -370,6 +383,7 @@ function initRemoteRelay(server, sessionMiddleware) {
 module.exports = {
     initRemoteRelay,
     issueRemoteAgentToken,
+    broadcastTerminal,
     /** Get session state (for admin REST API) */
     getSessionState(deviceId) {
         const s = sessions.get(deviceId);
@@ -382,3 +396,5 @@ module.exports = {
     },
     getActiveSessions: () => [...sessions.keys()],
 };
+
+

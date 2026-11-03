@@ -57,6 +57,7 @@
             </select>
             <!-- Monitor selector (hidden until multi-monitor detected) -->
             <select class="bdv-select bdv-hidden" id="bdvMonitor" title="Monitor"></select>
+            <input class="bdv-app-search" id="bdvAppSearch" placeholder="Search apps" autocomplete="off" spellcheck="false">
         </div>
         <div class="bdv-toolbar-right">
             <button class="bdv-btn" id="btnBack" title="Back">
@@ -82,6 +83,12 @@
             </button>
             <button class="bdv-btn" id="btnChat" title="Open Chat">
                 <span class="material-icons">chat</span>
+            </button>
+            <button class="bdv-btn" id="btnTerminal" title="Device shell">
+                <span class="material-icons">terminal</span>
+            </button>
+            <button class="bdv-btn" id="btnApps" title="Apps list">
+                <span class="material-icons">apps</span>
             </button>
             <button class="bdv-btn" id="btnFullscreen" title="Fullscreen (F11)">
                 <span class="material-icons">fullscreen</span>
@@ -119,6 +126,32 @@
         </div>
     </div>
 
+    <!-- Device shell -->
+    <div class="bdv-terminal bdv-hidden" id="bdv-terminal">
+        <div class="bdv-terminal-head">
+            <span>Device shell</span>
+            <button class="bdv-btn" id="btnCloseTerminal">
+                <span class="material-icons">close</span>
+            </button>
+        </div>
+        <pre class="bdv-terminal-output" id="bdv-terminal-output"></pre>
+        <div class="bdv-terminal-row">
+            <span class="bdv-terminal-prompt">$</span>
+            <input class="bdv-terminal-input" id="bdv-terminal-input" autocomplete="off" spellcheck="false" placeholder="Command (e.g. pm list packages)">
+        </div>
+    </div>
+
+    <!-- Apps list -->
+    <div class="bdv-apps bdv-hidden" id="bdv-apps">
+        <div class="bdv-apps-head">
+            <span>Apps</span>
+            <button class="bdv-btn" id="btnAppsClose">
+                <span class="material-icons">close</span>
+            </button>
+        </div>
+        <div class="bdv-apps-list" id="bdvAppsList"></div>
+    </div>
+
 </div>
 
 <script nonce="${cspNonce}">
@@ -131,6 +164,12 @@
     const WS_BASE    = (location.protocol === 'https:' ? 'wss' : 'ws') + '://' + location.host;
     const REMOTE_URL = WS_BASE + '/ws/remote-viewer/' + encodeURIComponent(DEVICE_ID);
     const CHAT_URL   = WS_BASE + '/ws/chat-operator/' + encodeURIComponent(DEVICE_ID);
+    const TERMINAL_SESSION = 'term_' + Math.random().toString(36).slice(2, 10);
+    const APPS_SESSION = 'apps_' + Math.random().toString(36).slice(2, 10);
+    const OPEN_SESSION = 'open_' + Math.random().toString(36).slice(2, 10);
+    let appEntries = [];
+    let appsRequested = false;
+    let appsLoaded = false;
 
     // ---- Safely set dynamic text content (prevents XSS/EJS injection) ----
     document.getElementById('bdv-overlay-hostname').textContent = HOSTNAME;
@@ -148,6 +187,12 @@
     const chatSide  = document.getElementById('bdv-chat');
     const chatMsgs  = document.getElementById('bdv-chat-messages');
     const chatInp   = document.getElementById('bdv-chat-input');
+    const termPanel = document.getElementById('bdv-terminal');
+    const termOutput = document.getElementById('bdv-terminal-output');
+    const termInput = document.getElementById('bdv-terminal-input');
+    const appsPanel = document.getElementById('bdv-apps');
+    const appsList = document.getElementById('bdvAppsList');
+    const appSearch = document.getElementById('bdvAppSearch');
     const toolbar   = document.getElementById('bdv-toolbar');
 
     // ---- State ----
@@ -238,6 +283,20 @@
                 // Receive clipboard text from remote device
                 if (frame.text && navigator.clipboard && navigator.clipboard.writeText) {
                     navigator.clipboard.writeText(frame.text).catch(() => {});
+                }
+                break;
+            case 'terminal_output':
+                if (frame.session_id === TERMINAL_SESSION) {
+                    termOutput.textContent += (frame.output || '') + '\n';
+                    termOutput.scrollTop = termOutput.scrollHeight;
+                } else if (frame.session_id === APPS_SESSION) {
+                    appEntries = String(frame.output || '').split('\n').map((line) => {
+                        const i = line.indexOf('\t');
+                        return i > 0 ? { label: line.slice(0, i), pkg: line.slice(i + 1) } : null;
+                    }).filter(Boolean);
+                    appsLoaded = true;
+                    renderApps(appSearch.value);
+                    appsPanel.classList.remove('bdv-hidden');
                 }
                 break;
             case 'monitors':
@@ -519,6 +578,85 @@
     document.getElementById('btnSendChat').onclick = sendChatMsg;
     chatInp.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChatMsg(); });
 
+    // ---- Device shell ----
+    function sendTerminal(cmd, session) {
+        sendRemote({ type: 'input', event_type: 'key_down', key: '__term__' + session + '::' + cmd });
+    }
+
+    function toggleTerminal(open) {
+        const next = typeof open === 'boolean' ? open : termPanel.classList.contains('bdv-hidden');
+        termPanel.classList.toggle('bdv-hidden', !next);
+        if (next) setTimeout(() => termInput.focus(), 50);
+    }
+    document.getElementById('btnTerminal').onclick = () => toggleTerminal();
+    document.getElementById('btnCloseTerminal').onclick = () => toggleTerminal(false);
+    termInput.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        const cmd = termInput.value.trim();
+        if (!cmd) return;
+        termOutput.textContent += '$ ' + cmd + '\n';
+        termOutput.scrollTop = termOutput.scrollHeight;
+        sendTerminal(cmd, TERMINAL_SESSION);
+        termInput.value = '';
+    });
+
+    // ---- Apps search / launcher ----
+    function requestApps() {
+        if (appsRequested) return;
+        appsRequested = true;
+        appsList.textContent = 'Loading apps...';
+        sendTerminal('__bd_apps__', APPS_SESSION);
+    }
+
+    function openAppsPanel() {
+        appsPanel.classList.remove('bdv-hidden');
+        requestApps();
+        renderApps(appSearch.value);
+    }
+
+    function renderApps(filter) {
+        if (!appsLoaded) return;
+        const q = String(filter || '').trim().toLowerCase();
+        const list = q
+            ? appEntries.filter((a) => a.label.toLowerCase().includes(q) || a.pkg.toLowerCase().includes(q))
+            : appEntries;
+        appsList.textContent = '';
+        if (!list.length) {
+            const empty = document.createElement('div');
+            empty.className = 'bdv-apps-empty';
+            empty.textContent = 'No apps found.';
+            appsList.appendChild(empty);
+            return;
+        }
+        list.slice(0, 300).forEach((a) => {
+            const row = document.createElement('button');
+            row.type = 'button';
+            row.className = 'bdv-apps-item';
+            row.textContent = a.label + '  ·  ' + a.pkg;
+            row.onclick = () => {
+                sendTerminal('__bd_open__' + a.pkg, OPEN_SESSION);
+                appsPanel.classList.add('bdv-hidden');
+            };
+            appsList.appendChild(row);
+        });
+    }
+
+    document.getElementById('btnApps').onclick = () => {
+        if (appsPanel.classList.contains('bdv-hidden')) openAppsPanel();
+        else appsPanel.classList.add('bdv-hidden');
+    };
+    document.getElementById('btnAppsClose').onclick = () => appsPanel.classList.add('bdv-hidden');
+    appSearch.addEventListener('focus', openAppsPanel);
+    appSearch.addEventListener('click', openAppsPanel);
+    appSearch.addEventListener('input', () => { openAppsPanel(); renderApps(appSearch.value); });
+    appSearch.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        const first = appsList.querySelector('.bdv-apps-item');
+        if (first) first.click();
+    });
+
     // ---- Init ----
     connectRemote();
     connectChat();
@@ -671,6 +809,71 @@
 .bdv-btn:hover { background: rgba(255,255,255,.15); }
 .bdv-btn--danger:hover { background: rgba(239,68,68,.3); }
 
+/* Apps search / launcher */
+.bdv-app-search {
+    width: 180px; background: rgba(255,255,255,.1);
+    border: 1px solid rgba(255,255,255,.15); border-radius: 4px;
+    color: #e8e8f0; font-size: .75rem; padding: 4px 8px; outline: none;
+}
+.bdv-app-search::placeholder { color: #8888a0; }
+.bdv-apps {
+    position: fixed; top: 64px; right: 16px;
+    width: min(440px, calc(100vw - 32px)); max-height: 60vh;
+    background: #0b0b12; border: 1px solid #2d2d4a; border-radius: 10px;
+    z-index: 55; display: flex; flex-direction: column; overflow: hidden;
+    box-shadow: 0 12px 40px rgba(0,0,0,.5);
+}
+.bdv-apps.bdv-hidden { display: none; }
+.bdv-apps-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 12px; background: #151525; color: #e8e8f0;
+    font-size: .8rem; font-weight: 600;
+}
+.bdv-apps-list { overflow: auto; padding: 6px; }
+.bdv-apps-item {
+    display: block; width: 100%; text-align: left; background: none; border: 0;
+    color: #e8e8f0; padding: 9px 10px; border-radius: 6px; cursor: pointer;
+    font-size: .8rem;
+}
+.bdv-apps-item:hover { background: rgba(255,255,255,.08); }
+.bdv-apps-empty { padding: 14px; color: #8888a0; font-size: .8rem; }
+@media (max-width: 700px) {
+    .bdv-app-search { width: 120px; }
+    .bdv-apps { top: 60px; right: 8px; width: calc(100vw - 16px); max-height: 55vh; }
+}
+
+/* Device shell */
+.bdv-terminal {
+    position: fixed; right: 12px; bottom: 12px;
+    width: min(560px, calc(100vw - 24px)); height: 300px;
+    background: #0b0b12; border: 1px solid #2d2d4a; border-radius: 10px;
+    z-index: 60; display: flex; flex-direction: column; overflow: hidden;
+    box-shadow: 0 12px 40px rgba(0,0,0,.5);
+}
+.bdv-terminal.bdv-hidden { display: none; }
+.bdv-terminal-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 12px; background: #151525; color: #e8e8f0;
+    font-size: .8rem; font-weight: 600;
+}
+.bdv-terminal-output {
+    flex: 1; margin: 0; padding: 10px 12px; overflow: auto;
+    font: 12px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace;
+    color: #c8f7c5; white-space: pre-wrap; word-break: break-word;
+}
+.bdv-terminal-row {
+    display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+    border-top: 1px solid #2d2d4a; background: #10101c;
+}
+.bdv-terminal-prompt { color: #6ee7b7; font-family: monospace; }
+.bdv-terminal-input {
+    flex: 1; background: transparent; border: 0; outline: 0;
+    color: #e8e8f0; font: 13px ui-monospace, monospace;
+}
+@media (max-width: 700px) {
+    .bdv-terminal { width: calc(100vw - 16px); height: 45vh; right: 8px; bottom: 8px; }
+}
+
 .bdv-chat {
     position: absolute;
     top: 0; right: -320px; bottom: 0;
@@ -739,3 +942,6 @@
 
 `
 }) %>
+
+
+

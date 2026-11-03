@@ -14,6 +14,7 @@ const {
     requestHasPermission,
 } = require('../middleware/auth');
 const { rdClientPageLimiter } = require('../middleware/rateLimiter');
+const { verifyDeviceWsAuth } = require('../lib/deviceTokenAuth');
 const betterdeskApi = require('../services/betterdeskApi');
 const keyService = require('../services/keyService');
 const serverConnectionConfig = require('../services/serverConnectionConfigService');
@@ -357,4 +358,36 @@ router.get('/api/remote/session/:deviceId', requireRdClientAuth(), (req, res) =>
     res.json(state);
 });
 
+/**
+ * POST /api/devices/terminal/output
+ * Device-authenticated terminal output relay. The Android agent posts command
+ * output here; it is broadcast to the admin viewer over the relay WebSocket.
+ */
+router.post('/api/devices/terminal/output', async (req, res) => {
+    try {
+        const deviceId = String(req.body?.device_id || req.get('x-device-id') || '').trim();
+        const token = String(req.get('x-device-token') || '');
+        if (!/^[A-Za-z0-9_-]{3,64}$/.test(deviceId) || !token) {
+            return res.status(400).json({ success: false, error: 'Invalid terminal output request.' });
+        }
+        const ok = await verifyDeviceWsAuth(deviceId, token, db);
+        if (!ok) {
+            logger.warn(`terminal output auth failed device=${deviceId} tokenLen=${token.length}`);
+            return res.status(403).json({ success: false, error: 'Forbidden.' });
+        }
+        const output = String(req.body?.output || '').slice(0, 65536);
+        const sessionId = String(req.body?.session_id || '');
+        logger.info(`terminal output device=${deviceId} session=${sessionId} bytes=${output.length}`);
+        const relay = getRemoteRelay();
+        if (relay && typeof relay.broadcastTerminal === 'function') {
+            relay.broadcastTerminal(deviceId, { type: 'terminal_output', session_id: sessionId, output });
+        }
+        return res.json({ success: true });
+    } catch (err) {
+        logger.warn('terminal output failed:', err.message);
+        return res.status(500).json({ success: false, error: 'Terminal output failed.' });
+    }
+});
+
 module.exports = router;
+
