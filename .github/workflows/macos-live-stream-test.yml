@@ -1,0 +1,110 @@
+name: macOS Live Stream Test
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [operational]
+    paths:
+      - '.github/workflows/macos-live-stream-test.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  stream:
+    runs-on: macos-14
+    timeout-minutes: 15
+    env:
+      DEVICE_ID: ${{ vars.MACOS_TEST_DEVICE_ID }}
+      DEVICE_TOKEN: ${{ vars.MACOS_TEST_DEVICE_TOKEN }}
+      SERVER_URL: wss://cdap.telcom.stream/cdap
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: betterdesk-agent/go.mod
+          cache-dependency-path: betterdesk-agent/go.sum
+
+      - name: Install ffmpeg and cliclick
+        run: |
+          set -euo pipefail
+          brew install ffmpeg cliclick
+          command -v ffmpeg
+          command -v cliclick
+          cliclick -V
+
+      - name: Build macOS agent
+        working-directory: betterdesk-agent
+        env:
+          GOOS: darwin
+          GOARCH: arm64
+          CGO_ENABLED: 0
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          VERSION="$(tr -d '\r\n' < ../VERSION)"
+          go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" \
+            -o dist/betterdesk-agent .
+          file dist/betterdesk-agent
+          chmod 755 dist/betterdesk-agent
+
+      - name: Start agent
+        run: |
+          set -euo pipefail
+          echo "::add-mask::$DEVICE_TOKEN"
+          mkdir -p /tmp/bdagent-data
+          cat > /tmp/bdagent-config.json <<EOF
+          {
+            "server": "$SERVER_URL",
+            "auth_method": "device_token",
+            "device_token": "$DEVICE_TOKEN",
+            "device_id": "$DEVICE_ID",
+            "device_name": "macos-gha-live",
+            "device_type": "os_agent",
+            "terminal": true,
+            "file_browser": true,
+            "clipboard": true,
+            "screenshot": true,
+            "file_root": "/",
+            "heartbeat_sec": 15,
+            "reconnect_sec": 5,
+            "max_reconnect": 300,
+            "log_level": "debug",
+            "data_dir": "/tmp/bdagent-data"
+          }
+          EOF
+          nohup betterdesk-agent/dist/betterdesk-agent -config /tmp/bdagent-config.json \
+            > /tmp/bdagent.log 2>&1 &
+          echo $! > /tmp/bdagent.pid
+          for i in $(seq 1 30); do
+            if grep -q "Connected as" /tmp/bdagent.log 2>/dev/null; then break; fi
+            sleep 1
+          done
+          cat /tmp/bdagent.log
+          screencapture -x /tmp/macos-pre.png
+          file /tmp/macos-pre.png
+          sips -g pixelWidth -g pixelHeight /tmp/macos-pre.png
+
+      - name: Keep session alive for remote verification
+        run: |
+          set -euo pipefail
+          echo "Agent running for 240s for live admin verification"
+          sleep 240
+          echo "--- agent log ---"
+          cat /tmp/bdagent.log
+          echo "--- injection errors ---"
+          grep -iE "cliclick|accessibility|injection|permission|denied|error" /tmp/bdagent.log || true
+          screencapture -x /tmp/macos-post.png
+          file /tmp/macos-post.png
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: macos-live-stream-logs
+          path: |
+            /tmp/bdagent.log
+            /tmp/macos-pre.png
+            /tmp/macos-post.png
+          if-no-files-found: warn
