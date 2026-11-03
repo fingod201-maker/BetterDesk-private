@@ -498,6 +498,8 @@ func (a *Agent) dispatch(msg *Message) {
 	case "keyframe_request", "key_exchange", "quality_adjust":
 		// Acknowledged — no real-time media to adjust
 
+	case "ping", "pong":
+		// Gateway keepalive; the agent has its own heartbeat loop.
 	// ── Errors ──
 	case "error":
 		var ep struct {

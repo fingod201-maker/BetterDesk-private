@@ -162,6 +162,26 @@ Write-Host "  Log:    $logFile"
 Write-Host "  Task:   $taskName"
 `;
 
+const WINDOWS_SETUP_VBS = `' BetterDesk Windows complete setup (double-click)
+' Runs Install-BetterDesk.ps1 hidden; the PS1 self-elevates when needed.
+Option Explicit
+Dim fso, sh, dir, script, args
+Set fso = CreateObject("Scripting.FileSystemObject")
+Set sh = CreateObject("WScript.Shell")
+dir = fso.GetParentFolderName(WScript.ScriptFullName)
+script = dir & "\\Install-BetterDesk.ps1"
+For Each args In WScript.Arguments
+    If LCase(args) = "/uninstall" Or LCase(args) = "--uninstall" Then
+        script = dir & "\\Uninstall-BetterDesk.ps1"
+    End If
+Next
+If Not fso.FileExists(script) Then
+    MsgBox "BetterDesk installer not found next to Setup-BetterDesk.vbs.", 16, "BetterDesk Setup"
+    WScript.Quit 1
+End If
+sh.Run "powershell.exe -NoProfile -ExecutionPolicy Bypass -File """ & script & """", 1, True
+`;
+
 function buildWindowsSupportInstallerScript({ installService = false, autostart = false } = {}) {
     return INSTALLER_SCRIPT
         .replace('__INSTALL_SERVICE__', installService ? '$true' : '$false')
@@ -172,6 +192,7 @@ async function writeWindowsSupportInstallers(stageDir, options = {}) {
     const script = buildWindowsSupportInstallerScript(options);
     await fsp.writeFile(path.join(stageDir, 'Install-BetterDesk.ps1'), script, 'utf8');
     await fsp.writeFile(path.join(stageDir, 'Uninstall-BetterDesk.ps1'), script, 'utf8');
+    await fsp.writeFile(path.join(stageDir, 'Setup-BetterDesk.vbs'), WINDOWS_SETUP_VBS, 'utf8');
 }
 
 function hasWindowsSupportInstallers(stageDir) {

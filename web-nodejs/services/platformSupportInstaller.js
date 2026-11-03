@@ -164,7 +164,7 @@ if [ -n "$APP_BUNDLE" ]; then
         AGENT_BIN="$(find "$TARGET_APP/Contents/MacOS" -maxdepth 1 -type f -perm -111 2>/dev/null | head -n 1)"
     fi
 else
-    AGENT_BIN="$(find "$SOURCE_DIR" -maxdepth 2 -type f \\( -name betterdesk-agent -o -name betterdesk -o -name rustdesk \\) 2>/dev/null | head -n 1)"
+    AGENT_BIN="$(find "$SOURCE_DIR" -maxdepth 2 -type f \\( -name 'betterdesk-agent*' -o -name betterdesk -o -name rustdesk \\) 2>/dev/null | head -n 1)"
     if [ -z "$AGENT_BIN" ]; then
         echo "BetterDesk executable or .app bundle was not found next to this installer." >&2
         exit 1
@@ -345,6 +345,10 @@ for candidate in "$APP_DIR/betterdesk-agent" "$APP_DIR/betterdesk" "$APP_DIR/rus
     [ -x "$candidate" ] && AGENT_BIN="$candidate" && break
 done
 if [ -z "$AGENT_BIN" ]; then
+    AGENT_BIN="$(find "$APP_DIR" -maxdepth 1 -type f -name 'betterdesk-agent*' 2>/dev/null | head -n 1)"
+    [ -n "$AGENT_BIN" ] && chmod 755 "$AGENT_BIN"
+fi
+if [ -z "$AGENT_BIN" ]; then
     AGENT_BIN="$(find "$APP_DIR" -maxdepth 2 -type f -perm -111 2>/dev/null | head -n 1)"
 fi
 if [ -z "$AGENT_BIN" ]; then
@@ -373,6 +377,18 @@ chmod 755 "$LAUNCHER"
 if [ "$INSTALL_SERVICE" = 1 ]; then
     terminate_agent "$APP_DIR/agent.pid"
     mkdir -p "$UNIT_DIR"
+
+    # Capture the display actually used at install time. Hardcoding :0/wayland
+    # produced blank streams on multi-seat and X11-only machines.
+    DISPLAY_VALUE=$(printenv DISPLAY 2>/dev/null || true)
+    [ -n "$DISPLAY_VALUE" ] || DISPLAY_VALUE=":0"
+    WAYLAND_VALUE=$(printenv WAYLAND_DISPLAY 2>/dev/null || true)
+    if [ -n "$WAYLAND_VALUE" ]; then
+        SESSION_TYPE="wayland"
+    else
+        SESSION_TYPE="x11"
+    fi
+
     cat >"$UNIT_FILE" <<UNIT_EOF
 [Unit]
 Description=BetterDesk Support Agent (user session)
@@ -384,8 +400,9 @@ Type=simple
 ExecStart=/bin/sh "$LAUNCHER"
 Restart=always
 RestartSec=5
-Environment=DISPLAY=:0
-Environment=XDG_SESSION_TYPE=wayland
+Environment=DISPLAY=$DISPLAY_VALUE
+Environment=WAYLAND_DISPLAY=$WAYLAND_VALUE
+Environment=XDG_SESSION_TYPE=$SESSION_TYPE
 
 [Install]
 WantedBy=graphical-session.target
@@ -468,6 +485,61 @@ echo "BetterDesk Support Agent removed."
 `;
 }
 
+const UNIX_INSTALL_WRAPPER = `#!/bin/sh
+# BetterDesk client entry point. Committed/generated with mode 0755 so
+# ./install.sh works without a separate chmod +x.
+set -eu
+DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+case "\${1:-}" in
+    -u|--uninstall|uninstall)
+        exec /bin/sh "$DIR/uninstall-betterdesk-support.sh" ;;
+esac
+if [ ! -f "$DIR/install-betterdesk-support.sh" ]; then
+    echo "install-betterdesk-support.sh not found next to install.sh" >&2
+    exit 1
+fi
+exec /bin/sh "$DIR/install-betterdesk-support.sh" "$@"
+`;
+
+const MAC_PKG_BUILDER = `#!/bin/sh
+# Build an unsigned BetterDesk Support Agent .pkg on macOS.
+set -eu
+DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+VERSION=\${1:-\${BETTERDESK_VERSION:-1.0.0}}
+PKG_ID="com.unitronix.betterdesk-support-agent"
+OUT_DIR="$DIR/out"
+OUT="$OUT_DIR/BetterDesk-Support-Agent-$VERSION.pkg"
+if [ "$(uname -s)" != "Darwin" ]; then
+    echo "build-pkg.sh must run on macOS (pkgbuild/productbuild are Apple tools)." >&2
+    exit 1
+fi
+STAGE=$(mktemp -d "\${TMPDIR:-/tmp}/betterdesk-pkg.XXXXXX")
+trap 'rm -rf "$STAGE"' EXIT INT TERM
+BASE="$STAGE/root/usr/local/share/betterdesk-support"
+SCRIPTS="$STAGE/scripts"
+mkdir -p "$BASE" "$SCRIPTS" "$OUT_DIR"
+cp "$DIR/install.sh" "$DIR/install-betterdesk-support.sh" "$DIR/uninstall-betterdesk-support.sh" "$BASE/"
+if [ -d "$DIR/payload" ]; then
+    cp -a "$DIR/payload/." "$BASE/"
+else
+    for item in "$DIR"/*.app "$DIR"/betterdesk-agent "$DIR"/betterdesk-agent-* "$DIR"/betterdesk "$DIR"/rustdesk; do
+        [ -e "$item" ] && cp -a "$item" "$BASE/"
+    done
+fi
+chmod 755 "$BASE"/*.sh 2>/dev/null || true
+cat >"$SCRIPTS/postinstall" <<'POSTINSTALL'
+#!/bin/sh
+BASE="/usr/local/share/betterdesk-support"
+U=$(/usr/bin/stat -f '%Su' /dev/console 2>/dev/null || true)
+[ -n "$U" ] && [ "$U" != "root" ] && /usr/bin/sudo -u "$U" -H /bin/sh "$BASE/install.sh" || true
+exit 0
+POSTINSTALL
+chmod 755 "$SCRIPTS/postinstall"
+pkgbuild --root "$STAGE/root" --identifier "$PKG_ID" --version "$VERSION" --scripts "$SCRIPTS" "$STAGE/component.pkg"
+productbuild --package "$STAGE/component.pkg" "$OUT"
+echo "Built: $OUT"
+`;
+
 async function writeUnixSupportInstallers(stageDir, platform, options = {}) {
     const normalized = {
         installService: !!options.installService,
@@ -485,9 +557,17 @@ async function writeUnixSupportInstallers(stageDir, platform, options = {}) {
         };
     const installPath = path.join(stageDir, 'install-betterdesk-support.sh');
     const uninstallPath = path.join(stageDir, 'uninstall-betterdesk-support.sh');
+    const wrapperPath = path.join(stageDir, 'install.sh');
     await fsp.writeFile(installPath, scripts.install, { mode: 0o755 });
     await fsp.writeFile(uninstallPath, scripts.uninstall, { mode: 0o755 });
-    await Promise.all([fsp.chmod(installPath, 0o755), fsp.chmod(uninstallPath, 0o755)]);
+    await fsp.writeFile(wrapperPath, UNIX_INSTALL_WRAPPER, { mode: 0o755 });
+    const paths = [installPath, uninstallPath, wrapperPath];
+    if (!isLinux) {
+        const pkgPath = path.join(stageDir, 'build-pkg.sh');
+        await fsp.writeFile(pkgPath, MAC_PKG_BUILDER, { mode: 0o755 });
+        paths.push(pkgPath);
+    }
+    await Promise.all(paths.map((p) => fsp.chmod(p, 0o755)));
 }
 
 function hasUnixSupportInstallers(stageDir) {

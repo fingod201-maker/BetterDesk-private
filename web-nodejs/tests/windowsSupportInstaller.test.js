@@ -33,6 +33,7 @@ describe('Windows Support installer bundle', () => {
         try {
             await writeWindowsSupportInstallers(stageDir, { installService: true, autostart: true });
             expect(hasWindowsSupportInstallers(stageDir)).toBe(true);
+            expect(fs.existsSync(path.join(stageDir, 'Setup-BetterDesk.vbs'))).toBe(true);
             expect(await fs.promises.readFile(
                 path.join(stageDir, 'Install-BetterDesk.ps1'),
                 'utf8'

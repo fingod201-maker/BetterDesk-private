@@ -67,6 +67,10 @@ for candidate in "$APP_DIR/betterdesk-agent" "$APP_DIR/betterdesk" "$APP_DIR/rus
     [ -x "$candidate" ] && AGENT_BIN="$candidate" && break
 done
 if [ -z "$AGENT_BIN" ]; then
+    AGENT_BIN="$(find "$APP_DIR" -maxdepth 1 -type f -name 'betterdesk-agent*' 2>/dev/null | head -n 1)"
+    [ -n "$AGENT_BIN" ] && chmod 755 "$AGENT_BIN"
+fi
+if [ -z "$AGENT_BIN" ]; then
     AGENT_BIN="$(find "$APP_DIR" -maxdepth 2 -type f -perm -111 2>/dev/null | head -n 1)"
 fi
 if [ -z "$AGENT_BIN" ]; then
@@ -138,6 +142,18 @@ chmod 755 "$LAUNCHER"
 if [ "$INSTALL_SERVICE" = 1 ]; then
     terminate_agent "$APP_DIR/agent.pid"
     mkdir -p "$UNIT_DIR"
+
+    # Capture the display actually used at install time. Hardcoding :0/wayland
+    # produced blank streams on multi-seat and X11-only machines.
+    DISPLAY_VALUE=$(printenv DISPLAY 2>/dev/null || true)
+    [ -n "$DISPLAY_VALUE" ] || DISPLAY_VALUE=":0"
+    WAYLAND_VALUE=$(printenv WAYLAND_DISPLAY 2>/dev/null || true)
+    if [ -n "$WAYLAND_VALUE" ]; then
+        SESSION_TYPE="wayland"
+    else
+        SESSION_TYPE="x11"
+    fi
+
     cat >"$UNIT_FILE" <<UNIT_EOF
 [Unit]
 Description=BetterDesk Support Agent (user session)
@@ -149,8 +165,9 @@ Type=simple
 ExecStart=/bin/sh "$LAUNCHER"
 Restart=always
 RestartSec=5
-Environment=DISPLAY=:0
-Environment=XDG_SESSION_TYPE=wayland
+Environment=DISPLAY=$DISPLAY_VALUE
+Environment=WAYLAND_DISPLAY=$WAYLAND_VALUE
+Environment=XDG_SESSION_TYPE=$SESSION_TYPE
 
 [Install]
 WantedBy=graphical-session.target

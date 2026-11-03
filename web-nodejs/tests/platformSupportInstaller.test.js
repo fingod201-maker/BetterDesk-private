@@ -89,6 +89,10 @@ describe('Unix Support installer files', () => {
                 autostart: true,
             });
             expect(hasUnixSupportInstallers(stageDir)).toBe(true);
+            expect(fs.existsSync(path.join(stageDir, 'install.sh'))).toBe(true);
+            if (platform === 'macos') {
+                expect(fs.existsSync(path.join(stageDir, 'build-pkg.sh'))).toBe(true);
+            }
             for (const name of ['install-betterdesk-support.sh', 'uninstall-betterdesk-support.sh']) {
                 const stat = await fs.promises.stat(path.join(stageDir, name));
                 expect(stat.isFile()).toBe(true);

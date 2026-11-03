@@ -73,7 +73,7 @@ if [ -n "$APP_BUNDLE" ]; then
         AGENT_BIN="$(find "$TARGET_APP/Contents/MacOS" -maxdepth 1 -type f -perm -111 2>/dev/null | head -n 1)"
     fi
 else
-    AGENT_BIN="$(find "$SOURCE_DIR" -maxdepth 2 -type f \( -name betterdesk-agent -o -name betterdesk -o -name rustdesk \) 2>/dev/null | head -n 1)"
+    AGENT_BIN="$(find "$SOURCE_DIR" -maxdepth 2 -type f \( -name 'betterdesk-agent*' -o -name betterdesk -o -name rustdesk \) 2>/dev/null | head -n 1)"
     if [ -z "$AGENT_BIN" ]; then
         echo "BetterDesk executable or .app bundle was not found next to this installer." >&2
         exit 1
