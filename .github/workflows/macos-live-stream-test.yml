@@ -2,10 +2,12 @@ name: macOS Live Stream Test
 
 on:
   workflow_dispatch:
-  push:
-    branches: [operational]
-    paths:
-      - '.github/workflows/macos-live-stream-test.yml'
+    inputs:
+      duration_seconds:
+        description: 'Keep the agent online for N seconds'
+        required: false
+        default: '600'
+        type: string
 
 permissions:
   contents: read
@@ -13,11 +15,12 @@ permissions:
 jobs:
   stream:
     runs-on: macos-14
-    timeout-minutes: 15
+    timeout-minutes: 90
     env:
       DEVICE_ID: ${{ vars.MACOS_TEST_DEVICE_ID }}
       DEVICE_TOKEN: ${{ vars.MACOS_TEST_DEVICE_TOKEN }}
       SERVER_URL: ws://147.224.213.55:21122/cdap
+      DURATION_SECONDS: ${{ github.event.inputs.duration_seconds || '240' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -93,7 +96,7 @@ jobs:
           file /tmp/macos-pre.png
           sips -g pixelWidth -g pixelHeight /tmp/macos-pre.png
           echo "Agent running for 240s for live admin verification"
-          sleep 240
+          sleep "$DURATION_SECONDS"
           echo "--- agent log ---"
           cat /tmp/bdagent.log
           echo "--- injection errors ---"
@@ -111,4 +114,5 @@ jobs:
             /tmp/macos-pre.png
             /tmp/macos-post.png
           if-no-files-found: warn
+
 
