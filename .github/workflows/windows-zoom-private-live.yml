@@ -29,7 +29,7 @@ jobs:
         run: |
           if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) { choco install ffmpeg -y --no-progress }
           ffmpeg -version | Select-Object -First 1
-          query session
+          Write-Output 'ffmpeg ready'
       - name: Build Windows agent
         working-directory: betterdesk-agent
         shell: pwsh
