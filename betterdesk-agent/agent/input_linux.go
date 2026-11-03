@@ -41,25 +41,25 @@ func injectInput(evt *InputEvent) error {
 func injectInputX11(evt *InputEvent) error {
 	switch evt.Type {
 	case "mouse_move":
-		return xdotool("mousemove", "--sync",
+		return xdotool("mousemove",
 			fmt.Sprintf("%d", evt.X), fmt.Sprintf("%d", evt.Y))
 
 	case "mouse_click":
-		if err := xdotool("mousemove", "--sync",
+		if err := xdotool("mousemove",
 			fmt.Sprintf("%d", evt.X), fmt.Sprintf("%d", evt.Y)); err != nil {
 			return err
 		}
 		return xdotool("click", fmt.Sprintf("%d", linuxMouseButton(evt.Button)))
 
 	case "mouse_down":
-		if err := xdotool("mousemove", "--sync",
+		if err := xdotool("mousemove",
 			fmt.Sprintf("%d", evt.X), fmt.Sprintf("%d", evt.Y)); err != nil {
 			return err
 		}
 		return xdotool("mousedown", fmt.Sprintf("%d", linuxMouseButton(evt.Button)))
 
 	case "mouse_up":
-		if err := xdotool("mousemove", "--sync",
+		if err := xdotool("mousemove",
 			fmt.Sprintf("%d", evt.X), fmt.Sprintf("%d", evt.Y)); err != nil {
 			return err
 		}
@@ -383,3 +383,4 @@ func abs(x int) int {
 	}
 	return x
 }
+

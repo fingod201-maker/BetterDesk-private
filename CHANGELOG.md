@@ -10,7 +10,7 @@
 - **Agent terminal protocol:** accept the gateway's `terminal_input` message (previously only `terminal_data`), close PTYs on `terminal_end`, and treat `registered`/`ping`/`pong` as benign keepalives.
 - **Remote console:** the unified viewer top bar now exposes a terminal/shell button and left/middle/right mouse buttons for PC clients; live streams auto-reconnect with exponential backoff, and the support viewer does the same.
 - **CDAP remote controls:** CDAP sessions now auto-expand the shared toolbar (terminal, keyboard, L/M/R clicks, display) and include an explicit keyboard-capture button. Pointer releases outside the canvas are forwarded so clicks cannot leave the agent stuck in a drag, and optional billing hooks are type-checked so an older billing script cannot abort viewer startup.
-- **macOS agent input:** fixed left/right mouse down/up handling and switched special keys to AppleScript virtual key codes.
+- **Linux agent input:** removed `xdotool mousemove --sync` from click/drag/scroll paths; syncing could block for 15+ seconds on Xvfb/slow X servers and made remote clicks feel hung.`r`n- **macOS agent input:** fixed left/right mouse down/up handling and switched special keys to AppleScript virtual key codes.
 
 ---
 
@@ -4417,5 +4417,6 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.5.198]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.197...v3.5.198
 [3.5.199]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.198...v3.5.199
 [3.5.200]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.199...v3.5.200
+
 
 
