@@ -1,0 +1,22 @@
+{
+  "server": "ws://127.0.0.1:21122/cdap",
+  "auth_method": "api_key",
+  "api_key": "",
+  "device_id": "BD-1122334455667788",
+  "device_name": "linux-oci-live",
+  "device_type": "os_agent",
+  "require_consent": false,
+  "terminal": true,
+  "file_browser": true,
+  "clipboard": true,
+  "screenshot": true,
+  "file_root": "/tmp",
+  "heartbeat_sec": 15,
+  "reconnect_sec": 5,
+  "max_reconnect": 300,
+  "log_level": "debug",
+  "data_dir": "/tmp/bdagent-data",
+  "video_codec": "mjpeg",
+  "hw_accel": "none",
+  "enforce_tls": false
+}
