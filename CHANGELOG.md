@@ -6,7 +6,7 @@
 - **macOS payload detection:** the installer now finds the real `betterdesk-agent-amd64` / `betterdesk-agent-arm64` binaries from the portable tarball instead of requiring an exact `betterdesk-agent` name.
 - **Linux session environment:** the user unit now captures the actual `DISPLAY`, `WAYLAND_DISPLAY` and `XDG_SESSION_TYPE` at install time instead of hardcoding `:0`/Wayland.
 - **Linux screen capture dependency:** installers resolve `ffmpeg` (plus common local paths) into `agent-env.sh` and warn when it is missing, preventing silent blank streams.
-- **Agent terminal protocol:** accept the gateway's `terminal_input` message (previously only `terminal_data`), close PTYs on `terminal_end`, and treat `registered`/`ping`/`pong` as benign keepalives.
+- **CDAP web viewer:** force MJPEG for CDAP desktop sessions and keep the connect overlay visible until the first frame, fixing a black/blank remote page when the agent could not start the advertised hardware codec.`n- **Agent terminal protocol:** accept the gateway's `terminal_input` message (previously only `terminal_data`), close PTYs on `terminal_end`, and treat `registered`/`ping`/`pong` as benign keepalives.
 - **Remote console:** the unified viewer top bar now exposes a terminal/shell button and left/middle/right mouse buttons for PC clients; live streams auto-reconnect with exponential backoff, and the support viewer does the same.
 - **macOS agent input:** fixed left/right mouse down/up handling and switched special keys to AppleScript virtual key codes.
 
@@ -4415,3 +4415,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.5.198]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.197...v3.5.198
 [3.5.199]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.198...v3.5.199
 [3.5.200]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.199...v3.5.200
+

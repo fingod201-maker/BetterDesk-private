@@ -673,6 +673,7 @@
         // ── Internal: WS lifecycle ───────────────────────────────────────
 
         _handleOpen() {
+            this._firstFrameSeen = false;
             const self = this;
             decodableCodecs().then(function (codecs) {
                 if (!self._ws || self._ws.readyState !== WebSocket.OPEN) return;
@@ -701,11 +702,11 @@
                 device_pixel_ratio: dpr,
                 client_css_width:  Math.round(rect.width  || 0),
                 client_css_height: Math.round(rect.height || 0),
-                // Advertise the codecs this browser can decode so the agent
-                // sends a GPU-encoded video stream. Over plain HTTP this still
-                // includes H.264 (decoded via JMuxer/MSE), avoiding the slow
-                // MJPEG fallback. See decodableCodecs().
-                codecs: codecs,
+                // CDAP desktop: use the universally supported MJPEG path.
+                // Hardware video codecs are negotiated for the RustDesk
+                // transport; the CDAP agent may not have a working encoder on
+                // every platform, which left the viewer black.
+                codecs: [],
                 video_codec: 'auto',
             });
 
@@ -731,6 +732,16 @@
             // MJPEG/WebP, based on the format last reported via desktop_meta.
             if (event.data instanceof ArrayBuffer) {
                 const bytes = new Uint8Array(event.data);
+                if (!this._firstFrameSeen) {
+                    this._firstFrameSeen = true;
+                    this._setState('streaming');
+                    this._emit('session_start');
+                    this._emit('log', 'Streaming');
+                    if (!this._sessionActive) {
+                        this._streamThrottledActive = null;
+                        this._syncStreamThrottle();
+                    }
+                }
                 // Safety net when desktop_meta was not relayed (older servers):
                 // JPEG SOI marker 0xFF 0xD8 at the start of the payload.
                 if (!isVideoCodec(this._activeFormat)
@@ -758,12 +769,14 @@
                     if (this._readyTimer) { clearTimeout(this._readyTimer); this._readyTimer = null; }
                     this._sessionId = msg.session_id || null;
                     this._connected = true;
-                    this._setState('streaming');
+                    // Do not report Streaming until the first frame arrives.
+                    // Hiding the overlay on `ready` produced a black page when
+                    // the capture pipeline was still starting.
+                    this._setState('connecting');
                     this._syncInputCapture();
                     this._startStats();
                     this._emit('login_success');
-                    this._emit('session_start');
-                    this._emit('log', 'Streaming');
+                    this._emit('log', 'Desktop session ready - waiting for first frame...');
                     if (!this._sessionActive) {
                         this._streamThrottledActive = null;
                         this._syncStreamThrottle();
@@ -1361,7 +1374,8 @@
                 if (dt <= 0) return;
                 const fps = this._frameCount / dt;
                 const kbps = (this._frameBytes * 8 / 1000) / dt;
-                this._frameCount = 0;
+            this._frameCount = 0;
+            this._firstFrameSeen = false;
                 this._frameBytes = 0;
                 this._lastStatsTime = now;
                 this._emit('stats', {
@@ -1381,3 +1395,4 @@
 
     window.CDAPSession = CDAPSession;
 })();
+
