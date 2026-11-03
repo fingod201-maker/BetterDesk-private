@@ -50,7 +50,7 @@ jobs:
           file dist/betterdesk-agent
           chmod 755 dist/betterdesk-agent
 
-      - name: Start agent
+      - name: Run agent and keep session alive
         run: |
           set -euo pipefail
           echo "::add-mask::$DEVICE_TOKEN"
@@ -77,19 +77,20 @@ jobs:
           EOF
           nohup betterdesk-agent/dist/betterdesk-agent -config /tmp/bdagent-config.json \
             > /tmp/bdagent.log 2>&1 &
-          echo $! > /tmp/bdagent.pid
+          AGENT_PID=$!
+          echo "$AGENT_PID" > /tmp/bdagent.pid
           for i in $(seq 1 30); do
             if grep -q "Connected as" /tmp/bdagent.log 2>/dev/null; then break; fi
             sleep 1
           done
           cat /tmp/bdagent.log
+          if ! grep -q "Connected as" /tmp/bdagent.log; then
+            echo "AGENT DID NOT CONNECT"
+            exit 1
+          fi
           screencapture -x /tmp/macos-pre.png
           file /tmp/macos-pre.png
           sips -g pixelWidth -g pixelHeight /tmp/macos-pre.png
-
-      - name: Keep session alive for remote verification
-        run: |
-          set -euo pipefail
           echo "Agent running for 240s for live admin verification"
           sleep 240
           echo "--- agent log ---"
@@ -98,6 +99,7 @@ jobs:
           grep -iE "cliclick|accessibility|injection|permission|denied|error" /tmp/bdagent.log || true
           screencapture -x /tmp/macos-post.png
           file /tmp/macos-post.png
+
 
       - uses: actions/upload-artifact@v4
         if: always()
