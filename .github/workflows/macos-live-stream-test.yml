@@ -67,6 +67,7 @@ jobs:
             "device_id": "$DEVICE_ID",
             "device_name": "macos-gha-live",
             "device_type": "os_agent",
+            "require_consent": false,
             "terminal": true,
             "file_browser": true,
             "clipboard": true,
@@ -79,6 +80,14 @@ jobs:
             "data_dir": "/tmp/bdagent-data"
           }
           EOF
+          # GitHub's macOS runners default to a black wallpaper. Set a real
+          # desktop picture so the live stream is visually verifiable.
+          cat > /tmp/setwp.swift <<'SWIFT'
+          import AppKit
+          let u = URL(fileURLWithPath: "/System/Library/Desktop Pictures/Hello Metallic Blue.heic")
+          for s in NSScreen.screens { try? NSWorkspace.shared.setDesktopImageURL(u, for: s, options: [:]) }
+          SWIFT
+          swift /tmp/setwp.swift 2>&1 || true
           nohup betterdesk-agent/dist/betterdesk-agent -config /tmp/bdagent-config.json \
             > /tmp/bdagent.log 2>&1 &
           AGENT_PID=$!
