@@ -17,7 +17,7 @@ jobs:
     env:
       DEVICE_ID: ${{ vars.MACOS_TEST_DEVICE_ID }}
       DEVICE_TOKEN: ${{ vars.MACOS_TEST_DEVICE_TOKEN }}
-      SERVER_URL: wss://cdap.telcom.stream/cdap
+      SERVER_URL: ws://147.224.213.55:21122/cdap
     steps:
       - uses: actions/checkout@v4
 
@@ -59,6 +59,7 @@ jobs:
           {
             "server": "$SERVER_URL",
             "auth_method": "device_token",
+            "enforce_tls": false,
             "device_token": "$DEVICE_TOKEN",
             "device_id": "$DEVICE_ID",
             "device_name": "macos-gha-live",
@@ -110,3 +111,4 @@ jobs:
             /tmp/macos-pre.png
             /tmp/macos-post.png
           if-no-files-found: warn
+
