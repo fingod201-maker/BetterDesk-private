@@ -15,7 +15,8 @@ done
 
 xsetroot -solid '#20242c' 2>/dev/null || true
 
-xterm -fa Monospace -fs 20 -geometry 160x50+20+20 \
+xterm -fa Monospace -fs 20 -geometry 160x50+0+0 \
     >/tmp/xterm.log 2>&1 &
 
 exec /usr/local/bin/betterdesk-agent -config /etc/betterdesk-agent.json
+
