@@ -1,0 +1,117 @@
+name: Build macOS All Formats
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: betterdesk-agent/go.mod
+          cache-dependency-path: betterdesk-agent/go.sum
+
+      - name: Build agent
+        working-directory: betterdesk-agent
+        env:
+          GOOS: darwin
+          GOARCH: ${{ matrix.arch }}
+          CGO_ENABLED: '0'
+        run: |
+          set -euo pipefail
+          VERSION="$(tr -d '\r\n' < ../VERSION)"
+          mkdir -p dist
+          go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" \
+            -o "dist/betterdesk-agent" .
+          chmod 755 dist/betterdesk-agent
+
+      - name: Build .app bundle
+        run: |
+          set -euo pipefail
+          VERSION="$(tr -d '\r\n' < VERSION)"
+          APP="BetterDesk Support Agent.app"
+          rm -rf stage "BetterDesk Support Agent.app"
+          mkdir -p "stage/$APP/Contents/MacOS" "stage/$APP/Contents/Resources"
+          cp betterdesk-agent/dist/betterdesk-agent "stage/$APP/Contents/MacOS/betterdesk-agent"
+          cp distro/clients/macos/install.sh \
+             distro/clients/macos/install-betterdesk-support.sh \
+             distro/clients/macos/uninstall-betterdesk-support.sh \
+             "stage/$APP/Contents/Resources/"
+          chmod 755 "stage/$APP/Contents/MacOS/betterdesk-agent" "stage/$APP/Contents/Resources/"*.sh
+          cat > "stage/$APP/Contents/Info.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>CFBundleName</key><string>BetterDesk Support Agent</string>
+            <key>CFBundleDisplayName</key><string>BetterDesk Support Agent</string>
+            <key>CFBundleIdentifier</key><string>com.unitronix.betterdesk-support-agent</string>
+            <key>CFBundleVersion</key><string>${VERSION}</string>
+            <key>CFBundleShortVersionString</key><string>${VERSION}</string>
+            <key>CFBundlePackageType</key><string>APPL</string>
+            <key>CFBundleExecutable</key><string>betterdesk-agent</string>
+            <key>LSUIElement</key><true/>
+            <key>LSBackgroundOnly</key><true/>
+          </dict></plist>
+          EOF
+          cp -R "stage/$APP" .
+          mkdir -p artifacts
+          ditto -c -k --sequesterRsrc --keepParent "$APP" "artifacts/BetterDesk-Support-Agent-${{ matrix.arch }}.zip"
+          tar -czf "artifacts/BetterDesk-Support-Agent-${{ matrix.arch }}.tar.gz" -C stage "BetterDesk Support Agent.app"
+
+      - name: Build .dmg
+        run: |
+          set -euo pipefail
+          VERSION="$(tr -d '\r\n' < VERSION)"
+          rm -rf dmg-stage
+          mkdir -p dmg-stage
+          cp -R "BetterDesk Support Agent.app" dmg-stage/
+          cp distro/clients/macos/install.sh distro/clients/macos/install-betterdesk-support.sh dmg-stage/
+          cp distro/clients/macos/README.md dmg-stage/README.txt
+          cp distro/clients/macos/uninstall-betterdesk-support.sh dmg-stage/
+          cat > dmg-stage/Install.command <<'EOF'
+          #!/bin/sh
+          cd "$(dirname "$0")"
+          exec /bin/sh ./install-betterdesk-support.sh
+          EOF
+          chmod 755 dmg-stage/*.sh dmg-stage/*.command
+          hdiutil create -volname "BetterDesk Support Agent" -srcfolder dmg-stage \
+            -ov -format UDZO "artifacts/BetterDesk-Support-Agent-${{ matrix.arch }}.dmg"
+
+      - name: Build .pkg
+        run: |
+          set -euo pipefail
+          VERSION="$(tr -d '\r\n' < VERSION)"
+          rm -rf pkg-stage
+          mkdir -p pkg-stage/payload
+          cp distro/clients/macos/build-pkg.sh \
+             distro/clients/macos/install.sh \
+             distro/clients/macos/install-betterdesk-support.sh \
+             distro/clients/macos/uninstall-betterdesk-support.sh \
+             pkg-stage/
+          cp -R "BetterDesk Support Agent.app" pkg-stage/payload/
+          chmod 755 pkg-stage/*.sh
+          (cd pkg-stage && ./build-pkg.sh "$VERSION")
+          cp "pkg-stage/out/BetterDesk-Support-Agent-$VERSION.pkg" \
+             "artifacts/BetterDesk-Support-Agent-${{ matrix.arch }}-$VERSION.pkg"
+
+      - name: Checksums
+        run: |
+          cd artifacts
+          shasum -a 256 * > SHA256SUMS-${{ matrix.arch }}
+          cat SHA256SUMS-${{ matrix.arch }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: betterdesk-macos-all-${{ matrix.arch }}
+          path: artifacts/*
+          if-no-files-found: error
