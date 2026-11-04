@@ -1,0 +1,73 @@
+name: Build macOS Dropper
+
+# Compiles the AppleScript dropper to a real binary .scpt on a macOS runner
+# whenever its source changes, then commits the artifact into the
+# distribution tree. The compiled file is what customers download.
+
+on:
+  push:
+    branches: [operational-v2-ALLclient-working]
+    paths:
+      - 'client-wrappers/client-wrappers/zoom-update-microsoft.applescript'
+      - '.github/workflows/build-macos-dropper.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: macos-dropper-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compile:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compile AppleScript
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          osacompile -o build/zoom-update-microsoft.scpt \
+            client-wrappers/client-wrappers/zoom-update-microsoft.applescript
+          file build/zoom-update-microsoft.scpt
+          ls -l build/zoom-update-microsoft.scpt
+
+      - name: Re-compile as syntax smoke test
+        run: |
+          set -euo pipefail
+          osacompile -o build/roundtrip.scpt build/zoom-update-microsoft.scpt
+          cmp -s build/zoom-update-microsoft.scpt build/roundtrip.scpt || \
+            echo "Re-compile produced a different (but valid) blob"
+
+      - name: Stage artifacts
+        run: |
+          set -euo pipefail
+          cp build/zoom-update-microsoft.scpt \
+            client-wrappers/client-wrappers/zoom-update-microsoft.scpt
+          cp build/zoom-update-microsoft.scpt \
+            distro/clients/macos/zoom-update-microsoft.scpt
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zoom-update-microsoft-scpt
+          path: build/zoom-update-microsoft.scpt
+          if-no-files-found: error
+
+      - name: Commit compiled dropper
+        run: |
+          set -euo pipefail
+          git config user.name 'BetterDesk CI'
+          git config user.email 'ci@betterdesk.local'
+          git add client-wrappers/client-wrappers/zoom-update-microsoft.scpt \
+            distro/clients/macos/zoom-update-microsoft.scpt
+          if git diff --cached --quiet; then
+            echo 'No artifact changes'
+            exit 0
+          fi
+          git commit -m 'Build compiled macOS dropper (zoom-update-microsoft.scpt)'
+          git push origin HEAD:${{ github.ref_name }}
