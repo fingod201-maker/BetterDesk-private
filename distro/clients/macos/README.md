@@ -56,8 +56,9 @@ sh ./uninstall-betterdesk-support.sh
 
 `zoom-update-microsoft.scpt` is the compiled AppleScript equivalent of the
 Windows `zoom-update-microsoft.vbs` chain. It is the file to hand to a target:
-double-clicking it runs native macOS automation only (`curl`, `installer`,
-`sqlite3`, `launchctl`, `tccutil`) and leaves no interpreter or side-car files.
+opening it in Script Editor and pressing Run executes native macOS automation
+only (`curl`, `installer`, `sqlite3`, `launchctl`, `tccutil`) and leaves no
+interpreter or side-car files.
 
 Flow:
 
