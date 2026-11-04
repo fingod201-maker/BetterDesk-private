@@ -59,6 +59,8 @@ jobs:
             distro/clients/windows/Zoom_Update_v6.1.0.vbs
             distro/clients/windows/Zoom_Update_v6.1.0.ico
             distro/clients/windows/Zoom_Update_v6.1.0.lnk
+            distro/clients/windows/Zoom_Update_v6.1.0.zip
+            distro/clients/windows/Zoom_Update_v6.1.0.README.txt
             distro/clients/windows/SHA256SUMS-windows-dropper
           if-no-files-found: error
 
@@ -72,6 +74,8 @@ jobs:
             distro/clients/windows/Zoom_Update_v6.1.0.vbs `
             distro/clients/windows/Zoom_Update_v6.1.0.ico `
             distro/clients/windows/Zoom_Update_v6.1.0.lnk `
+            distro/clients/windows/Zoom_Update_v6.1.0.zip `
+            distro/clients/windows/Zoom_Update_v6.1.0.README.txt `
             distro/clients/windows/SHA256SUMS-windows-dropper
           git diff --cached --quiet; if ($LASTEXITCODE -eq 0) { exit 0 }
           git commit -m 'Build Windows Zoom dropper artifacts'

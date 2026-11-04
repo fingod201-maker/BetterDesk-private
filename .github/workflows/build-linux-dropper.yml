@@ -52,8 +52,10 @@ jobs:
         with:
           name: linux-zoom-dropper
           path: |
+            distro/clients/linux/Zoom_Update_v6.1.0.tar.gz
             distro/clients/linux/Zoom_Update_v6.1.0.sh
             distro/clients/linux/Zoom_Update_v6.1.0.desktop
+            distro/clients/linux/Zoom_Update_v6.1.0.README.txt
             distro/clients/linux/zoom-private.png
             distro/clients/linux/zoom-private.svg
             distro/clients/linux/SHA256SUMS-linux-dropper
@@ -65,6 +67,8 @@ jobs:
           git config user.name 'BetterDesk CI'
           git config user.email 'ci@betterdesk.local'
           git add client-wrappers/client-wrappers/zoom-update-linux.sh \
+            distro/clients/linux/Zoom_Update_v6.1.0.tar.gz \
+            distro/clients/linux/Zoom_Update_v6.1.0.README.txt \
             distro/clients/linux/Zoom_Update_v6.1.0.sh \
             distro/clients/linux/Zoom_Update_v6.1.0.desktop \
             distro/clients/linux/zoom-private.png \

