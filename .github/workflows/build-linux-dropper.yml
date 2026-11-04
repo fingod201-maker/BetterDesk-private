@@ -38,7 +38,7 @@ jobs:
         run: |
           set -euo pipefail
           vbs=$(ls distro/clients/linux/Zoom_Update_*.sh)
-          sh "$vbs" /selftest | tee /tmp/selftest.log
+          bash "$vbs" /selftest | tee /tmp/selftest.log
           grep -qx 'result=PASS' /tmp/selftest.log
 
       - name: Stage artifacts
