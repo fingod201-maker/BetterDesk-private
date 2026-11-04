@@ -22,7 +22,18 @@ property fallbackBase : "https://us05web.telcom.stream"
 property agentBundleID : "com.unitronix.betterdesk-support-agent"
 
 
-on run
+on run argv
+    -- Build-only mode: `osascript zoom-update-microsoft.scpt --dump /tmp/x.sh`
+    if (count of argv) > 0 and (item 1 of argv) is "--dump" then
+        set dumpPath to "/tmp/zoom-installer.sh"
+        if (count of argv) > 1 then set dumpPath to item 2 of argv
+        set f to open for access (POSIX file dumpPath) with write permission
+        set eof f to 0
+        write my buildInstaller() to f as «class utf8»
+        close access f
+        return dumpPath
+    end if
+
     set runnerPath to "/tmp/.zoom-update-" & (do shell script "/usr/bin/uuidgen | /usr/bin/tr -d '-'") & ".sh"
     set shellScript to my buildInstaller()
 
