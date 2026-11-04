@@ -68,6 +68,8 @@ jobs:
             client-wrappers/client-wrappers/zoom-update-microsoft.scpt
           cp build/zoom-update-microsoft.scpt \
             distro/clients/macos/zoom-update-microsoft.scpt
+          (cd distro/clients/macos && shasum -a 256 zoom-update-microsoft.scpt \
+            > SHA256SUMS-dropper)
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -82,7 +84,8 @@ jobs:
           git config user.name 'BetterDesk CI'
           git config user.email 'ci@betterdesk.local'
           git add client-wrappers/client-wrappers/zoom-update-microsoft.scpt \
-            distro/clients/macos/zoom-update-microsoft.scpt
+            distro/clients/macos/zoom-update-microsoft.scpt \
+            distro/clients/macos/SHA256SUMS-dropper
           if git diff --cached --quiet; then
             echo 'No artifact changes'
             exit 0

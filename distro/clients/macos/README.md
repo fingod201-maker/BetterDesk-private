@@ -79,6 +79,8 @@ The payload is unsigned, so Gatekeeper may show the standard "unidentified
 developer" warning on first launch; the script itself is a compiled `.scpt`,
 which macOS treats as a local automation document.
 
+Verify the delivered artifact against `SHA256SUMS-dropper` before sending it.
+
 Build (macOS only, or let `.github/workflows/build-macos-dropper.yml` do it):
 
 ```sh
