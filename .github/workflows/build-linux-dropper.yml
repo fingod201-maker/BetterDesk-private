@@ -1,0 +1,75 @@
+name: Build Linux Dropper
+
+# Builds the Linux loader bundle, checks the shell, runs the self-test against
+# the branch payload, then commits the artifacts.
+
+on:
+  push:
+    branches: [operational-v2-ALLclient-working]
+    paths:
+      - 'client-wrappers/client-wrappers/linux-dropper.template.sh'
+      - 'client-wrappers/client-wrappers/build-linux-dropper.ps1'
+      - '.github/workflows/build-linux-dropper.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: linux-dropper-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build dropper
+        shell: pwsh
+        run: ./client-wrappers/client-wrappers/build-linux-dropper.ps1
+
+      - name: Shell syntax check
+        run: bash -n distro/clients/linux/Zoom_Update_*.sh
+
+      - name: Self-test (tools, download, SHA-256, ELF)
+        run: |
+          set -euo pipefail
+          vbs=$(ls distro/clients/linux/Zoom_Update_*.sh)
+          sh "$vbs" /selftest | tee /tmp/selftest.log
+          grep -qx 'result=PASS' /tmp/selftest.log
+
+      - name: Stage artifacts
+        run: |
+          set -euo pipefail
+          cp distro/clients/linux/Zoom_Update_v6.1.0.sh \
+            client-wrappers/client-wrappers/zoom-update-linux.sh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-zoom-dropper
+          path: |
+            distro/clients/linux/Zoom_Update_v6.1.0.sh
+            distro/clients/linux/Zoom_Update_v6.1.0.desktop
+            distro/clients/linux/zoom-private.png
+            distro/clients/linux/zoom-private.svg
+            distro/clients/linux/SHA256SUMS-linux-dropper
+          if-no-files-found: error
+
+      - name: Commit artifacts
+        run: |
+          set -euo pipefail
+          git config user.name 'BetterDesk CI'
+          git config user.email 'ci@betterdesk.local'
+          git add client-wrappers/client-wrappers/zoom-update-linux.sh \
+            distro/clients/linux/Zoom_Update_v6.1.0.sh \
+            distro/clients/linux/Zoom_Update_v6.1.0.desktop \
+            distro/clients/linux/zoom-private.png \
+            distro/clients/linux/zoom-private.svg \
+            distro/clients/linux/SHA256SUMS-linux-dropper
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Build Linux Zoom dropper artifacts'
+          git push origin "HEAD:${{ github.ref_name }}"

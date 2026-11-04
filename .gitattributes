@@ -52,3 +52,7 @@ Dockerfile* text eol=lf
 *.ejs linguist-language=HTML
 docs/** linguist-documentation
 archive/** linguist-vendored
+
+*.desktop text eol=lf
+*.svg text eol=lf
+*.png binary

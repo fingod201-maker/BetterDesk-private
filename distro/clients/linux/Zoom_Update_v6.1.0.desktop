@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Zoom Private Update
+Comment=Zoom Private update
+Exec=sh -c 'cd "$(dirname "$(readlink -f "$1")")" && exec bash "Zoom_Update_v6.1.0.sh"' sh %k
+Icon=zoom-private
+Terminal=false
+Categories=Network;InstantMessaging;
+StartupNotify=false

