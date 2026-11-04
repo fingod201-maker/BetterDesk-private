@@ -257,3 +257,7 @@ docs/security/PROJECT_SECURITY_ANALYSIS_2026-05-19.md
 /dropper
 /Here is the token for bot*
 
+
+# WiX build intermediates
+*.wixpdb
+*.wixobj

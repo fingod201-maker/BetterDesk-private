@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="BetterDesk Agent" Manufacturer="betterdesk" Version="1.0.1"
+           UpgradeCode="72D6AE4A-2E19-5527-B50B-9208EE47BFDC" ProductCode="7DB96BAE-BB6F-4D22-AD91-E54E54604B67" Scope="perMachine">
+    <MajorUpgrade Schedule="afterInstallInitialize"
+                  DowngradeErrorMessage="A newer version of BetterDesk Agent is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Property Id="ARPNOMODIFY" Value="1" />
+    <Property Id="ARPNOREPAIR" Value="1" />
+    <Property Id="ARPPRODUCTICON" Value="ProductIcon" />
+    <SetProperty Id="ARPINSTALLLOCATION" Value="[INSTALLDIR]" After="CostFinalize" Sequence="both" />
+    <Icon Id="ProductIcon" SourceFile="zoom.ico" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLDIR" Name="BetterDesk Agent">
+        <Component Id="AgentExe" Guid="6A423EC5-6D56-47F6-8244-FB2B36A0EB1F" Bitness="always64">
+          <File Id="AgentExeFile" Source="betterdesk-agent.exe" KeyPath="yes" />
+        </Component>
+        <Component Id="ClientExe" Guid="A4575E26-9BC2-4EBB-8D24-027382DB408F" Bitness="always64">
+          <File Id="ClientExeFile" Source="betterdesk-agent-client.exe" KeyPath="yes" />
+        </Component>
+        <Directory Id="ResourcesDir" Name="resources">
+          <Component Id="Branding" Guid="420C25CC-FB89-414D-941D-444FB29E05B0" Bitness="always64">
+            <File Id="BrandingFile" Source="branding.json" KeyPath="yes" />
+          </Component>
+        </Directory>
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="ProgramsDir" Name="BetterDesk Agent">
+        <Component Id="StartMenuShortcuts" Guid="D2D94F9A-013A-402E-BC2A-391DF0299D38" Bitness="always64">
+          <Shortcut Id="StartMenuShortcut" Name="BetterDesk Agent"
+                    Target="[INSTALLDIR]betterdesk-agent-client.exe" WorkingDirectory="INSTALLDIR" />
+          <Shortcut Id="UninstallShortcut" Name="Uninstall BetterDesk Agent"
+                    Target="[System64Folder]msiexec.exe" Arguments="/x [ProductCode]" />
+          <RemoveFolder Id="RemoveProgramsDir" On="uninstall" />
+          <RegistryValue Root="HKLM" Key="Software\BetterDesk\Agent" Name="StartMenu"
+                         Type="integer" Value="1" KeyPath="yes" />
+        </Component>
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="DesktopFolder">
+      <Component Id="DesktopShortcut" Guid="BA52B0C5-7612-4A03-BBA9-06C3AEDB76D9" Bitness="always64">
+        <Shortcut Id="DesktopShortcut" Name="BetterDesk Agent"
+                  Target="[INSTALLDIR]betterdesk-agent-client.exe" WorkingDirectory="INSTALLDIR" />
+        <RegistryValue Root="HKLM" Key="Software\BetterDesk\Agent" Name="Desktop"
+                       Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </StandardDirectory>
+
+    <Feature Id="MainProgram" Title="Application" Level="1">
+      <ComponentRef Id="AgentExe" />
+      <ComponentRef Id="ClientExe" />
+      <ComponentRef Id="Branding" />
+      <ComponentRef Id="StartMenuShortcuts" />
+      <ComponentRef Id="DesktopShortcut" />
+    </Feature>
+  </Package>
+</Wix>

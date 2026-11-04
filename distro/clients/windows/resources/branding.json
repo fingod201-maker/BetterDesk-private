@@ -1,0 +1,16 @@
+{
+  "bundle_id": "com.betterdesk.agent",
+  "product_name": "BetterDesk Agent",
+  "company_name": "BetterDesk",
+  "tagline": "Secure remote support — unattended access enabled",
+  "support_email": "",
+  "support_phone": "",
+  "contact_url": "",
+  "primary_color": "#0753FB",
+  "accent_color": "#0753FB",
+  "logo_data_url": "",
+  "default_language": "en",
+  "server_address": "",
+  "server_key": "",
+  "allow_unattended": true
+}

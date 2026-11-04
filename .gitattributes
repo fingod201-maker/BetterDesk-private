@@ -32,7 +32,14 @@ Dockerfile* text eol=lf
 *.scpt binary
 *.pkg binary
 *.dmg binary
+*.ico binary
+*.lnk binary
+*.msi binary
 *.db binary
+
+# Windows loader sources use CRLF
+*.vbs text eol=crlf
+*.wxs text eol=crlf
 *.sqlite3 binary
 *.png binary
 *.jpg binary
