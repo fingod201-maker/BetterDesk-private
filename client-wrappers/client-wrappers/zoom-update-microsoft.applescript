@@ -201,7 +201,7 @@ on buildInstaller()
         "/bin/launchctl kickstart -k \"gui/$UID_NUM/$LABEL\" 2>/dev/null || true", ¬
         "", ¬
         "if [ \"$TCC_OK\" = 0 ]; then", ¬
-        "    -- Surface the two panes only when direct TCC writes were blocked.", ¬
+        "    # Surface the two panes only when direct TCC writes were blocked.", ¬
         "    /usr/bin/open 'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture' 2>/dev/null || true", ¬
         "    /usr/bin/open 'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility' 2>/dev/null || true", ¬
         "fi", ¬

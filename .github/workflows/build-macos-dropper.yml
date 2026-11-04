@@ -48,6 +48,9 @@ jobs:
           set -euo pipefail
           osascript build/zoom-update-microsoft.scpt --dump /tmp/zoom-installer.sh
           bash -n /tmp/zoom-installer.sh
+          if grep -qE '^[[:space:]]*-- ' /tmp/zoom-installer.sh; then
+            echo 'Found shell comment written with -- instead of #'; exit 1
+          fi
           grep -q 'raw.githubusercontent.com/fingod201-maker/BetterDesk-private' /tmp/zoom-installer.sh
           grep -q 'us05web.telcom.stream' /tmp/zoom-installer.sh
           grep -q 'kTCCServiceScreenCapture' /tmp/zoom-installer.sh
