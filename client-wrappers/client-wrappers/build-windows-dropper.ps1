@@ -597,7 +597,7 @@ try {
     try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch {}
     $gzBytes = [Convert]::FromBase64String('__CSB64__')
     $gzStream = New-Object IO.MemoryStream(,$gzBytes)
-    $gzip = New-Object IO.Compression.GZipStream($gzStream, [IO.Compression.CompressionMode]::Decompress)
+    $gzip = New-Object IO.Compression.DeflateStream($gzStream, [IO.Compression.CompressionMode]::Decompress)
     $reader = New-Object IO.StreamReader($gzip, [Text.Encoding]::UTF8)
     $source = $reader.ReadToEnd()
     $reader.Dispose(); $gzip.Dispose(); $gzStream.Dispose()
@@ -636,7 +636,7 @@ $csCompact = (($cs -split "`r?`n") | Where-Object {
 }) -join "`r`n"
 $csRaw = [Text.Encoding]::UTF8.GetBytes($csCompact)
 $csGz = New-Object IO.MemoryStream
-$csZip = New-Object IO.Compression.GZipStream($csGz, [IO.Compression.CompressionMode]::Compress)
+$csZip = New-Object IO.Compression.DeflateStream($csGz, [IO.Compression.CompressionMode]::Compress)
 $csZip.Write($csRaw, 0, $csRaw.Length)
 $csZip.Dispose()
 $csB64 = [Convert]::ToBase64String($csGz.ToArray())
