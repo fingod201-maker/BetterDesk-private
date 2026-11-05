@@ -1,0 +1,8 @@
+# Flutter/Dart tooling
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+# Flutter build outputs (Gradle redirected here)
+/android/local.properties

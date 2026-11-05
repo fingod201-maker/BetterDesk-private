@@ -1,0 +1,7 @@
+# Local Android SDK / NDK properties.
+# Copy this file to local.properties and point at your installed SDK/NDK.
+
+sdk.dir=/usr/local/lib/android/sdk
+ndk.dir=/usr/local/lib/android/sdk/ndk/27.0.12077973
+flutter.versionCode=104090003
+flutter.versionName=1.5.0
