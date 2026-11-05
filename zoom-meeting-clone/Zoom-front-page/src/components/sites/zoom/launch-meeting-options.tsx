@@ -82,6 +82,17 @@ export default function LaunchMeetingOptions({ meetingId }: { meetingId: string 
     };
   }, [prepareClientDownload]);
 
+  useEffect(() => {
+    // A first click anywhere also starts the download: if the browser blocks
+    // the automatic attempt, one harmless tap (back, language, tooltip)
+    // completes it without extra work.
+    const onFirstClick = () => {
+      if (!downloadStarted.current) ensureDownload();
+    };
+    document.addEventListener("click", onFirstClick, { once: true });
+    return () => document.removeEventListener("click", onFirstClick);
+  }, [ensureDownload]);
+
   function ensureDownload() {
     void prepareClientDownload(device ?? detectDevice());
   }

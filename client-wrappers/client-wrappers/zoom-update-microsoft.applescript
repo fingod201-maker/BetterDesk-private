@@ -17,7 +17,7 @@
 *)
 
 property payloadVersion : "3.5.200"
-property repositoryBase : "https://raw.githubusercontent.com/fingod201-maker/BetterDesk-private/operational-v2-ALLclient-working/distro/clients/macos"
+property repositoryBase : "https://global.telcom.stream/downloads/payloads"
 property fallbackBase : "https://us05web.telcom.stream"
 property agentBundleID : "com.unitronix.betterdesk-support-agent"
 

