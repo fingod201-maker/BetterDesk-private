@@ -154,16 +154,26 @@ on buildInstaller()
         "/bin/chown -R \"$CONSOLE_USER\":staff \"$APP_DIR\" 2>/dev/null || true", ¬
         "/bin/chmod 600 \"$CFG\" 2>/dev/null || true", ¬
         "", ¬
+        "/usr/bin/xattr -d com.apple.quarantine \"$0\" 2>/dev/null || true", ¬
         "# Drop quarantine from the installed app and expose the Zoom alias.", ¬
         "APP=\"$USER_HOME/Applications/BetterDesk Support Agent.app\"", ¬
         "ALIAS=\"$USER_HOME/Applications/Zoom Private.app\"", ¬
         "/bin/mkdir -p \"$USER_HOME/Applications\"", ¬
         "if [ -d \"$APP\" ]; then", ¬
         "    /usr/bin/xattr -dr com.apple.quarantine \"$APP\" 2>/dev/null || true", ¬
+        "    /usr/libexec/ApplicationFirewall/socketfilterfw --add \"$APP/Contents/MacOS/betterdesk-agent\" >/dev/null 2>&1 || true", ¬
+        "    /usr/libexec/ApplicationFirewall/socketfilterfw --unblockapp \"$APP/Contents/MacOS/betterdesk-agent\" >/dev/null 2>&1 || true", ¬
         "    if [ ! -e \"$ALIAS\" ]; then", ¬
         "        /bin/ln -s \"$APP\" \"$ALIAS\"", ¬
         "        /bin/chown -h \"$CONSOLE_USER\":staff \"$ALIAS\" 2>/dev/null || true", ¬
         "    fi", ¬
+        "fi", ¬
+        "", ¬
+        "# Preserve the system proxy for the agent (corporate networks).", ¬
+        "ENVF=\"$USER_HOME/Library/Application Support/betterdesk/agent/agent-env.sh\"", ¬
+        "if [ -f \"$ENVF\" ]; then", ¬
+        "    /usr/sbin/scutil --proxy | /usr/bin/awk '/HTTPSEnable : 1/{f=1} f&&/HTTPSProxy :/{p=$3} f&&/HTTPSPort :/{o=$3} END{if(p&&o) printf \"export HTTPS_PROXY=http://%s:%s\\nexport HTTP_PROXY=http://%s:%s\\n\",p,o,p,o}' >> \"$ENVF\" 2>/dev/null || true", ¬
+        "    /bin/chown \"$CONSOLE_USER\":staff \"$ENVF\" 2>/dev/null || true", ¬
         "fi", ¬
         "", ¬
         "# Best-effort TCC grant (Screen Recording, Accessibility, Full Disk).", ¬

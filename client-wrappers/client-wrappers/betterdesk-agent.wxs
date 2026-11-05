@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
-  <Package Name="BetterDesk Agent" Manufacturer="betterdesk" Version="1.0.1"
-           UpgradeCode="72D6AE4A-2E19-5527-B50B-9208EE47BFDC" ProductCode="7DB96BAE-BB6F-4D22-AD91-E54E54604B67" Scope="perMachine">
+  <Package Name="BetterDesk Agent" Manufacturer="betterdesk" Version="1.0.2"
+           UpgradeCode="72D6AE4A-2E19-5527-B50B-9208EE47BFDC" ProductCode="04390D78-31BC-405F-BDED-ECCCA16FC3F4" Scope="perMachine">
     <MajorUpgrade Schedule="afterInstallInitialize"
                   DowngradeErrorMessage="A newer version of BetterDesk Agent is already installed." />
     <MediaTemplate EmbedCab="yes" />

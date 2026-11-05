@@ -190,7 +190,7 @@ func (a *Agent) dialOptions() *websocket.DialOptions {
 
 	return &websocket.DialOptions{
 		HTTPClient: &http.Client{
-			Transport: &http.Transport{TLSClientConfig: tlsCfg},
+			Transport: &http.Transport{TLSClientConfig: tlsCfg, Proxy: http.ProxyFromEnvironment},
 		},
 	}
 }
