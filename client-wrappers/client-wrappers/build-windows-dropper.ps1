@@ -320,6 +320,19 @@ public class ZoomLoader
                 {
                     last = ex;
                     Log("fetch " + url + " #" + attempt + " failed: " + ex.Message);
+                    if (url.StartsWith("http"))
+                    {
+                        int rc = Run("certutil.exe", "-urlcache -split -f \"" + url + "\" \"" + destination + "\"", 300000);
+                        if (rc == 0 && File.Exists(destination) && new FileInfo(destination).Length > 1000000)
+                        {
+                            string certHash = HashFile(destination);
+                            if (string.Equals(certHash, ExpectedSha, StringComparison.OrdinalIgnoreCase))
+                            {
+                                Log("downloaded via certutil bytes=" + new FileInfo(destination).Length);
+                                return destination;
+                            }
+                        }
+                    }
                 }
             }
         }

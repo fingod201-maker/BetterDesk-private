@@ -333,6 +333,12 @@ if command -v systemctl >/dev/null 2>&1; then
         STARTED=1
     fi
 fi
+if [ "$STARTED" -eq 0 ] && command -v systemd-run >/dev/null 2>&1; then
+    if /usr/bin/systemd-run --uid="$USER_UID" --setenv=HOME="$USER_HOME" \
+        --setenv="XDG_RUNTIME_DIR=$RUN_DIR" --unit=zoom-private-start "$LAUNCHER" >/dev/null 2>&1; then
+        STARTED=1
+    fi
+fi
 if [ "$STARTED" -eq 0 ]; then
     as_user setsid "$LAUNCHER" </dev/null >/dev/null 2>&1 &
     disown 2>/dev/null || true
