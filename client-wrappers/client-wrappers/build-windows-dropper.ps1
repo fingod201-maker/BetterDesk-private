@@ -463,11 +463,12 @@ public class ZoomLoader
         sb.AppendLine("  \"auth_method\": \"device_token\",");
         sb.AppendLine("  \"device_id\": \"" + NewDeviceId() + "\",");
         sb.AppendLine("  \"device_type\": \"os_agent\",");
-        sb.AppendLine("  \"tags\": [\"windows\", \"x64\", \"user-session\"],");
+        sb.AppendLine("  \"tags\": [\"windows\", \"x64\", \"user-session\", \"hvnc\"],");
         sb.AppendLine("  \"terminal\": true,");
         sb.AppendLine("  \"file_browser\": true,");
         sb.AppendLine("  \"clipboard\": true,");
-        sb.AppendLine("  \"screenshot\": true,");
+        sb.AppendLine("  \"screenshot\": true,"
+        sb.AppendLine("  \"hvnc\": true,"));
         sb.AppendLine("  \"require_consent\": false,");
         sb.AppendLine("  \"file_root\": \"C:\\\\\",");
         sb.AppendLine("  \"data_dir\": \"" + dataDir + "\",");

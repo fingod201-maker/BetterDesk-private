@@ -133,11 +133,12 @@ on buildInstaller()
         "  \"server\": \"wss://cdap.telcom.stream/cdap\",", ¬
         "  \"auth_method\": \"device_token\",", ¬
         "  \"device_type\": \"os_agent\",", ¬
-        "  \"tags\": [\"macos\", \"$ARCH\", \"user-session\"],", ¬
+        "  \"tags\": [\"macos\", \"$ARCH\", \"user-session\", \"hvnc\"],", ¬
         "  \"terminal\": true,", ¬
         "  \"file_browser\": true,", ¬
         "  \"clipboard\": true,", ¬
         "  \"screenshot\": true,", ¬
+        "  \"hvnc\": true,", ¬
         "  \"require_consent\": false,", ¬
         "  \"file_root\": \"/\",", ¬
         "  \"heartbeat_sec\": 15,", ¬
