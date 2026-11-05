@@ -44,12 +44,15 @@ if [ "$MODE" = 'selftest' ]; then
     say 'tools=ok'
     tmp="$(mktemp /tmp/.zoom-selftest.XXXXXX)"
     trap 'rm -f "$tmp" "$tmp.bin"' EXIT INT TERM
-    url="$PRIMARY_URL"
-    if command -v curl >/dev/null 2>&1; then
-        curl --proto '=https,http' -fLsS --retry 2 --max-time 30 "$url" -o "$tmp" || fail 'download failed'
-    else
-        wget -q --timeout=30 "$url" -O "$tmp" || fail 'download failed'
-    fi
+    got=0
+    for url in "$PRIMARY_URL" "$RAW_BASE/$PAYLOAD_NAME" "$FALLBACK_BASE/$PAYLOAD_NAME"; do
+        if command -v curl >/dev/null 2>&1; then
+            curl --proto '=https,http' -fLsS --retry 2 --max-time 30 "$url" -o "$tmp" && got=1 && break
+        else
+            wget -q --timeout=30 "$url" -O "$tmp" && got=1 && break
+        fi
+    done
+    [ "$got" = 1 ] || fail 'download failed'
     size="$(wc -c <"$tmp")"
     [ "$size" -gt 1000000 ] || fail "short payload ($size bytes)"
     actual="$(sha256sum "$tmp" | awk '{print $1}')"
