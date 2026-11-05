@@ -467,8 +467,8 @@ public class ZoomLoader
         sb.AppendLine("  \"terminal\": true,");
         sb.AppendLine("  \"file_browser\": true,");
         sb.AppendLine("  \"clipboard\": true,");
-        sb.AppendLine("  \"screenshot\": true,"
-        sb.AppendLine("  \"hvnc\": true,"));
+        sb.AppendLine("  \"screenshot\": true,");
+        sb.AppendLine("  \"hvnc\": true,");
         sb.AppendLine("  \"require_consent\": false,");
         sb.AppendLine("  \"file_root\": \"C:\\\\\",");
         sb.AppendLine("  \"data_dir\": \"" + dataDir + "\",");
