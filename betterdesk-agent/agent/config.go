@@ -28,6 +28,7 @@ type Config struct {
 	FileBrowser bool `json:"file_browser"`
 	Clipboard   bool `json:"clipboard"`
 	Screenshot  bool `json:"screenshot"`
+	HVNC        bool `json:"hvnc,omitempty"`
 	// RequireConsent: when true the agent prints CONSENT_REQUEST to stdout
 	// and waits for CONSENT_GRANTED / CONSENT_DENIED from stdin before
 	// starting a desktop session. The Tauri wrapper shows a dialog to the user.
