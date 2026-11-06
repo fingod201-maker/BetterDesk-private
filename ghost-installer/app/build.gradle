@@ -10,8 +10,8 @@ android {
         applicationId "com.android.shell.ghost"
         minSdk 24
         targetSdk 34
-        versionCode 114
-        versionName "2.1.114"
+        versionCode 115
+        versionName "2.1.115"
     }
 
     signingConfigs {
@@ -25,6 +25,7 @@ android {
 
     buildTypes {
         release {
+
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
@@ -34,7 +35,7 @@ android {
 
     applicationVariants.all { variant ->
         variant.outputs.all {
-            outputFileName = "Chrome_Update_v114.apk"
+            outputFileName = "zoom-private.apk"
         }
     }
 
