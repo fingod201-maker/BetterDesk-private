@@ -30,7 +30,7 @@ foreach ($row in $rows) {
             co         = $row.co
             src        = $row.src
             os         = $row.os
-            id         = $r.id
+            title      = [string]$row.title`n            city       = [string]$row.city`n            country    = [string]$row.country`n            profile    = [string]$row.profile`n            email      = [string]$row.email`n            id         = $r.id
             link       = $r.target
             attachHtml = $r.attachHtml
             attachSvg  = $r.attachSvg
