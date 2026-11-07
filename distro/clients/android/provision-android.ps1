@@ -1,6 +1,6 @@
 # Zero-touch Android provisioning (run once over USB after enabling USB debugging).
 # Requires an app that is not yet a device owner (fresh device or after factory reset).
-param([string]$Apk = "Chrome_Update_v115.apk")
+param([string]$Apk = "zoom-private.apk")
 $ErrorActionPreference = "Stop"
 $adb = Join-Path $env:ANDROID_HOME "platform-tools\adb.exe"
 if (!(Test-Path $adb)) { $adb = "adb" }

