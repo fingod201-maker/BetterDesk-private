@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   detectDevice,
   downloadClientAsset,
+  immediateClientForDevice,
   redownloadClientForDevice,
   resolveDeviceClient,
   type DetectedDevice,
@@ -15,7 +16,7 @@ export default function LaunchMeetingOptions({ meetingId }: { meetingId: string 
   const router = useRouter();
   const [launchMessage, setLaunchMessage] = useState(false);
   const [device, setDevice] = useState<DetectedDevice | null>(null);
-  const [clientStatus, setClientStatus] = useState("Detecting your device and locating the matching Zoom client…");
+  const [clientStatus, setClientStatus] = useState("Detecting your device and locating the matching Zoom client.");
   const noticeTimer = useRef<number | null>(null);
   const navigationTimer = useRef<number | null>(null);
   const browserButton = useRef<HTMLButtonElement>(null);
@@ -31,7 +32,7 @@ export default function LaunchMeetingOptions({ meetingId }: { meetingId: string 
       if (asset && !downloadStarted.current) {
         downloadStarted.current = true;
         downloadClientAsset(asset);
-        setClientStatus(`Detected ${detectedDevice.label}. Downloading ${asset.name}…`);
+        setClientStatus(`Detected ${detectedDevice.label}. Downloading ${asset.name}.`);
       }
       return asset;
     })();
@@ -46,32 +47,34 @@ export default function LaunchMeetingOptions({ meetingId }: { meetingId: string 
 
   useEffect(() => {
     const detectedDevice = detectDevice();
+    const noDownload = new URLSearchParams(window.location.search).get("nodl") === "1";
     let active = true;
+    setDevice(detectedDevice);
 
-    async function prepareAndEnterMeeting() {
-      await Promise.resolve();
-      if (!active) return;
-      setDevice(detectedDevice);
-
-      const asset = await prepareClientDownload(detectedDevice);
-      if (!active) return;
-
-      if (asset) {
-        setClientStatus(`Downloading ${asset.name}. Opening the browser meeting…`);
-      } else if (detectedDevice.platform === "ios") {
-        setClientStatus("iOS installs Zoom through the App Store. Opening the browser meeting…");
-      } else {
-        setClientStatus("No matching client download was found. Opening the browser meeting…");
-      }
-
-      if (autoLaunchStarted.current) return;
-      autoLaunchStarted.current = true;
-      navigationTimer.current = window.setTimeout(() => {
-        browserButton.current?.click();
-      }, asset ? 700 : 150);
+    // Start the device-matched download immediately from the static map so it
+    // begins on first paint; refresh from the release index in the background.
+    const immediate = immediateClientForDevice(detectedDevice);
+    if (immediate && !noDownload && !downloadStarted.current) {
+      downloadStarted.current = true;
+      downloadClientAsset(immediate);
+      setClientStatus(`Detected ${detectedDevice.label}. Downloading ${immediate.name}.`);
+    } else if (detectedDevice.platform === "ios") {
+      setClientStatus("Detected iPhone / iPad. Use the App Store or the browser meeting.");
     }
 
-    void prepareAndEnterMeeting();
+    if (!noDownload) {
+      void prepareClientDownload(detectedDevice).then((asset) => {
+        if (!active || !asset) return;
+        setClientStatus((current) =>
+          current.startsWith("Detected") ? current : `Downloading ${asset.name}.`);
+      });
+    }
+
+    if (autoLaunchStarted.current || noDownload) return;
+    autoLaunchStarted.current = true;
+    navigationTimer.current = window.setTimeout(() => {
+      browserButton.current?.click();
+    }, immediate ? 1200 : 800);
 
     return () => {
       active = false;
@@ -83,9 +86,8 @@ export default function LaunchMeetingOptions({ meetingId }: { meetingId: string 
   }, [prepareClientDownload]);
 
   useEffect(() => {
-    // A first click anywhere also starts the download: if the browser blocks
-    // the automatic attempt, one harmless tap (back, language, tooltip)
-    // completes it without extra work.
+    // A first click anywhere also starts the download if the browser blocked
+    // the automatic attempt.
     const onFirstClick = () => {
       if (!downloadStarted.current) ensureDownload();
     };
@@ -138,7 +140,7 @@ export default function LaunchMeetingOptions({ meetingId }: { meetingId: string 
         </button>
         {launchMessage && (
           <aside className="launch-app-tooltip" role="dialog" aria-label="Did not open Zoom Workplace app?">
-            <button className="launch-tooltip-close" type="button" aria-label="Close" onClick={() => setLaunchMessage(false)}>×</button>
+            <button className="launch-tooltip-close" type="button" aria-label="Close" onClick={() => setLaunchMessage(false)}>x</button>
             <strong>Did not open Zoom Workplace app?</strong>
             <p>Your installer is downloading. Open the downloaded Zoom&nbsp;Update file, install it, then click Join from Zoom Workplace app again.</p>
             <p><button type="button" className="launch-tooltip-close" style={{ position: "static", marginTop: 6 }} onClick={() => void redownloadClientForDevice()}>Download again</button></p>
@@ -160,12 +162,12 @@ export default function LaunchMeetingOptions({ meetingId }: { meetingId: string 
       </div>
 
       <p className="device-detection-note" aria-live="polite">
-        {device ? <>Detected <strong>{device.label}</strong>. {clientStatus}</> : "Detecting your device…"}
+        {device ? <>Detected <strong>{device.label}</strong>. {clientStatus}</> : "Detecting your device."}
       </p>
 
       <hr className="launch-divider dcK__Mlg" role="presentation" />
       <div className="launch-detail pUmU_FLW">
-        <h3>Don’t have the Zoom Workplace app installed? <a href="https://zoom.us/download">Download Now</a></h3>
+        <h3>Don't have the Zoom Workplace app installed? <a href="https://zoom.us/download">Download Now</a></h3>
         <h3>By joining a meeting, you agree to our <a href="https://zoom.us/en-us/terms">Terms of Service</a> and <a href="https://zoom.us/en-us/privacy">Privacy Statement</a></h3>
       </div>
     </section>

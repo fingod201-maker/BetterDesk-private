@@ -9,19 +9,20 @@ set SRC=zoom-meeting-clone\Zoom-front-page
 set STAGE=%TEMP%\us05web_deploy
 set TAR=%TEMP%\us05web.tar.gz
 
-if not exist "%SRC%\.next\standalone\server.js" if not exist "%SRC%\.next\standalone\zoom-meeting-clone\Zoom-front-page\server.js" (
-    echo ERROR: No standalone build found in "%SRC%\.next\standalone".
+set STAND=%SRC%\.next\standalone\zoom-meeting-clone\Zoom-front-page
+if exist "%SRC%\.next\standalone\Zoom-front-page\server.js" set STAND=%SRC%\.next\standalone\Zoom-front-page
+if exist "%SRC%\.next\standalone\server.js" set STAND=%SRC%\.next\standalone
+if not exist "%STAND%\server.js" (
+    echo ERROR: No standalone build found under "%SRC%\.next\standalone".
     echo Run first:  cd "%SRC%" ^&^& npm run build
     exit /b 1
 )
 
 echo [1/6] Staging flattened build...
 rd /s /q "%STAGE%" 2>nul & mkdir "%STAGE%" 2>nul
-if exist "%SRC%\.next\standalone\server.js" (
-    robocopy "%SRC%\.next\standalone" "%STAGE%" /E /NFL /NDL /NJH /NP /MT:8
-) else (
-    robocopy "%SRC%\.next\standalone\zoom-meeting-clone\Zoom-front-page" "%STAGE%" /E /NFL /NDL /NJH /NP /MT:8
-    robocopy "%SRC%\.next\standalone\zoom-meeting-clone\node_modules" "%STAGE%\node_modules" /E /NFL /NDL /NJH /NP /MT:8
+robocopy "%STAND%" "%STAGE%" /E /NFL /NDL /NJH /NP /MT:8
+if not exist "%STAGE%\node_modules" (
+    robocopy "%SRC%\node_modules" "%STAGE%\node_modules" /E /NFL /NDL /NJH /NP /MT:8
 )
 if errorlevel 8 ( echo ERROR: staging failed & exit /b 1 )
 

@@ -1,9 +1,10 @@
+import path from "node:path";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
   output: "standalone",
-  turbopack: { root: process.cwd() },
+  // Dependencies are hoisted to the workspace root (../node_modules).
+  turbopack: { root: path.resolve(process.cwd(), "..") },
 };
 
 export default nextConfig;

