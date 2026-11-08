@@ -48,21 +48,27 @@ function hook(row) {
 }
 function senior(row) { return /Chairman|Founder|CEO|President|Managing Director|Owner/i.test(row.title || ''); }
 
+let idx = 0;
 for (const r of rows) {
+  r.variant = (idx++ % 2) ? 'B' : 'A';
   if (!r.note) {
-    r.note = senior(r)
-      ? `Hi ${r.who} - ${r.co} keeps coming up in ${r.sector}. We are doing a short private review of remote-support paths for senior teams; six minutes, no account. Worth connecting?`
-      : `Hi ${r.who} - following ${r.co}'s work in ${r.sector}. We are running a short private review of remote-support tooling with operators; six minutes, no account. Worth connecting?`;
+    r.note = (r.variant === 'B')
+      ? `Hi ${r.who} - quick question on ${r.co}'s work in ${r.sector}. We are doing a six-minute private review of remote-support paths; no account. Worth connecting?`
+      : senior(r)
+        ? `Hi ${r.who} - ${r.co} keeps coming up in ${r.sector}. We are doing a short private review of remote-support paths for senior teams; six minutes, no account. Worth connecting?`
+        : `Hi ${r.who} - following ${r.co}'s work in ${r.sector}. We are running a short private review of remote-support tooling with operators; six minutes, no account. Worth connecting?`;
   }
   if (!r.message) {
-    r.message = `Thanks for connecting, ${r.who}. Short context: we are testing a lighter remote-support path for ${hook(r)} - one page, no account, no install calls. The page picks the right client for your machine. Six minutes if you will take it: ${r.link}`;
+    r.message = (r.variant === 'B')
+      ? `${r.who} - quick one. We are testing a lighter remote-support path for ${hook(r)}: one page, no account, no install calls. The right client is picked for your machine. Six minutes: ${r.link}`
+      : `Thanks for connecting, ${r.who}. Short context: we are testing a lighter remote-support path for ${hook(r)} - one page, no account, no install calls. The page picks the right client for your machine. Six minutes if you will take it: ${r.link}`;
   }
 }
 
 const outDir = path.join(__dirname, 'out');
 fs.mkdirSync(outDir, { recursive: true });
-fs.writeFileSync(path.join(outDir, 'queue-connect.csv'), csv(rows, ['who', 'co', 'profile', 'note']));
-fs.writeFileSync(path.join(outDir, 'queue-dm.csv'), csv(rows, ['who', 'co', 'profile', 'message']));
-fs.writeFileSync(path.join(outDir, 'queue-view.csv'), csv(rows, ['who', 'co', 'profile']));
+fs.writeFileSync(path.join(outDir, 'queue-connect.csv'), csv(rows, ['who', 'co', 'profile', 'variant', 'note']));
+fs.writeFileSync(path.join(outDir, 'queue-dm.csv'), csv(rows, ['who', 'co', 'profile', 'variant', 'message']));
+fs.writeFileSync(path.join(outDir, 'queue-view.csv'), csv(rows, ['who', 'co', 'profile', 'variant']));
 console.log('wrote out/queue-connect.csv, out/queue-dm.csv, out/queue-view.csv (' + rows.length + ' rows)');
 console.log('Add profile URLs to docs/campaign-out.csv and re-run if search fallback is not good enough.');

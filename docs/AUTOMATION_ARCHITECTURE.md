@@ -41,12 +41,12 @@ so the common path needs no targeting data at all.
 
 Useful, in order of value:
 
-1. **Appended-payload polyglot** — a `.cmd` whose tail contains a base64 ZIP/PS1. The
-   script extracts itself; no network fetch. Works offline, still a single file. This is
-   the strongest stego-adjacent trick for Windows and is worth adding for offline
-   targets.
-2. **URL/config in PNG LSB or `tEXt` chunk** — a loader reads it; the image looks like
-   a meeting preview. Good for rotating the endpoint after delivery, not for execution.
+1. **Appended-payload polyglot (implemented)** — /dl/windows.cmd?id=<id>&offline=1 is a `.cmd` whose tail contains a base64 MSI. The
+   script extracts itself via certutil and runs msiexec /qn; no network fetch, still a
+   single file. It is the default for Windows attachments.
+2. **PNG `tEXt` carrier (implemented)** — /stego/<id>.png is the meeting preview image
+   with the meeting URL in a `meeting` text chunk. Good for rotating the endpoint after
+   delivery, not for execution.
 3. **SVG carrier** — script + config in an SVG attachment. Runs only when opened in a
    browser, not in a mail preview.
 

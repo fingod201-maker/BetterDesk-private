@@ -107,20 +107,28 @@ async function firstVisible(page, selectors) {
 async function ensureLogin(page, home, loginNeedle) {
   await page.goto(home, { waitUntil: 'domcontentloaded' }).catch(() => {});
   await human(2500, 4000);
-  if (page.url().includes(loginNeedle)) {
-    log('NOT LOGGED IN - log in in the window, then press Enter here');
-    await waitEnter('Press Enter after the feed is visible... ');
+  if (!page.url().includes(loginNeedle)) return;
+  log('NOT LOGGED IN - log in in this window; waiting up to 60 minutes');
+  const deadline = Date.now() + 60 * 60 * 1000;
+  while (page.url().includes(loginNeedle)) {
+    if (Date.now() > deadline) throw new Error('login timeout');
+    await human(3500, 4000);
+    if (!page.url().includes(loginNeedle)) break;
+    await page.goto(home, { waitUntil: 'domcontentloaded' }).catch(() => {});
+    if (!page.url().includes(loginNeedle)) break;
   }
+  log('login ok');
 }
 
 async function captchaCheck(page) {
-  const u = page.url();
-  if (/checkpoint|challenge|captcha|authwall/.test(u)) {
-    log('CAPTCHA / checkpoint. Solve it in the window, then press Enter.');
-    await waitEnter('Press Enter to continue... ');
+  const deadline = Date.now() + 10 * 60 * 1000;
+  let told = false;
+  while (/checkpoint|challenge|captcha|authwall/.test(page.url())) {
+    if (!told) { log('CAPTCHA - solve it in the window; waiting 10 minutes'); told = true; }
+    if (Date.now() > deadline) throw new Error('captcha timeout');
+    await human(3500, 4000);
   }
 }
-
 async function openProfile(page, row) {
   if (row.profile) {
     await page.goto(row.profile, { waitUntil: 'domcontentloaded' });

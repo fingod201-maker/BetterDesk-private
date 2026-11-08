@@ -143,7 +143,7 @@ At 40 touches/day that is 10 working days. Warmer intro chains convert 2–3×; 
 - 16:00 — Facebook groups, comments, page DMs
 - Friday — export stats, kill the two worst subject lines, rotate meeting ID weekly
 
-## 9. Generating links in bulk
+## 9. Generating and sending
 
 `tools/campaign-link.ps1 -Csv targets.csv` (columns `who,co,src,os`) returns a
 tracked link and HTML/SVG attachment per row and writes `campaign-out.csv`.
