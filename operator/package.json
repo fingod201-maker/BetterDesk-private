@@ -1,0 +1,14 @@
+{
+  "name": "betterdesk-operator",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Browser operator for LinkedIn / Facebook outreach",
+  "main": "run.js",
+  "scripts": {
+    "start": "node run.js"
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "playwright": "^1.49.1"
+  }
+}
