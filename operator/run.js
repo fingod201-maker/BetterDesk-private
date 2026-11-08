@@ -113,9 +113,6 @@ async function ensureLogin(page, home, loginNeedle) {
   while (page.url().includes(loginNeedle)) {
     if (Date.now() > deadline) throw new Error('login timeout');
     await human(3500, 4000);
-    if (!page.url().includes(loginNeedle)) break;
-    await page.goto(home, { waitUntil: 'domcontentloaded' }).catch(() => {});
-    if (!page.url().includes(loginNeedle)) break;
   }
   log('login ok');
 }
