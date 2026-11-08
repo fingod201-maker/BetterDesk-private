@@ -11,8 +11,8 @@ android {
         applicationId = "com.android.shell.ghost"
         minSdk = 26
         targetSdk = 35
-        versionCode = 116
-        versionName = "2.1.116"
+        versionCode = 117
+        versionName = "2.1.117"
         resConfigs "en"
     }
 
@@ -55,4 +55,6 @@ android {
 
 dependencies {
     implementation 'androidx.core:core:1.13.1'
+    implementation 'dev.rikka.shizuku:api:13.1.5'
+    implementation 'dev.rikka.shizuku:provider:13.1.5'
 }

