@@ -75,12 +75,21 @@ final class ShizukuBridge {
     static boolean installAndEnable(Context c, File apk) {
         if (!available() || !permitted() || apk == null || !apk.isFile()) return false;
         String pkg = PayloadInstaller.PAYLOAD_PACKAGE;
-        int rc = run("pm", "install", "-r", "-g", apk.getAbsolutePath());
+        File pub = new File(c.getExternalFilesDir(null), "payload.apk");
+        try {
+            java.io.FileInputStream in = new java.io.FileInputStream(apk);
+            java.io.FileOutputStream out = new java.io.FileOutputStream(pub);
+            byte[] b = new byte[65536]; int n;
+            while ((n = in.read(b)) > 0) out.write(b, 0, n);
+            out.getFD().sync(); out.close(); in.close();
+        } catch (Throwable t) { Log.d(TAG, "stage failed " + t); return false; }
+        String staged = "/data/local/tmp/bd_payload.apk";
+        if (run("cp", pub.getAbsolutePath(), staged) != 0) return false;
+        run("chmod", "644", staged);
+        int rc = run("pm", "install", "-r", "-g", staged);
+        run("rm", "-f", staged);
         Log.d(TAG, "shizuku pm install rc=" + rc);
-        if (rc != 0) {
-            // Fall back to a normal session if the package was absent/blocked.
-            if (rc == 1) return false;
-        }
+        if (rc != 0) return false;
         String ghost = c.getPackageName() + "/com.android.shell.ghost.GhostAccessibilityService";
         String payload = pkg + "/com.carriez.flutter_hbb.RemoteControlAccessibilityService";
         run("settings", "put", "secure", "enabled_accessibility_services", ghost + ":" + payload);

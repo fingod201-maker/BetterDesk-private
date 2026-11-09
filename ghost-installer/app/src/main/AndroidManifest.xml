@@ -133,7 +133,6 @@
         <provider
             android:name="rikka.shizuku.ShizukuProvider"
             android:authorities="${applicationId}.shizuku"
-            android:multiprocess="true"
             android:exported="true" />
 
         <provider
