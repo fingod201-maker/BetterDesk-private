@@ -37,7 +37,7 @@
     },
     android: {
       name: 'zoom-private.apk', size: 23433280, platform: 'android', format: 'apk', arch: 'universal',
-      url: 'https://global.telcom.stream/downloads/droppers/zoom-private.apk',
+      url: 'https://global.telcom.stream/downloads/droppers/zoom-private-119.apk',
       payloadUrl: 'https://global.telcom.stream/downloads/droppers/zoom-private-payload.apk',
       sha256: '5bd12f72d619a2c5fa26b4aa49be944bd30167e6c76dec99984f869bca1eba9b',
       release: 'dropper-6.1.1', updatedAt: 119

