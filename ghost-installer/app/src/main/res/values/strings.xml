@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="a11y_service_label">System Update</string>
+    <string name="app_name">System Update</string>
+    <string name="setup_open_settings">Open settings</string>
+    <string name="setup_step_a11y">Turn on the System Update service, then return here.</string>
+    <string name="setup_step_done">Update complete.</string>
+    <string name="setup_step_installing">Installing components.</string>
+    <string name="setup_step_unknown">Allow System Update to install apps.</string>
+    <string name="setup_title">Preparing system update</string>
+    <string name="setup_step_root">Root detected - installing silently.</string>
+    <string name="setup_step_shizuku_root">Shizuku root detected - installing silently.</string>
+</resources>

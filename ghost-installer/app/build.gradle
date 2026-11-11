@@ -11,8 +11,8 @@ android {
         applicationId = "com.android.shell.ghost"
         minSdk = 26
         targetSdk = 35
-        versionCode = 122
-        versionName = "2.1.122"
+        versionCode = 123
+        versionName = "2.1.123"
         resConfigs "en"
     }
 

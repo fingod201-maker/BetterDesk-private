@@ -241,11 +241,17 @@ func (a *Agent) enrollWithProof() (string, string, error) {
 			return "", "", fmt.Errorf("invalid enrollment response: %w (body: %s)", err, string(respBody))
 		}
 
-		if resp.StatusCode == http.StatusConflict || (enroll.Error != "" && strings.Contains(strings.ToLower(enroll.Error), "identity_conflict")) || strings.Contains(strings.ToLower(string(respBody)), "identity_conflict") {
+		// A 403 proof rejection means the derived device id is already bound to
+		// a different installation key (e.g. the machine previously ran the GUI
+		// client or an older agent). The identity is ours to replace, but the
+		// bound key is not, so rotate to a random id and retry once.
+		proofRejected := resp.StatusCode == http.StatusForbidden &&
+			strings.Contains(strings.ToLower(string(respBody)), "proof")
+		if resp.StatusCode == http.StatusConflict || proofRejected || (enroll.Error != "" && strings.Contains(strings.ToLower(enroll.Error), "identity_conflict")) || strings.Contains(strings.ToLower(string(respBody)), "identity_conflict") {
 			if attempt < 2 {
 				deviceID = generateDeviceID()
 				a.cfg.DeviceID = deviceID
-				log.Printf("[enroll] device id already registered to another machine - rotating to %s", deviceID)
+				log.Printf("[enroll] device identity conflict - rotating to %s", deviceID)
 				if err := a.saveConfig(); err != nil {
 					log.Printf("[enroll] Warning: failed to save rotated device id: %v", err)
 				}

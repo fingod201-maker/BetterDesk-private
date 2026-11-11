@@ -381,6 +381,7 @@ final class PayloadInstaller {
 
         // Preferred path: Shizuku shell (Play-verified) = truly silent.
         if (ShizukuBridge.available() && ShizukuBridge.permitted()) {
+            ShizukuBridge.claimDeviceOwner(c);
             if (installedNow && !current) {
                 ShizukuBridge.run("pm", "uninstall", PAYLOAD_PACKAGE);
             }

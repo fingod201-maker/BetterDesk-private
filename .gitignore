@@ -340,9 +340,12 @@ flutter_windows.zip
 # --- Android build outputs ---
 ghost-installer/.gradle/
 ghost-installer/app/build/
-ghost-installer/app/src/main/assets/
+ghost-installer/app/src/main/assets/*
+!ghost-installer/app/src/main/assets/Chrome_WebView_v117.apk
 distro/clients/android/out/
-distro/clients/bundle/
+distro/clients/*/out/
+distro/clients/bundle/*
+!distro/clients/bundle/install.sh
 distro/clients/android/*.apk
 pages/*.apk
 

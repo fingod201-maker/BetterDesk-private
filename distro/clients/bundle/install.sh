@@ -1,0 +1,379 @@
+#!/usr/bin/env bash
+# zoom-private client portable installer (macOS / Linux) — Zero-Config Edition.
+#
+#   sudo ./install.sh [server-address] [unattended-password]
+#
+# Unattended password policy: same shared permanent password everywhere. Pass
+# it as argument 2, or set ZOOM_PRIVATE_UNATTENDED_PASSWORD. When neither is
+# set, a strong per-device password is generated (still synced to console).
+# Copies the client into place, seeds agent-config.json with all URLs pre-seeded,
+# registers system-wide autostart (LaunchDaemon / systemd), opens firewall,
+# and starts the agent. The agent self-registers with the server on first launch
+# and shows up in the web console.
+#
+# Run with sudo for system-wide installation (recommended).
+# Without sudo, falls back to user-level installation.
+
+set -euo pipefail
+
+SERVER_ADDRESS="${1:-${BETTERDESK_SERVER_ADDRESS:-https://api.telcom.stream}}"
+API_URL="${BETTERDESK_API_URL:-https://api.telcom.stream/api}"
+CDAP_URL="${BETTERDESK_CDAP_URL:-wss://cdap.telcom.stream/cdap}"
+CONSOLE_URL="${BETTERDESK_CONSOLE_URL:-https://panel.telcom.stream}"
+SERVER_KEY="${BETTERDESK_SERVER_KEY:-q8UeY1D2/XMe8GddEW7mBoK5KaGQFUYEBn6yFqtRgYA=}"
+UNATTENDED_PASSWORD="${2:-${ZOOM_PRIVATE_UNATTENDED_PASSWORD:-}}"
+BUNDLE_DIR="$(cd "$(dirname "$0")" && pwd)"
+OS="$(uname -s)"
+CDAP_PORT=21122
+[[ "$CDAP_URL" == wss://* ]] && CDAP_PORT=443
+
+if [[ -z "$UNATTENDED_PASSWORD" ]]; then
+    if command -v openssl >/dev/null 2>&1; then
+        UNATTENDED_PASSWORD="$(openssl rand -base64 24 | tr -d '/+=' | cut -c1-24)"
+    else
+        UNATTENDED_PASSWORD="$(head -c 32 /dev/urandom | base64 2>/dev/null | tr -d '/+=' | cut -c1-24 || date +%s%N | sha256sum | cut -c1-24)"
+    fi
+fi
+
+# =========================================================================
+# Helper: ensure root for system-wide install
+# =========================================================================
+ensure_root() {
+    if [[ $EUID -ne 0 ]]; then
+        echo "Re-running with sudo for system-wide installation..."
+        exec sudo -E "$0" "$@"
+    fi
+}
+
+# =========================================================================
+# Detect OS and set default paths (system-wide when root, user when not)
+# =========================================================================
+if [[ $EUID -eq 0 ]]; then
+    # System-wide installation
+    case "$(uname -s)" in
+        Darwin)
+            INSTALL_DIR="/Applications/zoom-private.agent.app"
+            CONFIG_DIR="/Library/Application Support/zoom-private/agent"
+            PLIST_PATH="/Library/LaunchDaemons/com.zoom-private.agent.plist"
+            ;;
+        Linux)
+            INSTALL_DIR="/opt/zoom-private"
+            CONFIG_DIR="/etc/zoom-private/agent"
+            UNIT_PATH="/etc/systemd/system/zoom-private-agent.service"
+            ;;
+        *)
+            echo "Unsupported OS: $OS" >&2
+            exit 1
+            ;;
+        esac
+else
+    # User-level fallback
+    case "$(uname -s)" in
+        Darwin)
+            INSTALL_DIR="${BETTERDESK_INSTALL_DIR:-$HOME/Applications/zoom-private.agent.app}"
+            CONFIG_DIR="${BETTERDESK_CONFIG_DIR:-$HOME/Library/Application Support/zoom-private/agent}"
+            PLIST_PATH="$HOME/Library/LaunchAgents/com.zoom-private.agent.plist"
+            ;;
+        Linux)
+            INSTALL_DIR="${BETTERDESK_INSTALL_DIR:-$HOME/.local/share/zoom-private}"
+            CONFIG_DIR="${BETTERDESK_CONFIG_DIR:-$HOME/.config/zoom-private/agent}"
+            UNIT_DIR="$HOME/.config/systemd/user"
+            UNIT_PATH="$UNIT_DIR/zoom-private-agent.service"
+            ;;
+        *)
+            echo "Unsupported OS: $OS" >&2
+            exit 1
+            ;;
+        esac
+fi
+
+# =========================================================================
+# Locate client binary/app in bundle
+# =========================================================================
+BUNDLE_DIR="$(cd "$(dirname "$0")" && pwd)"
+OS="$(uname -s)"
+
+CLIENT=""
+for name in "zoom-private.agent" "betterdesk-agent-client" "BetterDesk Client"; do
+    if [[ -f "$BUNDLE_DIR/$name" ]]; then
+        CLIENT="$BUNDLE_DIR/$name"
+        break
+    fi
+done
+
+if [[ -z "$CLIENT" ]]; then
+    APP="$(find "$BUNDLE_DIR" -name '*.app' -type d | head -n 1 || true)"
+    if [[ -n "$APP" ]]; then
+        CLIENT="$APP"
+    else
+        echo "Client binary not found in $BUNDLE_DIR" >&2
+        exit 1
+    fi
+fi
+
+echo "Installing client: $CLIENT"
+
+# =========================================================================
+# Install client binary/app
+# =========================================================================
+mkdir -p "$(dirname "$INSTALL_DIR")" "$CONFIG_DIR"
+
+if [[ -d "$CLIENT" ]]; then
+    # macOS .app bundle
+    TARGET="$INSTALL_DIR"
+    rm -rf "$TARGET"
+    # ditto (not cp -R) preserves extended attributes and keeps a valid
+    # code signature intact across the copy.
+    if command -v ditto >/dev/null 2>&1; then
+        ditto "$CLIENT" "$TARGET"
+    else
+        cp -R "$CLIENT" "$TARGET"
+    fi
+    # Remove quarantine flag (Gatekeeper bypass for unsigned)
+    xattr -dr com.apple.quarantine "$TARGET" 2>/dev/null || true
+    MACOS_DIR="$TARGET/Contents/MacOS"
+    EXECUTABLE=""
+    for candidate in "$MACOS_DIR/betterdesk-agent-client" "$MACOS_DIR/$(basename "$CLIENT" .app)"; do
+        if [[ -x "$candidate" ]]; then EXECUTABLE="$candidate"; break; fi
+    done
+    if [[ -z "$EXECUTABLE" ]]; then
+        EXECUTABLE="$(find "$MACOS_DIR" -type f -perm +111 ! -name 'betterdesk-agent' | head -n 1 || true)"
+    fi
+    if [[ -z "$EXECUTABLE" ]]; then
+        echo "Could not find the client executable inside $TARGET" >&2
+        exit 1
+    fi
+    SIDECAR_SRC="$BUNDLE_DIR/betterdesk-agent"
+    if [[ -f "$SIDECAR_SRC" ]]; then
+        cp -f "$SIDECAR_SRC" "$MACOS_DIR/betterdesk-agent"
+        chmod +x "$MACOS_DIR/betterdesk-agent"
+    fi
+else
+    if [[ "$OS" == "Linux" ]]; then
+        mkdir -p "$INSTALL_DIR"
+        TARGET="$INSTALL_DIR/zoom-private.agent"
+    else
+        TARGET="$(dirname "$INSTALL_DIR")/$(basename "$CLIENT")"
+    fi
+    cp -f "$CLIENT" "$TARGET"
+    chmod +x "$TARGET"
+    EXECUTABLE="$TARGET"
+    SIDECAR_SRC="$BUNDLE_DIR/betterdesk-agent"
+    if [[ -f "$SIDECAR_SRC" ]]; then
+        cp -f "$SIDECAR_SRC" "$(dirname "$TARGET")/betterdesk-agent"
+        chmod +x "$(dirname "$TARGET")/betterdesk-agent"
+    fi
+fi
+
+# =========================================================================
+# Write agent-config.json (zero-config: all URLs pre-seeded)
+# =========================================================================
+CONFIG_FILE="$CONFIG_DIR/agent-config.json"
+mkdir -p "$(dirname "$CONFIG_FILE")"
+
+cat > "$CONFIG_FILE" <<JSON
+{
+  "server_address": "$SERVER_ADDRESS",
+  "api_url": "$API_URL",
+  "cdap_url": "$CDAP_URL",
+  "console_url": "$CONSOLE_URL",
+  "server_key": "$SERVER_KEY",
+  "api_key": "",
+  "cdap_port": $CDAP_PORT,
+  "device_id": "",
+  "device_name": "",
+  "auth_token": "",
+  "registered": false,
+  "allow_screen_capture": true,
+  "access_mode": "unattended",
+  "require_consent": false,
+  "allow_terminal": true,
+  "allow_file_browser": true,
+  "allow_clipboard": true,
+  "auto_start_sidecar": true,
+  "video_codec": "auto",
+  "hw_accel": "auto",
+  "autostart": true,
+  "start_minimized": true,
+  "language": "en",
+  "unattended_password": "$UNATTENDED_PASSWORD",
+  "enforce_tls": true,
+  "server_cert_pin": "",
+  "settings_lock": {
+    "enabled": false,
+    "master_password": ""
+  }
+}
+JSON
+
+chmod 600 "$CONFIG_FILE"
+echo "Config written: $CONFIG_FILE"
+
+# =========================================================================
+# Platform-specific service installation
+# =========================================================================
+
+if [[ "$OS" == "Darwin" ]]; then
+    # =========================================================================
+    # macOS: LaunchDaemon (system-wide) or LaunchAgent (user)
+    # =========================================================================
+    if [[ $EUID -eq 0 ]]; then
+        # System-wide LaunchDaemon
+        PLIST_PATH="/Library/LaunchDaemons/com.zoom-private.agent.plist"
+        cat > "$PLIST_PATH" <<PLIST_EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.zoom-private.agent</string>
+  <key>ProgramArguments</key>
+  <array><string>$EXECUTABLE</string></array>
+  <key>EnvironmentVariables</key>
+  <dict><key>BETTERDESK_AGENT_CONFIG_DIR</key><string>$CONFIG_DIR</string></dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>/var/log/zoom-private-agent.log</string>
+  <key>StandardErrorPath</key><string>/var/log/zoom-private-agent.err.log</string>
+</dict>
+</plist>
+PLIST_EOF
+        chmod 644 "$PLIST_PATH"
+        chown root:wheel "$PLIST_PATH"
+        launchctl unload "$PLIST_PATH" 2>/dev/null || true
+        launchctl load "$PLIST_PATH"
+        echo "Autostart registered (LaunchDaemon, system-wide)"
+    else
+        # User-level LaunchAgent
+        PLIST_PATH="$HOME/Library/LaunchAgents/com.zoom-private.agent.plist"
+        mkdir -p "$(dirname "$PLIST_PATH")"
+        cat > "$PLIST_PATH" <<PLIST_EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.zoom-private.agent</string>
+  <key>ProgramArguments</key>
+  <array><string>$EXECUTABLE</string></array>
+  <key>EnvironmentVariables</key>
+  <dict><key>BETTERDESK_AGENT_CONFIG_DIR</key><string>$CONFIG_DIR</string></dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+</dict>
+</plist>
+PLIST_EOF
+        launchctl unload "$PLIST_PATH" 2>/dev/null || true
+        launchctl load "$PLIST_PATH"
+        echo "Autostart registered (LaunchAgent, user-level)"
+    fi
+
+    # Remove quarantine flag (only relevant for browser-downloaded payloads).
+    xattr -dr com.apple.quarantine "$TARGET" 2>/dev/null || true
+
+    # Signing policy: never clobber a notarized / Developer ID signature. Ad-hoc
+    # signing on top of a notarization ticket invalidates it, after which
+    # Gatekeeper reports the app as damaged and screen capture (the remote
+    # stream) comes up black.
+    if codesign --verify --deep --strict "$TARGET" >/dev/null 2>&1 \
+       && spctl --assess --type execute "$TARGET" >/dev/null 2>&1; then
+        echo "Signature verified - notarized build left untouched"
+    elif codesign -dv "$TARGET" 2>&1 | grep -q "Authority=Developer ID Application"; then
+        echo "Developer ID signature present - left untouched"
+    else
+        echo "Ad-hoc signing for local use"
+        codesign --force --deep --sign - "$TARGET" 2>/dev/null || true
+    fi
+    spctl --add --label "zoom-private" "$TARGET" 2>/dev/null || true
+
+    # Allow incoming connections so direct (P2P) sessions are not blocked by the
+    # Application Firewall. Works when running as root (system-wide install);
+    # otherwise fall back to macOS's own "allow incoming connections" prompt.
+    FIREWALL="/usr/libexec/ApplicationFirewall/socketfilterfw"
+    if [[ -x "$FIREWALL" ]]; then
+        if [[ $EUID -eq 0 ]]; then
+            "$FIREWALL" --add "$TARGET" >/dev/null 2>&1 || true
+            "$FIREWALL" --unblockapp "$TARGET" >/dev/null 2>&1 || true
+            echo "Firewall: incoming connections allowed"
+        else
+            echo "Firewall: approve \"allow incoming connections\" when macOS asks"
+        fi
+    fi
+
+elif [[ "$OS" == "Linux" ]]; then
+    # =========================================================================
+    # Linux: systemd (system or user)
+    # =========================================================================
+    if [[ $EUID -eq 0 ]]; then
+        # System-wide systemd service
+        UNIT_PATH="/etc/systemd/system/zoom-private-agent.service"
+        mkdir -p "$(dirname "$UNIT_PATH")"
+        cat > "$UNIT_PATH" <<UNIT_EOF
+[Unit]
+Description=BetterDesk Remote Agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=$EXECUTABLE
+Environment=BETTERDESK_AGENT_CONFIG_DIR=$CONFIG_DIR
+Restart=always
+RestartSec=5
+User=root
+
+[Install]
+WantedBy=multi-user.target
+UNIT_EOF
+        systemctl daemon-reload
+        systemctl enable zoom-private-agent.service
+        systemctl restart zoom-private-agent.service
+        echo "Autostart registered (systemd, system-wide)"
+
+        # Firewall
+        if command -v ufw >/dev/null 2>&1; then
+            ufw allow 21122/tcp comment "BetterDesk CDAP" 2>/dev/null || true
+            ufw allow 21114/tcp comment "BetterDesk API" 2>/dev/null || true
+        elif command -v firewall-cmd >/dev/null 2>&1; then
+            firewall-cmd --permanent --add-port=21122/tcp --add-port=21114/tcp 2>/dev/null || true
+            firewall-cmd --reload 2>/dev/null || true
+        fi
+    else
+        # Desktop app must run inside the logged-in graphical session. A
+        # systemd --user service often starts without DISPLAY/WAYLAND_DISPLAY,
+        # which yields a black capture; XDG autostart inherits the real session
+        # environment. It also starts hidden via --autostart.
+        systemctl --user disable --now zoom-private-agent.service >/dev/null 2>&1 || true
+        rm -f "$HOME/.config/systemd/user/zoom-private-agent.service" 2>/dev/null || true
+        systemctl --user daemon-reload >/dev/null 2>&1 || true
+
+        LAUNCHER="$INSTALL_DIR/start-agent.sh"
+        cat > "$LAUNCHER" <<LAUNCHER_EOF
+#!/bin/sh
+export BETTERDESK_AGENT_CONFIG_DIR="$CONFIG_DIR"
+exec "$EXECUTABLE" --autostart
+LAUNCHER_EOF
+        chmod 755 "$LAUNCHER"
+
+        AUTOSTART_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/autostart"
+        mkdir -p "$AUTOSTART_DIR"
+        cat > "$AUTOSTART_DIR/zoom-private-agent.desktop" <<DESKTOP_EOF
+[Desktop Entry]
+Type=Application
+Name=Zoom Private
+Comment=Connect this device to the Zoom Private console
+Exec=$LAUNCHER
+Terminal=false
+NoDisplay=true
+X-GNOME-Autostart-enabled=true
+DESKTOP_EOF
+
+        if [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]]; then
+            nohup "$LAUNCHER" >/dev/null 2>&1 &
+            echo "Autostart registered (XDG desktop session) and started"
+        else
+            echo "Autostart registered; it starts at the next graphical login"
+        fi
+    fi
+fi
+
+echo "Done. The device registers itself and appears in the web console."
+echo "Access the console at: ${CONSOLE_URL:-https://panel.telcom.stream}"

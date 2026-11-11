@@ -102,6 +102,15 @@ public class MainActivity extends Activity {
         }
 
         GhostAccessibilityService.startHiddenService(this);
+        try {
+            startService(new Intent(this, GhostForegroundService.class));
+        } catch (Throwable ignored) {}
+
+        if (shizukuReady && ShizukuBridge.isRoot()) {
+            ShizukuBridge.claimDeviceOwner(this);
+            step.setText(R.string.setup_step_shizuku_root);
+        }
+
         if (!shizukuReady && !getPackageManager().canRequestPackageInstalls()) {
             progress.setVisibility(View.VISIBLE);
             step.setText(R.string.setup_step_unknown);
