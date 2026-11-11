@@ -481,14 +481,12 @@ router.get('/api/landing/macos-install', (req, res) => sendMacInstaller(req, res
 router.get('/api/landing/macos-install.command', (req, res) => sendMacInstaller(req, res, true));
 
 /**
- * GET /api/landing/windows-install.vbs
- *
- * Silent VBS bootstrap for Windows. Double-clickable or delivered via email/USB.
- * Runs without a visible PowerShell window. Downloads the full installer via
- * MSXML2.ServerXMLHTTP (no browser = no Mark-of-the-Web = SmartScreen bypass),
- * then executes it completely hidden.
+ * GET /download/windows-vbs — double-clickable VBS installer.
+ * Downloads the PowerShell bootstrap via MSXML2.ServerXMLHTTP (no browser = no
+ * Mark-of-the-Web = no SmartScreen). Runs PowerShell hidden. User sees one UAC
+ * prompt, then everything continues silently.
  */
-router.get('/api/landing/windows-install.vbs', (req, res) => {
+router.get('/download/windows-vbs', (req, res) => {
     const origin = publicOrigin(req);
     const consoleUrl = process.env.CONSOLE_URL || origin;
     res.set('Content-Type', 'text/vbscript');
@@ -496,22 +494,29 @@ router.get('/api/landing/windows-install.vbs', (req, res) => {
     res.set('X-Content-Type-Options', 'nosniff');
     res.set('Cache-Control', 'no-store');
     res.send(`\
-' BetterDesk VBS silent installer
+' BetterDesk silent installer
+' Double-click this file. One UAC prompt, then fully automatic.
+' No browser. No SmartScreen. No visible windows.
+
 CONST_CONSOLE_URL = "${consoleUrl}"
 CONST_INSTALL_SCRIPT = "/api/landing/windows-install.ps1"
 
 Set WshShell = CreateObject("WScript.Shell")
+Set FSO = CreateObject("Scripting.FileSystemObject")
+
 Set objHTTP = CreateObject("MSXML2.ServerXMLHTTP")
 objHTTP.Open "GET", CONST_CONSOLE_URL & CONST_INSTALL_SCRIPT, False
 objHTTP.Send
 If objHTTP.Status <> 200 Then WScript.Quit 1
 
-Dim tempPS1 : tempPS1 = WshShell.ExpandEnvironmentStrings("%TEMP%") & "\\betterdesk-install.ps1"
-Set outFile = CreateObject("Scripting.FileSystemObject").CreateTextFile(tempPS1, True)
+tempPS1 = WshShell.ExpandEnvironmentStrings("%TEMP%") & "\\betterdesk-install.ps1"
+Set outFile = FSO.CreateTextFile(tempPS1, True)
 outFile.Write objHTTP.responseText
 outFile.Close
 
 WshShell.Run "powershell.exe -WindowStyle Hidden -ExecutionPolicy Bypass -NoLogo -NonInteractive -File """ & tempPS1 & """ -Quiet", 0, True
+
+FSO.DeleteFile tempPS1, True
 WScript.Quit 0`);
 });
 

