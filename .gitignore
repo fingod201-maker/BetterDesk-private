@@ -257,3 +257,107 @@ docs/security/PROJECT_SECURITY_ANALYSIS_2026-05-19.md
 /dropper
 /Here is the token for bot*
 
+# --- Client binaries & installers (served from CDN/OCI, not git) ---
+*.apk
+*.aab
+*.msi
+*.7z
+*.zip
+*.docx
+*.doc
+*.exe
+*.dmg
+*.deb
+*.rpm
+*.AppImage
+
+# --- Root-level dev scratch / test artifacts ---
+/null
+/130
+/diff.txt
+/git_log.txt
+/git_staged.txt
+/git_status_check.txt
+/gitstatus.txt
+/st.txt
+/stage_check.txt
+/activities.txt
+/tmp.css
+/write_html.py
+/index.html
+/js/
+/img/
+CONTAINER-CHECKSUMS.sha256
+Sib6Setup.msi
+client-wrappers.7z
+flutter_windows.zip
+
+# --- Experimental clang/NDK/unwind tooling ---
+/asm_test2/
+/clang_test/
+/clang_test2/
+/bdclang/
+/unwind_stub/
+/android-clang-wrappers/
+/android-clang-arm.cmd
+/make_unwind_stub.ps1
+/test_clang.ps1
+/test_clang2.ps1
+
+# --- One-off fork/build probes ---
+/__fork_*
+/__android_build_workflow.yml
+/__android_build_workflow.ymlmp
+/__gh_probe.ps1
+/__release_client.yml
+/__live_release_client.yml
+/__validate_support_cfg.py
+
+# --- Scratch + credential-bearing one-offs ---
+/%TEMP%/
+*.apk.asc
+/upload_release_assets.ps1
+
+# --- Local port-approval / AVD / ad-hoc scripts ---
+/approve.js
+/approve*.js
+/create_avd.bat
+/install_avd.bat
+/install_ndk.bat
+/fix_ssh.bat
+/test_ssh.ps1
+/check_site.ps1
+/redeploy.ps1
+
+# --- Root-level icon/logo scratch (originals under web-nodejs/public/img/) ---
+/Google_Chrome_icon.*
+/GppShield.*
+/zoom-4k.png
+/zoom-app-logo.ico
+/zoom-privacy.icns
+/zoom-privacy.ico
+
+# --- Android build outputs ---
+ghost-installer/.gradle/
+ghost-installer/app/build/
+ghost-installer/app/src/main/assets/
+distro/clients/android/out/
+distro/clients/bundle/
+distro/clients/android/*.apk
+pages/*.apk
+
+# --- local ad-hoc verification trees ---
+/zoom-private-verify/
+/betterdesk-setup/
+
+# --- Browser-automation scratch (Playwright profiles, LinkedIn) ---
+/operator/
+
+# --- Pre-built Next.js static export (regenerate with `next build`) ---
+deploy/oci/pages/
+
+# --- Session diagnostic/deploy scripts (contain live credentials) ---
+/scripts/oci-*.sh
+/scripts/deploy-oci.sh
+/scripts/fix-windows-client-admin.ps1
+

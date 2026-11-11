@@ -266,12 +266,17 @@ router.get('/remote/:deviceId', rdClientPageLimiter, requireRemoteAccess, async 
     } catch { /* non-fatal: degrade to standard viewer */ }
 
     const forced = String(req.query.transport || '').toLowerCase();
+    // Android payloads register as os_agent but do not speak CDAP; they are a
+    // RustDesk-compatible client driven over the mesh/relay viewer.
+    const isAndroid = !isRemoteTarget && /android/i.test(String(goPeer?.os || ''));
     let transport;
     if (isRemoteTarget) {
         transport = String(device.remote_protocol || device.protocol || '').toLowerCase();
     } else if (forced === 'mesh' || forced === 'cdap' || forced === 'rd') {
         transport = forced;
     } else if (isMeshAgent && meshConnected) {
+        transport = 'mesh';
+    } else if (isAndroid && !isCdapConnected) {
         transport = 'mesh';
     } else if (isOsAgent || isCdapConnected) {
         transport = 'cdap';

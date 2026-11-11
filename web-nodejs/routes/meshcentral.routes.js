@@ -8,6 +8,7 @@ const { requireAuth, requirePermission } = require('../middleware/auth');
 const { rdClientPageLimiter } = require('../middleware/rateLimiter');
 const { proxyToGo } = require('../lib/goApiProxy');
 const betterdeskApi = require('../services/betterdeskApi');
+const remoteRelay = require('../services/remoteRelay');
 
 router.get('/api/mesh/status', requireAuth, async (req, res) => {
     try {
@@ -51,6 +52,14 @@ router.post('/api/mesh/devices/:id/desktop', rdClientPageLimiter, async (req, re
     const id = req.params.id;
     const meshShare = String(req.query.mesh_share || '').trim();
     const guest = String(req.query.guest || req.query.t || '').trim();
+
+    if (!meshShare && !guest) {
+        const relayState = remoteRelay.getSessionState(id);
+        if (relayState && relayState.agentConnected) {
+            const viewerUrl = '/ws/remote-viewer/' + encodeURIComponent(id);
+            return res.json({ n: viewerUrl, browser_url: viewerUrl });
+        }
+    }
 
     // Guest / mesh_share: no panel session — validate then proxy with API key
     if (meshShare || guest) {

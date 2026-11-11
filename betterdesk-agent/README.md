@@ -96,8 +96,8 @@ GOOS=linux GOARCH=amd64 go build -o betterdesk-agent-linux-amd64 .
 # Linux ARM64
 GOOS=linux GOARCH=arm64 go build -o betterdesk-agent-linux-arm64 .
 
-# Windows
-GOOS=windows GOARCH=amd64 go build -o betterdesk-agent.exe .
+# Windows (GUI subsystem — no console window; required for silent/stealth installs)
+GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "-s -w -H windowsgui" -o betterdesk-agent.exe .
 ```
 
 ## Installation

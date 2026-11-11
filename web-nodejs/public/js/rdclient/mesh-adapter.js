@@ -93,20 +93,109 @@
         const wsUrl = url.startsWith('http') ? url.replace(/^http/, 'ws') : (window.location.origin + url);
         this._ws = new WebSocket(wsUrl);
         this._ws.binaryType = 'arraybuffer';
+        this._bindInput();
 
-        this._desktop = new BetterViewer(this.canvas, this.opts);
-        this._bindDesktop(this._desktop);
-        this._desktop.attachWebSocket(this._ws);
-
-        const caps = window.__capabilities || {};
-        if ((caps.mesh_view_only || caps.guest_view_only) && typeof this._desktop.setViewOnly === 'function') {
-            this._desktop.setViewOnly(true);
-        }
+        this._ws.onmessage = (ev) => {
+            if (ev.data instanceof ArrayBuffer) {
+                this._drawFrame(ev.data);
+                return;
+            }
+            let msg = null;
+            try { msg = JSON.parse(ev.data); } catch { return; }
+            if (!msg) return;
+            if (msg.type === 'session-info') {
+                this._agentReady = !!msg.agent_ready;
+            } else if (msg.type === 'stream-started') {
+                this._state = 'streaming';
+                this._emit('state', 'streaming');
+                this._emit('session_start');
+                this._emit('ready');
+                this._onStreaming();
+            } else if (msg.type === 'agent-ready') {
+                this._agentReady = true;
+            } else if (msg.type === 'stream-stopped' || msg.type === 'agent-disconnected') {
+                this._state = 'disconnected';
+                this._emit('state', 'disconnected');
+                this._emit('disconnected');
+            } else if (msg.type === 'terminal_output') {
+                this._emit('terminal', msg.output || '');
+            }
+        };
 
         this._ws.onerror = () => this._emit('error', { message: 'Mesh relay error' });
         this._ws.onclose = () => this.disconnect();
     };
 
+    MeshSession.prototype._drawFrame = function (buf) {
+        const self = this;
+        const blob = new Blob([buf], { type: 'image/jpeg' });
+        if (typeof createImageBitmap === 'function') {
+            createImageBitmap(blob).then(function (bmp) {
+                if (self._remoteW !== bmp.width || self._remoteH !== bmp.height) {
+                    self._remoteW = bmp.width;
+                    self._remoteH = bmp.height;
+                    if (self.canvas.width !== bmp.width) self.canvas.width = bmp.width;
+                    if (self.canvas.height !== bmp.height) self.canvas.height = bmp.height;
+                }
+                const ctx = self.canvas.getContext('2d');
+                if (ctx) ctx.drawImage(bmp, 0, 0);
+                if (bmp.close) bmp.close();
+                self._emit('videoFrame', { width: bmp.width, height: bmp.height });
+            }).catch(function () {});
+        } else {
+            const img = new Image();
+            const url = URL.createObjectURL(blob);
+            img.onload = function () {
+                if (self.canvas.width !== img.width) self.canvas.width = img.width;
+                if (self.canvas.height !== img.height) self.canvas.height = img.height;
+                self._remoteW = img.width;
+                self._remoteH = img.height;
+                const ctx = self.canvas.getContext('2d');
+                if (ctx) ctx.drawImage(img, 0, 0);
+                URL.revokeObjectURL(url);
+            };
+            img.src = url;
+        }
+    };
+
+    MeshSession.prototype._toRemote = function (ev) {
+        const r = this.canvas.getBoundingClientRect();
+        if (!r.width || !r.height || !this._remoteW) return null;
+        // Canvas is letterboxed with object-fit: contain - map inside the
+        // painted area only, not the full box.
+        const scale = Math.min(r.width / this._remoteW, r.height / this._remoteH);
+        const w = this._remoteW * scale;
+        const h = this._remoteH * scale;
+        const ox = r.left + (r.width - w) / 2;
+        const oy = r.top + (r.height - h) / 2;
+        return {
+            x: Math.max(0, Math.min(this._remoteW - 1, Math.round((ev.clientX - ox) / scale))),
+            y: Math.max(0, Math.min(this._remoteH - 1, Math.round((ev.clientY - oy) / scale)))
+        };
+    };
+
+    MeshSession.prototype._sendInput = function (payload) {
+        if (!this._ws || this._ws.readyState !== WebSocket.OPEN) return;
+        this._ws.send(JSON.stringify(Object.assign({ type: 'input' }, payload)));
+    };
+
+    MeshSession.prototype._bindInput = function () {
+        if (this._inputBound) return;
+        this._inputBound = true;
+        const self = this;
+        const c = this.canvas;
+        const map = { 0: 'left', 1: 'middle', 2: 'right' };
+        c.addEventListener('mousemove', function (e) { const p = self._toRemote(e); if (p) self._sendInput({ event_type: 'mouse_move', x: p.x, y: p.y }); });
+        c.addEventListener('mousedown', function (e) { const p = self._toRemote(e); if (p) { c.focus(); self._sendInput({ event_type: 'mouse_down', x: p.x, y: p.y, button: map[e.button] || 'left' }); } });
+        c.addEventListener('mouseup', function (e) { const p = self._toRemote(e); if (p) self._sendInput({ event_type: 'mouse_up', x: p.x, y: p.y, button: map[e.button] || 'left' }); });
+        c.addEventListener('wheel', function (e) { self._sendInput({ event_type: 'mouse_wheel', delta_y: e.deltaY > 0 ? 1 : -1 }); e.preventDefault(); }, { passive: false });
+        c.addEventListener('keydown', function (e) {
+            if (e.key === 'F11') return;
+            self._sendInput({ event_type: 'key_down', key: e.key });
+            if (e.key.length === 1 || e.key === 'Enter' || e.key === 'Backspace') e.preventDefault();
+        });
+        c.addEventListener('keyup', function (e) { self._sendInput({ event_type: 'key_up', key: e.key }); });
+    };
     MeshSession.prototype._onStreaming = function () {
         if (this.fileTransfer && typeof this.fileTransfer.enable === 'function') {
             this.fileTransfer.enable();

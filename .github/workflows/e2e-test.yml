@@ -1,0 +1,188 @@
+# =============================================================================
+# BetterDesk — End-to-End Agent Connection Test
+# =============================================================================
+# Spins up the Go server + web console locally, builds the Go sidecar agent,
+# registers it against the live server, and verifies the device appears online
+# in the server health/stats endpoint.
+#
+# This validates the full protocol path the Tauri agent uses:
+#   registration → heartbeat → peer list → CDAP sidecar connection.
+#
+# Runs on: push to main, workflow_dispatch
+# =============================================================================
+
+name: E2E Agent Connection Test
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      # ---------------------------------------------------------------
+      # Build Go server
+      # ---------------------------------------------------------------
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: betterdesk-server/go.mod
+          cache: true
+
+      - name: Build BetterDesk Go server
+        working-directory: betterdesk-server
+        run: |
+          env CGO_ENABLED=0 go build -o /tmp/betterdesk-server -ldflags="-s -w" .
+          /tmp/betterdesk-server --version
+
+      # ---------------------------------------------------------------
+      # Build web console (Node.js) — needed for the full stack, but
+      # the E2E assertion uses the Go API directly.
+      # ---------------------------------------------------------------
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'npm'
+          cache-dependency-path: web-nodejs/package-lock.json
+
+      - name: Install web console dependencies
+        working-directory: web-nodejs
+        run: npm ci --no-audit --no-fund
+
+      # ---------------------------------------------------------------
+      # Build Go sidecar agent
+      # ---------------------------------------------------------------
+      - name: Build Go sidecar agent (linux-amd64)
+        working-directory: betterdesk-agent
+        run: |
+          env CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+            go build -o /tmp/betterdesk-agent -ldflags="-s -w" .
+          /tmp/betterdesk-agent --version
+
+      # ---------------------------------------------------------------
+      # Start server (background)
+      # ---------------------------------------------------------------
+      - name: Start BetterDesk server
+        run: |
+          mkdir -p /tmp/bd-e2e
+          cd /tmp/bd-e2e
+          # Use open enrollment mode so the agent can auto-register
+          env DB_URL="./db_v2.sqlite3" \
+            PORT=21116 API_PORT=21114 RELAY_PORT=21117 \
+            ENROLLMENT_MODE=open \
+            INIT_ADMIN_USER=e2e \
+            INIT_ADMIN_PASS=e2e-pass \
+            nohup /tmp/betterdesk-server -mode all > server.log 2>&1 &
+          echo $! > server.pid
+          echo "Server PID: $(cat server.pid)"
+
+      - name: Wait for server to be ready
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:21114/api/health >/dev/null 2>&1; then
+              echo "Server is ready on :21114"
+              curl -s http://127.0.0.1:21114/api/health | head -c 500
+              echo
+              exit 0
+            fi
+            echo "Waiting for server... ($i/30)"
+            sleep 2
+          done
+          echo "ERROR: Server did not become ready" >&2
+          cat /tmp/bd-e2e/server.log >&2 || true
+          exit 1
+
+      # ---------------------------------------------------------------
+      # Register agent against the live server
+      # ---------------------------------------------------------------
+      - name: Run sidecar agent and register
+        working-directory: /tmp/bd-e2e
+        run: |
+          # Log in as the bootstrapped admin (INIT_ADMIN_USER/PASS) and mint a
+          # real API key for CDAP auth — the server rejects unknown keys.
+          LOGIN_RESPONSE=$(curl -s -X POST http://127.0.0.1:21114/api/auth/login \
+            -H 'Content-Type: application/json' \
+            -d '{"username":"e2e","password":"e2e-pass"}' || true)
+          ADMIN_TOKEN=$(echo "$LOGIN_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('token',''))" 2>/dev/null || echo "")
+          echo "Admin login: ${#ADMIN_TOKEN}-char token"
+
+          API_KEY=""
+          if [ -n "$ADMIN_TOKEN" ]; then
+            KEY_RESPONSE=$(curl -s -X POST http://127.0.0.1:21114/api/keys \
+              -H 'Content-Type: application/json' \
+              -H "Authorization: Bearer $ADMIN_TOKEN" \
+              -d '{"name":"e2e-agent","role":"admin"}' || true)
+            API_KEY=$(echo "$KEY_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('key',''))" 2>/dev/null || echo "")
+          fi
+
+          if [ -n "$API_KEY" ]; then
+            AGENT_AUTH="-auth api_key -key $API_KEY"
+            echo "Using minted API key (${#API_KEY} chars)"
+          else
+            AGENT_AUTH="-auth user_password -user e2e -pass e2e-pass"
+            echo "API key mint failed - falling back to admin user/password CDAP auth"
+          fi
+
+          nohup /tmp/betterdesk-agent \
+            -server ws://127.0.0.1:21122/cdap \
+            $AGENT_AUTH \
+            -device-id e2e-device-01 \
+            -device-name E2E-Test-Device \
+            -device-type os_agent \
+            -log-level debug > agent.log 2>&1 &
+          echo $! > agent.pid
+          echo "Agent PID: $(cat agent.pid)"
+          printf '%s' "$ADMIN_TOKEN" > admin.token
+
+      - name: Wait for agent to register and appear online
+        working-directory: /tmp/bd-e2e
+        run: |
+          AUTH="Authorization: Bearer $(cat admin.token)"
+          for i in $(seq 1 30); do
+            LIST=$(curl -sf http://127.0.0.1:21114/api/cdap/devices -H "$AUTH" 2>/dev/null || echo '{"total":0}')
+            TOTAL=$(echo "$LIST" | python3 -c "import sys,json; print(json.load(sys.stdin).get('total',0))" 2>/dev/null || echo "0")
+            echo "Poll $i/30: cdap device total=$TOTAL"
+            if [ "$TOTAL" -ge 1 ] 2>/dev/null; then
+              echo "Agent registered and online!"
+              echo "$LIST" | head -c 1000
+              echo
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "ERROR: Agent did not register within timeout" >&2
+          echo "=== Server log ===" >&2
+          tail -50 /tmp/bd-e2e/server.log >&2 || true
+          echo "=== Agent log ===" >&2
+          tail -50 /tmp/bd-e2e/agent.log >&2 || true
+          exit 1
+
+      # ---------------------------------------------------------------
+      # Verify peer detail via API
+      # ---------------------------------------------------------------
+      - name: Verify peer detail via API
+        run: |
+          curl -s -w '\nHTTP %{http_code}\n' -N http://127.0.0.1:21114/api/cdap/devices/e2e-device-01 \
+            -H "Authorization: Bearer $(cat /tmp/bd-e2e/admin.token)" -o /tmp/bd-e2e/peer.out || true
+          cat /tmp/bd-e2e/peer.out
+          python3 -c "import json; d=json.load(open('/tmp/bd-e2e/peer.out')); assert d.get('device_id')=='e2e-device-01' or d.get('id')=='e2e-device-01', 'device_id mismatch'; print('E2E test PASSED: device registered and queryable')"
+
+      # ---------------------------------------------------------------
+      # Cleanup
+      # ---------------------------------------------------------------
+      - name: Stop agent and server
+        if: always()
+        run: |
+          if [ -f /tmp/bd-e2e/agent.pid ]; then kill "$(cat /tmp/bd-e2e/agent.pid)" 2>/dev/null || true; fi
+          if [ -f /tmp/bd-e2e/server.pid ]; then kill "$(cat /tmp/bd-e2e/server.pid)" 2>/dev/null || true; fi
+          pkill -f betterdesk-agent 2>/dev/null || true
+          pkill -f betterdesk-server 2>/dev/null || true

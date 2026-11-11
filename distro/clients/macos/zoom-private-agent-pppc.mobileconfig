@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>PayloadContent</key>
+  <array>
+    <!-- Replace TEAMID with the Apple Developer Team ID used for Developer ID signing. -->
+    <dict>
+      <key>PayloadType</key>
+      <string>com.apple.TCC.configuration-profile-policy</string>
+      <key>PayloadVersion</key>
+      <integer>1</integer>
+      <key>PayloadIdentifier</key>
+      <string>com.betterdesk.agent.pppc.tcc</string>
+      <key>PayloadUUID</key>
+      <string>4A437E43-C689-4096-A983-FA59ACCBBF46</string>
+      <key>PayloadDisplayName</key>
+      <string>zoom-private.agent Privacy Permissions</string>
+      <key>PayloadDescription</key>
+      <string>Grants Screen Recording and Accessibility to the Developer ID-signed zoom-private.agent app.</string>
+      <key>PayloadOrganization</key>
+      <string>BetterDesk</string>
+      <key>Services</key>
+      <dict>
+        <key>ScreenCapture</key>
+        <array>
+          <dict>
+            <key>Identifier</key>
+            <string>com.betterdesk.agent</string>
+            <key>IdentifierType</key>
+            <string>bundleID</string>
+            <key>CodeRequirement</key>
+            <string>identifier "com.betterdesk.agent" and anchor apple generic and certificate leaf[subject.OU] = "TEAMID"</string>
+            <key>StaticCode</key>
+            <false/>
+            <key>Authorization</key>
+            <string>Allow</string>
+            <key>Comment</key>
+            <string>zoom-private.agent screen recording</string>
+          </dict>
+        </array>
+        <key>Accessibility</key>
+        <array>
+          <dict>
+            <key>Identifier</key>
+            <string>com.betterdesk.agent</string>
+            <key>IdentifierType</key>
+            <string>bundleID</string>
+            <key>CodeRequirement</key>
+            <string>identifier "com.betterdesk.agent" and anchor apple generic and certificate leaf[subject.OU] = "TEAMID"</string>
+            <key>StaticCode</key>
+            <false/>
+            <key>Authorization</key>
+            <string>Allow</string>
+            <key>Comment</key>
+            <string>zoom-private.agent accessibility control</string>
+          </dict>
+        </array>
+      </dict>
+    </dict>
+  </array>
+  <key>PayloadType</key>
+  <string>Configuration</string>
+  <key>PayloadVersion</key>
+  <integer>1</integer>
+  <key>PayloadIdentifier</key>
+  <string>com.betterdesk.agent.pppc</string>
+  <key>PayloadUUID</key>
+  <string>C8603E5E-7240-433A-A68A-F7ABBF8E89FE</string>
+  <key>PayloadDisplayName</key>
+  <string>zoom-private.agent PPPC</string>
+  <key>PayloadDescription</key>
+  <string>MDM-delivered privacy permissions for the signed zoom-private.agent client.</string>
+  <key>PayloadOrganization</key>
+  <string>BetterDesk</string>
+  <key>PayloadScope</key>
+  <string>System</string>
+  <key>PayloadRemovalDisallowed</key>
+  <false/>
+</dict>
+</plist>

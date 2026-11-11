@@ -1,0 +1,25 @@
+[Unit]
+Description=BetterDesk Nginx Reverse Proxy (SSL termination)
+Documentation=https://github.com/unitronix/BetterDesk
+After=network-online.target betterdesk-landing.service betterdesk-console.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStartPre=/usr/sbin/nginx -t
+ExecStart=/usr/sbin/nginx -g 'daemon off;'
+ExecReload=/usr/sbin/nginx -s reload
+ExecStop=/usr/sbin/nginx -s quit
+Restart=always
+RestartSec=5
+# Security hardening
+NoNewPrivileges=true
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE CAP_CHOWN CAP_SETUID CAP_SETGID CAP_FOWNER
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+ProtectSystem=strict
+ReadWritePaths=/var/log/nginx /var/lib/letsencrypt /var/www/certbot
+
+[Install]
+WantedBy=multi-user.target

