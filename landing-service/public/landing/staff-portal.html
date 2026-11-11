@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BetterDesk — Staff Portal</title>
+<style>
+  body { font-family: system-ui, -apple-system, sans-serif; max-width: 720px; margin: 40px auto; padding: 0 16px; line-height: 1.6; color: #1f2937; }
+  h1 { font-size: 24px; margin-bottom: 8px; }
+  .badge { display: inline-block; background: #10b981; color: #fff; padding: 2px 10px; border-radius: 999px; font-size: 12px; margin-left: 8px; }
+  .card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px; margin: 24px 0; background: #fff; }
+  .btn { display: inline-block; background: #2563eb; color: #fff; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; margin: 8px 8px 8px 0; }
+  .btn:hover { background: #1d4ed8; }
+  .btn-secondary { background: #6b7280; }
+  .btn-secondary:hover { background: #4b5563; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin: 20px 0; }
+  .os-card { border: 1px solid #e5e7eb; border-radius: 10px; padding: 16px; }
+  .os-card h3 { margin-top: 0; font-size: 16px; }
+  code { background: #f3f4f6; padding: 2px 6px; border-radius: 4px; font-family: ui-monospace, SFMono-Regular, monospace; }
+  .warn { color: #b45309; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<h1>BetterDesk <span class="badge">LIVE</span></h1>
+<p>Organization remote access portal. Download the agent for your device and get online support.</p>
+
+<div class="card">
+  <h2 style="margin-top:0">Quick Install</h2>
+  <p>The page detects your OS automatically. Choose your platform:</p>
+  <div class="grid">
+    <div class="os-card">
+      <h3>🪟 Windows</h3>
+      <a class="btn" href="/download/windows">Download .exe / .msi</a>
+    </div>
+    <div class="os-card">
+      <h3>🍎 macOS</h3>
+      <a class="btn" href="/download/macos">Download .dmg</a>
+    </div>
+    <div class="os-card">
+      <h3>🐧 Linux</h3>
+      <a class="btn" href="/download/linux">Download .deb / .AppImage</a>
+    </div>
+    <div class="os-card">
+      <h3>🤖 Android</h3>
+      <a class="btn btn-secondary" href="/download/android">Download .apk</a>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <h2 style="margin-top:0">IT Admin Console</h2>
+  <p>Authorized IT staff can view enrolled devices and start remote-control sessions from the browser.</p>
+  <a class="btn" href="https://panel.telcom.stream" target="_blank" rel="noopener">Open Admin Console →</a>
+</div>
+
+<div class="card">
+  <h2 style="margin-top:0">Security</h2>
+  <p>All connections are encrypted (HTTPS/WSS). Remote sessions require user consent unless unattended mode is enabled by your IT admin. Every session is audit-logged.</p>
+</div>
+
+<p class="warn">Need help? Contact your IT helpdesk or email ops@telcom.stream.</p>
+
+</body>
+</html>

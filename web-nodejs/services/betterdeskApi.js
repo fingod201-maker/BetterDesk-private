@@ -768,7 +768,9 @@ function normalisePeer(peer) {
         // :21116 — don't show "No signal" when CDAP is connected.
         no_signal: !liveOnline && !banned && isRecentLastOnline(lastOnline)
             && !(peer.device_type === 'os_agent' && peer.cdap_connected)
-            && !(peer.device_type === 'mesh_agent' && peer.mesh_connected),
+            && !(peer.device_type === 'mesh_agent' && peer.mesh_connected)
+            && !(peer.device_type === 'bd_client' && peer.relay_connected)
+            && !peer.relay_connected,
         created_at: peer.created_at || '',
         last_online: lastOnline,
         ban_reason: peer.ban_reason || '',

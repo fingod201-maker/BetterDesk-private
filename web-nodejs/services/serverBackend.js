@@ -14,6 +14,12 @@ const config = require('../config/config');
 const db = require('./database');
 const betterdeskApi = require('./betterdeskApi');
 
+let bdRelay = null;
+try { bdRelay = require('./bdRelay'); } catch (_) {}
+
+let remoteRelay = null;
+try { remoteRelay = require('./remoteRelay'); } catch (_) {}
+
 /**
  * Return the active backend name: always 'betterdesk'
  */
@@ -81,6 +87,40 @@ async function getAllDevices(filters = {}) {
             })
             : [];
         peers = peers.concat(remoteTargets);
+
+        // Merge bdRelay-connected devices that may not be in the Go peer map.
+        // Android/edge clients register via the bd-signal WebSocket but often
+        // do not (or cannot) maintain a RustDesk UDP signal heartbeat, so the
+        // Go server peer table never sees them.
+        if (bdRelay && typeof bdRelay.getOnlineDeviceIds === 'function') {
+            try {
+                const existingIds = new Set(peers.map(p => p.id));
+                const relayIds = bdRelay.getOnlineDeviceIds();
+                const rl = remoteRelay && typeof remoteRelay.getSessionState === 'function'
+                    ? remoteRelay : null;
+                for (const relayId of relayIds) {
+                    if (existingIds.has(relayId)) continue;
+                    let deviceInfo = null;
+                    try { deviceInfo = await bdRelay.getDeviceInfo
+                        ? await bdRelay.getDeviceInfo(relayId) : null; } catch (_) {}
+                    const relayState = rl ? rl.getSessionState(relayId) : null;
+                    peers.push({
+                        id: relayId,
+                        hostname: deviceInfo?.hostname || relayId,
+                        platform: deviceInfo?.platform || 'android',
+                        online: true,
+                        live_online: true,
+                        status_tier: 'ONLINE',
+                        last_online: new Date().toISOString(),
+                        relay_connected: !!relayState,
+                        device_type: deviceInfo?.device_type || 'bd_client',
+                        version: deviceInfo?.version || '',
+                    });
+                }
+            } catch (err) {
+                console.error('Failed to merge bdRelay devices:', err.message);
+            }
+        }
 
         // Overlay folder_id from auth.db assignments (Go server doesn't track folders)
         try {
