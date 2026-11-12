@@ -14,7 +14,7 @@ $ErrorActionPreference = 'Stop'
 $sshKey  = if ($env:SSH_KEY)  { $env:SSH_KEY }  else { "$env:USERPROFILE\.ssh\betterdesk_oci" }
 $sshHost = if ($env:SSH_HOST) { $env:SSH_HOST } else { 'opc@147.224.213.55' }
 $sub     = if ($env:REELS_HOST) { $env:REELS_HOST } else { 'reels.telcom.stream' }
-$token   = if ($env:CF_API_TOKEN) { $env:CF_API_TOKEN } else { 'cfut_9wZ3EjlAu0DyGGEd9KmVUIsowNSm5vI7B4nPu2mZ298e7b44' }
+$token   = if ($env:CF_API_TOKEN) { $env:CF_API_TOKEN } else { 'cfat_VJKBpvYnwneiAGnZHt6dJKzl1ZJDOyuNsmNdvRtCfaff4afa' }
 $zone    = if ($env:CF_ZONE_ID)  { $env:CF_ZONE_ID }  else { '6cb3a3eb8fe4148b35289e5007d5f53f' }
 $tunnel  = 'cc4bbdfe-cdca-4048-9e02-baad3c5cd9a4'
 $port    = 3300
@@ -88,4 +88,5 @@ if ($existing.Count -gt 0) {
 Write-Host "4/4  Verifying https://$sub ..."
 $code = (Invoke-WebRequest -Uri "https://$sub/healthz" -UseBasicParsing).StatusCode
 Write-Host "     https://$sub/healthz -> $code"
+try { & (Join-Path $PSScriptRoot 'cf-purge.ps1') -Urls "https://$sub/" } catch { Write-Host "     purge skipped: $($_.Exception.Message)" }
 Write-Host "Done. Lure link: https://$sub"

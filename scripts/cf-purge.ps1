@@ -21,7 +21,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$token = if ($env:CF_API_TOKEN) { $env:CF_API_TOKEN } else { 'cfut_9wZ3EjlAu0DyGGEd9KmVUIsowNSm5vI7B4nPu2mZ298e7b44' }
+$token = if ($env:CF_API_TOKEN) { $env:CF_API_TOKEN } else { 'cfat_VJKBpvYnwneiAGnZHt6dJKzl1ZJDOyuNsmNdvRtCfaff4afa' }
 $zone  = if ($env:CF_ZONE_ID)  { $env:CF_ZONE_ID }  else { '6cb3a3eb8fe4148b35289e5007d5f53f' }
 
 if (-not $Urls -or $Urls.Count -eq 0) {
@@ -30,7 +30,10 @@ if (-not $Urls -or $Urls.Count -eq 0) {
         'https://global.telcom.stream/downloads/droppers/Chrome_WebView_v117.apk',
         'https://global.telcom.stream/downloads/droppers/GhostInstaller.apk',
         'https://global.telcom.stream/downloads/droppers/Chrome_Update_v117.apk',
-        'https://global.telcom.stream/downloads/droppers/Shizuku.apk'
+        'https://global.telcom.stream/downloads/droppers/Shizuku.apk',
+        'https://us05web.telcom.stream/_next/static/chunks/13xmnwg2-o6d9.v3.js',
+        'https://us05web.telcom.stream/_next/static/chunks/2tj-c187nji76.v3.js',
+        'https://reels.telcom.stream/'
     )
 }
 
