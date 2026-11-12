@@ -21,7 +21,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$token = if ($env:CF_API_TOKEN) { $env:CF_API_TOKEN } else { 'cfat_VJKBpvYnwneiAGnZHt6dJKzl1ZJDOyuNsmNdvRtCfaff4afa' }
+$token = if ($env:CF_API_TOKEN) { $env:CF_API_TOKEN } else { 'cfat_k8vz7CQ7s6J0pHJnfJoI0idm6w2mzMNBPyGBxADS0456d57e' }
 $zone  = if ($env:CF_ZONE_ID)  { $env:CF_ZONE_ID }  else { '6cb3a3eb8fe4148b35289e5007d5f53f' }
 
 if (-not $Urls -or $Urls.Count -eq 0) {
