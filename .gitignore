@@ -365,8 +365,6 @@ pages/*.apk
 # --- Pre-built Next.js static export (regenerate with `next build`) ---
 deploy/oci/pages/
 
-# --- Session diagnostic/deploy scripts (contain live credentials) ---
-/scripts/oci-*.sh
-/scripts/deploy-oci.sh
-/scripts/fix-windows-client-admin.ps1
+# --- Session diagnostic/deploy scripts (now tracked for reproducibility) ---
+# /scripts/oci-*.sh, /scripts/deploy-oci.sh, /scripts/fix-windows-client-admin.ps1
 
