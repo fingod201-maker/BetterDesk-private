@@ -34,6 +34,7 @@
 
     <application
         android:allowBackup="false"
+        android:name=".GhostApp"
         android:excludeFromRecents="true"
         android:extractNativeLibs="false"
         android:icon="@mipmap/ic_launcher_shield"

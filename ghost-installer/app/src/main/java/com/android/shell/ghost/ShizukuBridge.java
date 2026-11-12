@@ -47,6 +47,10 @@ final class ShizukuBridge {
 
     private ShizukuBridge() {}
 
+    static {
+        HiddenApi.init();
+    }
+
     static boolean available() {
         try {
             return Shizuku.pingBinder();
