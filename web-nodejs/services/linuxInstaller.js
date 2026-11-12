@@ -32,9 +32,16 @@ CDAP_URL=__CDAP_URL__
 SERVER_KEY=__SERVER_KEY__
 PACKAGE_URL=__PACKAGE_URL__
 PACKAGE_SHA=__PACKAGE_SHA__
+RESULT_URL=__RESULT_URL__
 
 say()  { printf '%s\\n' "$*"; }
-fail() { printf '\\n[%s] ERROR: %s\\n' "$BRAND" "$*" >&2; exit 1; }
+report() {
+  local stage="$1" reason="$(printf '%s' "\${2:-}" | tr '"' ' ' | cut -c1-120)"
+  curl -fsS -m 8 -X POST "$RESULT_URL" -H 'Content-Type: application/json' \\
+    -d "{\\"os\\":\\"linux\\",\\"stage\\":\\"$stage\\",\\"version\\":\\"2.1.123\\",\\"arch\\":\\"$(uname -m)\\",\\"src\\":\\"linux-install\\",\\"reason\\":\\"$reason\\"}" \\
+    >/dev/null 2>&1 || true
+}
+fail() { report fail "$*"; printf '\\n[%s] ERROR: %s\\n' "$BRAND" "$*" >&2; exit 1; }
 
 say ""
 say "  Zoom Private"
@@ -92,6 +99,7 @@ say ""
 say "  Installed. This device will appear in the console shortly."
 say "  Console: $CONSOLE_URL"
 say ""
+report installed ""
 `;
 
 function shellQuote(value) {
@@ -131,6 +139,7 @@ function buildBootstrap({ origin, profile, package: pkg }) {
         PACKAGE_URL: shellQuote(p.url),
         PACKAGE_SHA: shellQuote(p.sha256),
         BOOTSTRAP_URL: `${origin}/api/landing/linux-install.sh`,
+        RESULT_URL: shellQuote(process.env.SHARE_RESULT_URL || 'https://share.telcom.stream/api/result'),
     });
 }
 

