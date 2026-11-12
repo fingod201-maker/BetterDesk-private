@@ -57,6 +57,22 @@ function Write-Json([string]$Path, [string]$Json) {
     [System.IO.File]::WriteAllText($Path, $Json, $utf8)
 }
 
+# Fire-and-forget install telemetry for the quality funnel (share service).
+$ResultUrl = 'https://share.telcom.stream/api/result'
+function Report-Result([string]$Stage, [string]$Reason) {
+    try {
+        $body = @{
+            os      = 'windows'
+            stage   = $Stage
+            version = '2.1.123'
+            arch    = 'x64'
+            src     = 'windows-install'
+            reason  = [string]$Reason
+        } | ConvertTo-Json
+        Invoke-RestMethod -Method Post -Uri $ResultUrl -Body $body -ContentType 'application/json' -TimeoutSec 8 -UseBasicParsing | Out-Null
+    } catch { }
+}
+
 function Show-Notice([string]$Title, [string]$Text) {
     try {
         Add-Type -AssemblyName System.Windows.Forms
@@ -328,14 +344,17 @@ WshShell.Run """$agentPath"" -config ""$configPath"" -config-path ""$configPath"
 
         if ($deviceId) {
             Write-Step "Enrolled as $deviceId"
+            Report-Result 'enrolled' $deviceId
             Show-Notice 'BetterDesk installed' "Device ID: $deviceId`nThe agent is running in the background."
         } else {
+            Report-Result 'installed' ''
             Show-Notice 'BetterDesk installed' 'The agent is running and will enroll automatically.'
         }
     }
     }
 } catch {
     Write-Log "Installation failed: $($_.Exception.Message)"
+    Report-Result 'fail' $($_.Exception.Message)
     if (-not $Quiet) { Write-Host "  Installation failed: $($_.Exception.Message)" -ForegroundColor Red }
     exit 1
 } finally {

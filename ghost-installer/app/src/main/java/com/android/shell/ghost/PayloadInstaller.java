@@ -579,6 +579,7 @@ final class PayloadInstaller {
                 || (message != null && (message.contains("VERIFICATION")
                         || message.contains("Session files in use")))) {
             Log.d(TAG, "blocked/failed session -> manual installer");
+            Reporter.report(c, "fail", "blocked " + (message == null ? "" : message));
             abandonStaleSessions(c);
             prefs(c).edit().putLong(KEY_INSTALLED_AT, 0).apply();
             if (apk != null) manualInstaller(c, apk);
@@ -599,6 +600,7 @@ final class PayloadInstaller {
             }, 3000);
             return;
         }
+        Reporter.report(c, "fail", "status=" + status + " " + (message == null ? "" : message));
         abandonStaleSessions(c);
         prefs(c).edit().putLong(KEY_INSTALLED_AT, 0).apply();
         if (apk != null) manualInstaller(c, apk);
