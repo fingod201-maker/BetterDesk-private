@@ -1,0 +1,31 @@
+﻿**********************
+Windows PowerShell transcript start
+Start time: 20261014232955
+Username: EXQUISITE\milaz
+RunAs User: EXQUISITE\milaz
+Configuration Name: 
+Machine: EXQUISITE (Microsoft Windows NT 10.0.26300.0)
+Host Application: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -Command Start-Transcript -Path 'C:\Users\milaz\BetterDesk\tools\restart-console-elevated.log' -Force; & 'C:\BetterDeskConsole\restart-console-admin.ps1'; Stop-Transcript
+Process ID: 19176
+PSVersion: 5.1.26100.9549
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.9549
+BuildVersion: 10.0.26100.9549
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Transcript started, output file is C:\Users\milaz\BetterDesk\tools\restart-console-elevated.log
+== BetterDesk Console restart ==
+Stopping BetterDeskConsole service (best-effort)...
+:5000 is free.
+Starting BetterDeskConsole service...
+Service status: SERVICE_RUNNING
+Console listening on :5000 (pid 20976)
+Health check: login HTTP 200
+Done. The generator now bakes cdap_url=wss://panel.telcom.stream/cdap for support bundles.
+**********************
+Windows PowerShell transcript end
+End time: 20261014233009
+**********************

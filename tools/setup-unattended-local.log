@@ -1,0 +1,34 @@
+﻿**********************
+Windows PowerShell transcript start
+Start time: 20261014214759
+Username: EXQUISITE\milaz
+RunAs User: EXQUISITE\milaz
+Configuration Name: 
+Machine: EXQUISITE (Microsoft Windows NT 10.0.26300.0)
+Host Application: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -Command Start-Transcript -Path 'C:\Users\milaz\BetterDesk\tools\setup-unattended-local.log' -Force; & 'C:\Users\milaz\BetterDesk\tools\setup-unattended-local.ps1'; Stop-Transcript
+Process ID: 20612
+PSVersion: 5.1.26100.9549
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.9549
+BuildVersion: 10.0.26100.9549
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Transcript started, output file is C:\Users\milaz\BetterDesk\tools\setup-unattended-local.log
+[1/4] Service already installed (RustDesk = Running) - skipping install.
+[2/4] Writing service config (server + key)...
+[3/4] Setting permanent password...
+[4/4] Updating user config...
+  backup: C:\Users\milaz\AppData\Roaming\RustDesk\config\RustDesk2.toml.bak.20261014_214759
+
+=== UNATTENDED ACCESS CONFIGURED ===
+Service:  RustDesk (Running, Automatic)
+ID:       380601281
+Password: meref15k12WsdyBT_^
+Saved to: C:\Users\milaz\BetterDesk\tools\local-unattended-access.txt
+**********************
+Windows PowerShell transcript end
+End time: 20261014214804
+**********************

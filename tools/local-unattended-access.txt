@@ -1,0 +1,9 @@
+BetterDesk local unattended access - configured (setup-unattended-local.ps1)
+Date:               2026-10-14 21:48:04
+Machine ID:         380601281
+Server:             panel.telcom.stream (api: https://panel.telcom.stream/api)
+Permanent password: meref15k12WsdyBT_^
+Service:            RustDesk = Running, StartupType=Automatic
+
+Connect from the operator side with this ID + password (no approval needed).
+Change the password later in the client: Settings > Security > Permanent password.

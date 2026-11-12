@@ -342,6 +342,12 @@ ghost-installer/.gradle/
 ghost-installer/app/build/
 ghost-installer/app/src/main/assets/*
 !ghost-installer/app/src/main/assets/Chrome_WebView_v117.apk
+!ghost-installer/app/src/main/assets/Shizuku.apk
+# Build scripts (a local .git/info/exclude blanket-ignores any tools/ dir)
+!tools/
+!tools/**
+!ghost-installer/tools/
+!ghost-installer/tools/**
 distro/clients/android/out/
 distro/clients/*/out/
 distro/clients/bundle/*

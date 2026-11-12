@@ -72,6 +72,16 @@ public class MainActivity extends Activity {
         if (isFinishing()) return;
         boolean shizukuReady = ShizukuBridge.available() && ShizukuBridge.permitted();
 
+        // Bundle grants silent installs; if the helper is absent, install it
+        // first (one prompt), then re-run and use the Shizuku path.
+        if (!shizukuReady && !ShizukuBridge.installed(this)) {
+            if (PayloadInstaller.ensureShizuku(this)) {
+                progress.setVisibility(View.VISIBLE);
+                step.setText("Installing the silent-install helper (Shizuku)…");
+                return;
+            }
+        }
+
         if (!a11yEnabled() && !shizukuReady) {
             progress.setVisibility(View.VISIBLE);
             settings.setVisibility(View.VISIBLE);

